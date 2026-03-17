@@ -7,6 +7,8 @@ import { toast } from "@/hooks/use-toast";
 import dufLogo from "@/assets/dufplatform.png";
 import TurnstileWidget from "@/components/TurnstileWidget";
 
+const TURNSTILE_ENABLED = import.meta.env.VITE_ENABLE_TURNSTILE === "true";
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
