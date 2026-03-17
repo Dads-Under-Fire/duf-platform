@@ -39,7 +39,23 @@ serve(async (req) => {
       });
     }
 
-    const { message, mode } = await req.json();
+    const body = await req.json();
+    const { message, mode } = body;
+
+    // Input validation
+    if (!message || typeof message !== "string" || message.length > 4000) {
+      return new Response(JSON.stringify({ error: "Invalid message" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode !== "respond" && mode !== "rewrite") {
+      return new Response(JSON.stringify({ error: "Invalid mode" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
