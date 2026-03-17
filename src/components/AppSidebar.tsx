@@ -36,6 +36,11 @@ const navItems = [
   },
 ];
 
+function formatNumber(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return String(n);
+}
+
 export function AppSidebar() {
   const { signOut } = useAuth();
   const { profile, usage, limits } = useProfile();
@@ -43,6 +48,14 @@ export function AppSidebar() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const collapsed = state === "collapsed";
+
+  const evidenceUsed = limits.evidence_uses_words
+    ? (usage?.evidence_words_used ?? 0)
+    : (usage?.evidence_analyses_used ?? 0);
+  const evidenceLimit = limits.evidence_uses_words
+    ? limits.evidence_words
+    : limits.evidence_analyses;
+  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -97,26 +110,30 @@ export function AppSidebar() {
               <p className="text-xs text-muted-foreground">Message Rewrites</p>
               <p className="text-xs">
                 <span className="text-primary font-bold">{usage?.message_rewrites_used ?? 0}</span>
-                <span className="text-muted-foreground"> / {limits.message_rewrites} used</span>
+                <span className="text-muted-foreground">
+                  {limits.unlimited_rewrites ? " / ∞" : ` / ${limits.message_rewrites}`} used
+                </span>
               </p>
-              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(((usage?.message_rewrites_used ?? 0) / limits.message_rewrites) * 100, 100)}%` }}
-                />
-              </div>
+              {!limits.unlimited_rewrites && (
+                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.min(((usage?.message_rewrites_used ?? 0) / limits.message_rewrites) * 100, 100)}%` }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Evidence Analyses</p>
+              <p className="text-xs text-muted-foreground">{evidenceLabel}</p>
               <p className="text-xs">
-                <span className="text-primary font-bold">{usage?.evidence_analyses_used ?? 0}</span>
-                <span className="text-muted-foreground"> / {limits.evidence_analyses} used</span>
+                <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
+                <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)} used</span>
               </p>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(((usage?.evidence_analyses_used ?? 0) / limits.evidence_analyses) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>
