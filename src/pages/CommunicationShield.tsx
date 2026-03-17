@@ -233,7 +233,7 @@ export default function CommunicationShield() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">Court-Safe Response</h1>
+            <h1 className="text-lg font-semibold text-foreground">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h1>
           </div>
 
           {/* Scrollable content area */}
@@ -261,7 +261,7 @@ export default function CommunicationShield() {
             ) : result ? (
               <>
                 <div>
-                  <p className="font-semibold text-foreground mb-1">Court-Safe Response:</p>
+                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{result.primary_response}</p>
                 </div>
 
@@ -396,7 +396,7 @@ export default function CommunicationShield() {
                 ) : (
                   <>
                     <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite it to avoid conflict and reduce escalation.</p>
+                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
                   </>
                 )}
               </div>
@@ -569,7 +569,7 @@ export default function CommunicationShield() {
                 ) : (
                   <>
                     <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite it to avoid conflict and reduce escalation.</p>
+                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
                   </>
                 )}
               </div>
@@ -657,12 +657,12 @@ export default function CommunicationShield() {
         {/* Right panel - Court-Safe Response */}
         <div className="flex-1 p-6 flex flex-col">
           <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5">
-            <h2 className="text-lg font-semibold text-primary mb-1">Court-Safe Response</h2>
+            <h2 className="text-lg font-semibold text-primary mb-1">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
             <div className="h-px bg-border mb-3" />
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label="Primary Response" content={result.primary_response} />
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={result.primary_response} />
                 <ResponseSection label="Shorter Version" content={result.shorter_response} />
                 <ResponseSection label="Firmer Version" content={result.firmer_response} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
@@ -683,7 +683,7 @@ export default function CommunicationShield() {
               </div>
             ) : (
               <div className="flex-1 text-muted-foreground text-sm space-y-4">
-                <PlaceholderSection label="Primary Response" placeholder="[ primary response ]" />
+                <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
                 <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
                 <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
                 <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />
