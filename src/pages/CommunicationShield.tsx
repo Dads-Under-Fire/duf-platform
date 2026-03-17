@@ -577,7 +577,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Communication Context - only after message submitted */}
-          {step !== "input" && (
+          {step !== "input" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
