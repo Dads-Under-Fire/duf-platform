@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import dufLogo from "@/assets/dufplatform.png";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const handleTurnstileVerify = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +33,29 @@ export default function Auth() {
         if (error) throw error;
         navigate("/");
       } else {
+        // Verify Turnstile token server-side before signup
+        if (!turnstileToken) {
+          toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          "verify-turnstile",
+          { body: { token: turnstileToken } }
+        );
+
+        if (verifyError || !verifyData?.success) {
+          toast({
+            title: "CAPTCHA verification failed",
+            description: verifyData?.error || "Please try again.",
+            variant: "destructive",
+          });
+          setTurnstileToken(null);
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -38,12 +71,13 @@ export default function Auth() {
     }
   };
 
+  const signupDisabled = loading || (!isLogin && !turnstileToken);
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-2">
           <img src={dufLogo} alt="DUF Platform" className="h-10" />
-
           <p className="text-muted-foreground text-sm text-center">
             Documentation and communication assistance for custody disputes.
           </p>
@@ -67,7 +101,16 @@ export default function Auth() {
             minLength={6}
             className="bg-card border-border"
           />
-          <Button type="submit" className="w-full" disabled={loading}>
+
+          {!isLogin && (
+            <TurnstileWidget
+              onVerify={handleTurnstileVerify}
+              onExpire={handleTurnstileExpire}
+              onError={handleTurnstileExpire}
+            />
+          )}
+
+          <Button type="submit" className="w-full" disabled={signupDisabled}>
             {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </Button>
         </form>
@@ -75,7 +118,7 @@ export default function Auth() {
         <p className="text-center text-sm text-muted-foreground">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => { setIsLogin(!isLogin); setTurnstileToken(null); }}
             className="text-primary hover:underline"
           >
             {isLogin ? "Sign Up" : "Sign In"}
