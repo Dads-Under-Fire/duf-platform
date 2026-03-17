@@ -70,7 +70,7 @@ export default function Auth() {
     }
   };
 
-  const signupDisabled = loading || (!isLogin && !turnstileToken);
+  const submitDisabled = loading || !turnstileToken;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
