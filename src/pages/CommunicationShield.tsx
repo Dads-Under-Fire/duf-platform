@@ -396,7 +396,7 @@ export default function CommunicationShield() {
                 ) : (
                   <>
                     <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite it to avoid conflict and reduce escalation.</p>
+                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
                   </>
                 )}
               </div>
