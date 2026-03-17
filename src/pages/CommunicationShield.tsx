@@ -261,7 +261,7 @@ export default function CommunicationShield() {
             ) : result ? (
               <>
                 <div>
-                  <p className="font-semibold text-foreground mb-1">Court-Safe Response:</p>
+                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{result.primary_response}</p>
                 </div>
 
