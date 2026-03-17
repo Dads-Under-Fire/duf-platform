@@ -22,7 +22,7 @@ export function useProfile() {
     queryFn: async () => {
       if (!user) return null;
       const { data, error } = await (supabase.from as any)("profiles")
-        .from("profiles" as any)
+        
         .select("*")
         .eq("user_id", user.id)
         .single();
