@@ -1,12 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  corsHeaders,
+  jsonResponse,
+  logRequest,
+  checkRateLimit,
+  authenticateRequest,
+} from "../_shared/auth-rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
+const FN = "suggest-intents";
+const RATE_LIMIT = 20; // lighter endpoint, allow more
+const RATE_WINDOW_MS = 60_000;
 const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
 
 serve(async (req) => {
@@ -14,48 +17,34 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let userId: string | null = null;
+
   try {
-    // --- Auth check ---
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // ── 1. Auth ──
+    const auth = await authenticateRequest(req, FN).catch((res) => res as Response);
+    if (auth instanceof Response) return auth;
+    userId = auth.userId;
+
+    // ── 2. Rate limit ──
+    if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+      logRequest({ userId, functionName: FN, status: "rate_limited" });
+      return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: userData, error: userError } = await userClient.auth.getUser();
-    if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    // ── 3. Input validation ──
     const body = await req.json();
     const { message, mode } = body;
 
-    // Input validation
     if (!message || typeof message !== "string" || message.length > 4000) {
-      return new Response(JSON.stringify({ error: "Invalid message" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
+      return jsonResponse({ error: "Invalid message" }, 400);
     }
     if (mode !== "respond" && mode !== "rewrite") {
-      return new Response(JSON.stringify({ error: "Invalid mode" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
+      return jsonResponse({ error: "Invalid mode" }, 400);
     }
 
+    // ── 4. AI call ──
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -100,29 +89,25 @@ serve(async (req) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "AI gateway 429" });
+        return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        logRequest({ userId, functionName: FN, status: "error", detail: "AI gateway 402" });
+        return jsonResponse({ error: "Usage limit reached. Please add credits." }, 402);
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify(FALLBACK), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      logRequest({ userId, functionName: FN, status: "error", detail: `AI gateway ${response.status}` });
+      return jsonResponse(FALLBACK);
     }
 
     const aiData = await response.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
       console.error("No tool call in response, returning fallback");
-      return new Response(JSON.stringify(FALLBACK), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      logRequest({ userId, functionName: FN, status: "error", detail: "no tool call" });
+      return jsonResponse(FALLBACK);
     }
 
     let result: unknown;
@@ -133,13 +118,11 @@ serve(async (req) => {
       result = FALLBACK;
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+    return jsonResponse(result as Record<string, unknown>);
   } catch (e) {
     console.error("suggest-intents error:", e);
-    return new Response(JSON.stringify(FALLBACK), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
+    return jsonResponse(FALLBACK);
   }
 });
