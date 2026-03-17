@@ -657,7 +657,7 @@ export default function CommunicationShield() {
         {/* Right panel - Court-Safe Response */}
         <div className="flex-1 p-6 flex flex-col">
           <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5">
-            <h2 className="text-lg font-semibold text-primary mb-1">Court-Safe Response</h2>
+            <h2 className="text-lg font-semibold text-primary mb-1">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
             <div className="h-px bg-border mb-3" />
 
             {result ? (
