@@ -53,13 +53,49 @@ export default function CommunicationShield() {
 
     setSubmittedMessage(msg);
     setInputMessage("");
-    setStep("select-intent");
     setResult(null);
     setCommunicationContext("");
     setShowOtherInput(false);
     setOtherText("");
 
-    // On mobile, show fallback intents immediately; replace if dynamic ones arrive within 3s
+    // In rewrite mode, skip intent selection and go directly to rewrite
+    if (mode === "rewrite") {
+      setStep("result");
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("rewrite-message", {
+          body: { message: msg, mode: "rewrite" },
+        });
+        if (error) throw error;
+
+        const aiResult: AIResult = data;
+        setResult(aiResult);
+
+        await (supabase.from as any)("message_rewrites").insert({
+          user_id: user!.id,
+          original_message: msg,
+          rewritten_message: aiResult.primary_response,
+          tone_assessment: aiResult.tone_assessment,
+          risk_flags: aiResult.risk_flags,
+          mode,
+        });
+
+        await (supabase.from as any)("profiles")
+          .update({ message_rewrites_used: (profile?.message_rewrites_used ?? 0) + 1 })
+          .eq("user_id", user!.id);
+
+        refetchProfile();
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Respond mode: show intent selection
+    setStep("select-intent");
+
     if (isMobile) {
       setIntentOptions(FALLBACK_INTENTS);
       setLoadingIntents(false);
@@ -368,7 +404,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Intent options - after message submitted */}
-          {step === "select-intent" && (
+          {step === "select-intent" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
@@ -541,7 +577,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Communication Context - only after message submitted */}
-          {step !== "input" && (
+          {step !== "input" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
