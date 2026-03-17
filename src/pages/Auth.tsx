@@ -10,6 +10,8 @@ import TurnstileWidget from "@/components/TurnstileWidget";
 
 const TURNSTILE_ENABLED = import.meta.env.VITE_ENABLE_TURNSTILE === "true";
 
+const VALID_PLANS = ["free", "core", "pro", "case_builder"] as const;
+
 export default function Auth() {
   const { user, loading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
@@ -20,8 +22,9 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Readable for future plan-aware signup
-  const plan = searchParams.get("plan");
+  // Read plan from query param, default to free
+  const rawPlan = searchParams.get("plan") || "free";
+  const plan = VALID_PLANS.includes(rawPlan as any) ? rawPlan : "free";
 
   const handleTurnstileVerify = useCallback((token: string) => {
     setTurnstileToken(token);
@@ -68,10 +71,14 @@ export default function Auth() {
         if (error) throw error;
         navigate("/");
       } else {
+        // Signup: persist selected plan in user_metadata
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: { selected_plan: plan },
+          },
         });
         if (error) throw error;
         toast({ title: "Check your email", description: "We sent you a confirmation link." });
@@ -101,6 +108,11 @@ export default function Auth() {
           <p className="text-muted-foreground text-sm text-center">
             Documentation and communication assistance for custody disputes.
           </p>
+          {!isLogin && plan !== "free" && (
+            <p className="text-primary text-sm font-medium capitalize">
+              Signing up for the {plan === "case_builder" ? "Case Builder" : plan} plan
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
