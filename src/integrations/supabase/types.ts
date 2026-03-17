@@ -88,7 +88,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_message_rewrite_quota: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+          limit: number
+          used: number
+        }[]
+      }
+      increment_message_rewrites: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
