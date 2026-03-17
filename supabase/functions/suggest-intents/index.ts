@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -16,30 +18,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `You are a custody communication specialist. Based on the message provided, suggest 4-6 short communication intent options that would be appropriate responses.
-
-${mode === "respond"
-  ? "The user received this message from the other parent and wants to respond."
-  : "The user wrote this message and wants to rewrite it to be court-safe."
-}
-
-Analyze the tone, content, and context of the message. Generate intent options that are relevant to what the message is about. For example:
-- If the message is hostile or insulting, include options like "Set a boundary", "Acknowledge without engaging"
-- If the message is about schedules or lateness, include options like "Explain a delay", "Confirm the plan", "Propose alternative time"
-- If the message is about logistics, include logistics-related intents
-- If the message is about finances, include finance-related intents
-
-Always include "General neutral response" as the last option.
-
-If you cannot confidently classify the message or determine relevant intents, return this exact fallback list:
-- "Set a boundary"
-- "Ask for clarification"
-- "Acknowledge without engaging"
-- "General neutral response"
-
-Each option should be a short phrase (2-5 words) describing the communication intent. Return exactly 4-6 options. Never return an empty list.
-
-You MUST respond by calling the provided tool.`;
+    const systemPrompt = `You are a custody communication specialist. Suggest 4-6 short communication intent options (2-5 words each) for this ${mode === "respond" ? "received" : "draft"} message. Always end with "General neutral response". Return JSON: {"options":["...",...]}.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -48,7 +27,7 @@ You MUST respond by calling the provided tool.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: message },
@@ -79,34 +58,38 @@ You MUST respond by calling the provided tool.`;
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+      return new Response(JSON.stringify(FALLBACK), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const aiData = await response.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in AI response");
+    if (!toolCall) {
+      console.error("No tool call in response, returning fallback");
+      return new Response(JSON.stringify(FALLBACK), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     let result: unknown;
-    const rawArgs = toolCall.function.arguments;
     try {
-      result = JSON.parse(rawArgs);
+      result = JSON.parse(toolCall.function.arguments);
     } catch {
-      // Attempt to recover truncated JSON array
-      const lastBrace = rawArgs.lastIndexOf("}");
-      if (lastBrace > 0) {
-        try {
-          result = JSON.parse(rawArgs.substring(0, lastBrace + 1) + "]");
-          console.warn("Recovered truncated JSON from tool call arguments");
-        } catch {
-          console.error("Cannot repair truncated JSON:", rawArgs);
-          result = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
-        }
-      } else {
-        console.error("Cannot parse tool call arguments:", rawArgs);
-        result = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
-      }
+      console.error("JSON parse failed, returning fallback");
+      result = FALLBACK;
     }
 
     return new Response(JSON.stringify(result), {
@@ -114,9 +97,8 @@ You MUST respond by calling the provided tool.`;
     });
   } catch (e) {
     console.error("suggest-intents error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify(FALLBACK), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
