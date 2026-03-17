@@ -46,7 +46,7 @@ export default function CommunicationShield() {
     const msg = inputMessage.trim();
     if (!msg || !user) return;
 
-    if ((usage?.message_rewrites_used ?? 0) >= limits.message_rewrites) {
+    if (!limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites) {
       toast({ title: "Limit reached", description: "You've used all your message rewrites.", variant: "destructive" });
       return;
     }

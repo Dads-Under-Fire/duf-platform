@@ -5,15 +5,27 @@ import { Menu, X } from "lucide-react";
 import { format } from "date-fns";
 import dufLogo from "@/assets/dufplatform.png";
 
+function formatNumber(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return String(n);
+}
+
 export function TopBar() {
-  const { usage, limits } = useProfile();
+  const { usage, limits, plan } = useProfile();
   const { openMobile, toggleSidebar } = useSidebar();
   const isMobile = useIsMobile();
 
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
   const rewritesLimit = limits.message_rewrites;
-  const analysesUsed = usage?.evidence_analyses_used ?? 0;
-  const analysesLimit = limits.evidence_analyses;
+
+  // Evidence: free = count-based, paid = word-based
+  const evidenceUsed = limits.evidence_uses_words
+    ? (usage?.evidence_words_used ?? 0)
+    : (usage?.evidence_analyses_used ?? 0);
+  const evidenceLimit = limits.evidence_uses_words
+    ? limits.evidence_words
+    : limits.evidence_analyses;
+  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
 
   return (
     <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
@@ -24,45 +36,58 @@ export function TopBar() {
         )}
 
         <div className="hidden md:flex items-center gap-6">
+          {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-xs">Message Rewrites</span>
                 <span className="text-xs">
-                  <span className="text-primary font-bold">{rewritesUsed}</span>
-                  <span className="text-muted-foreground"> / {rewritesLimit}</span>
+                  {limits.unlimited_rewrites ? (
+                    <>
+                      <span className="text-primary font-bold">{rewritesUsed}</span>
+                      <span className="text-muted-foreground"> / ∞</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-primary font-bold">{rewritesUsed}</span>
+                      <span className="text-muted-foreground"> / {rewritesLimit}</span>
+                    </>
+                  )}
                 </span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((rewritesUsed / rewritesLimit) * 100, 100)}%` }}
+                  style={{
+                    width: limits.unlimited_rewrites
+                      ? `${Math.min(rewritesUsed * 0.1, 100)}%`
+                      : `${Math.min((rewritesUsed / rewritesLimit) * 100, 100)}%`,
+                  }}
                 />
               </div>
             </div>
           </div>
 
+          {/* Evidence */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">Evidence Analyses</span>
+                <span className="text-muted-foreground text-xs">{evidenceLabel}</span>
                 <span className="text-xs">
-                  <span className="text-primary font-bold">{analysesUsed}</span>
-                  <span className="text-muted-foreground"> / {analysesLimit}</span>
+                  <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
+                  <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)}</span>
                 </span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>
           </div>
 
-          <button className="text-primary text-sm hover:underline hidden sm:block">
-            Add more credits
-          </button>
+          <span className="text-muted-foreground text-xs capitalize">{plan === "case_builder" ? "Case Builder" : plan} plan</span>
         </div>
       </div>
 

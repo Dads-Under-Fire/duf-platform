@@ -26,14 +26,49 @@ export interface UsageCounters {
   period_end: string;
   message_rewrites_used: number;
   evidence_analyses_used: number;
+  evidence_words_used: number;
 }
 
-// Plan limits (must match get_plan_limits DB function)
-const PLAN_LIMITS: Record<string, { message_rewrites: number; evidence_analyses: number }> = {
-  free: { message_rewrites: 25, evidence_analyses: 5 },
-  core: { message_rewrites: 250, evidence_analyses: 25 },
-  pro: { message_rewrites: 1000, evidence_analyses: 100 },
-  case_builder: { message_rewrites: 5000, evidence_analyses: 500 },
+export interface PlanLimits {
+  message_rewrites: number;
+  evidence_analyses: number;
+  evidence_words: number;
+  /** True when rewrites are "unlimited" (fair use) */
+  unlimited_rewrites: boolean;
+  /** True when evidence is tracked by words (paid) vs count (free) */
+  evidence_uses_words: boolean;
+}
+
+// Must match get_plan_limits DB function
+const PLAN_LIMITS: Record<string, PlanLimits> = {
+  free: {
+    message_rewrites: 2,
+    evidence_analyses: 1,
+    evidence_words: 0,
+    unlimited_rewrites: false,
+    evidence_uses_words: false,
+  },
+  core: {
+    message_rewrites: 100,
+    evidence_analyses: 999999,
+    evidence_words: 15000,
+    unlimited_rewrites: false,
+    evidence_uses_words: true,
+  },
+  pro: {
+    message_rewrites: 250,
+    evidence_analyses: 999999,
+    evidence_words: 60000,
+    unlimited_rewrites: false,
+    evidence_uses_words: true,
+  },
+  case_builder: {
+    message_rewrites: 999999,
+    evidence_analyses: 999999,
+    evidence_words: 200000,
+    unlimited_rewrites: true,
+    evidence_uses_words: true,
+  },
 };
 
 export function useProfile() {
