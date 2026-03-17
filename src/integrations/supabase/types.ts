@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      evidence_analyses: {
+        Row: {
+          analysis_result: string
+          analysis_type: string
+          created_at: string
+          id: string
+          original_content: string
+          user_id: string
+        }
+        Insert: {
+          analysis_result: string
+          analysis_type?: string
+          created_at?: string
+          id?: string
+          original_content: string
+          user_id: string
+        }
+        Update: {
+          analysis_result?: string
+          analysis_type?: string
+          created_at?: string
+          id?: string
+          original_content?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_rewrites: {
         Row: {
           created_at: string
@@ -51,33 +78,87 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
-          evidence_analyses_limit: number
-          evidence_analyses_used: number
           id: string
-          message_rewrites_limit: number
-          message_rewrites_used: number
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
-          evidence_analyses_limit?: number
-          evidence_analyses_used?: number
           id?: string
-          message_rewrites_limit?: number
-          message_rewrites_used?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
-          evidence_analyses_limit?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string
+          id: string
+          plan: Database["public"]["Enums"]["plan_type"]
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          plan?: Database["public"]["Enums"]["plan_type"]
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          plan?: Database["public"]["Enums"]["plan_type"]
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      usage_counters: {
+        Row: {
+          created_at: string
+          evidence_analyses_used: number
+          id: string
+          message_rewrites_used: number
+          period_end: string
+          period_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
           evidence_analyses_used?: number
           id?: string
-          message_rewrites_limit?: number
           message_rewrites_used?: number
+          period_end?: string
+          period_start?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          evidence_analyses_used?: number
+          id?: string
+          message_rewrites_used?: number
+          period_end?: string
+          period_start?: string
           updated_at?: string
           user_id?: string
         }
@@ -96,13 +177,26 @@ export type Database = {
           used: number
         }[]
       }
+      get_plan_limits: {
+        Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
+        Returns: {
+          evidence_analyses_limit: number
+          message_rewrites_limit: number
+        }[]
+      }
       increment_message_rewrites: {
         Args: { p_user_id: string }
         Returns: undefined
       }
     }
     Enums: {
-      [_ in never]: never
+      plan_type: "free" | "core" | "pro" | "case_builder"
+      subscription_status:
+        | "active"
+        | "inactive"
+        | "trialing"
+        | "canceled"
+        | "past_due"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -229,6 +323,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      plan_type: ["free", "core", "pro", "case_builder"],
+      subscription_status: [
+        "active",
+        "inactive",
+        "trialing",
+        "canceled",
+        "past_due",
+      ],
+    },
   },
 } as const
