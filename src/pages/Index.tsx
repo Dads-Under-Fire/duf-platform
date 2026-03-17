@@ -1,7 +1,7 @@
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
 import CommunicationShield from "./CommunicationShield";
-import Auth from "./Auth";
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -14,7 +14,7 @@ export default function Index() {
     );
   }
 
-  if (!user) return <Auth />;
+  if (!user) return <Navigate to="/auth" replace />;
 
   return (
     <AppLayout>

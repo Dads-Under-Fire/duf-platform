@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -10,12 +11,17 @@ import TurnstileWidget from "@/components/TurnstileWidget";
 const TURNSTILE_ENABLED = import.meta.env.VITE_ENABLE_TURNSTILE === "true";
 
 export default function Auth() {
+  const { user, loading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Readable for future plan-aware signup
+  const plan = searchParams.get("plan");
 
   const handleTurnstileVerify = useCallback((token: string) => {
     setTurnstileToken(token);
@@ -25,15 +31,18 @@ export default function Auth() {
     setTurnstileToken(null);
   }, []);
 
+  // If already authenticated, redirect to root
+  if (!loading && user) return <Navigate to="/" replace />;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       if (TURNSTILE_ENABLED) {
         if (!turnstileToken) {
           toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
 
@@ -49,7 +58,7 @@ export default function Auth() {
             variant: "destructive",
           });
           setTurnstileToken(null);
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
       }
@@ -70,11 +79,19 @@ export default function Auth() {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const submitDisabled = loading || (TURNSTILE_ENABLED && !turnstileToken);
+  const submitDisabled = submitting || (TURNSTILE_ENABLED && !turnstileToken);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -114,7 +131,7 @@ export default function Auth() {
           )}
 
           <Button type="submit" className="w-full" disabled={submitDisabled}>
-            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+            {submitting ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </Button>
         </form>
 
