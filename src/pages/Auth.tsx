@@ -74,7 +74,7 @@ export default function Auth() {
     }
   };
 
-  const submitDisabled = loading || !turnstileToken;
+  const submitDisabled = loading || (TURNSTILE_ENABLED && !turnstileToken);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
