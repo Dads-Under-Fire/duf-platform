@@ -30,26 +30,28 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (!turnstileToken) {
-        toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
+      if (TURNSTILE_ENABLED) {
+        if (!turnstileToken) {
+          toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
 
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
-        "verify-turnstile",
-        { body: { token: turnstileToken } }
-      );
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          "verify-turnstile",
+          { body: { token: turnstileToken } }
+        );
 
-      if (verifyError || !verifyData?.success) {
-        toast({
-          title: "CAPTCHA verification failed",
-          description: verifyData?.error || "Please try again.",
-          variant: "destructive",
-        });
-        setTurnstileToken(null);
-        setLoading(false);
-        return;
+        if (verifyError || !verifyData?.success) {
+          toast({
+            title: "CAPTCHA verification failed",
+            description: verifyData?.error || "Please try again.",
+            variant: "destructive",
+          });
+          setTurnstileToken(null);
+          setLoading(false);
+          return;
+        }
       }
 
       if (isLogin) {
