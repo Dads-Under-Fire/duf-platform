@@ -683,7 +683,7 @@ export default function CommunicationShield() {
               </div>
             ) : (
               <div className="flex-1 text-muted-foreground text-sm space-y-4">
-                <PlaceholderSection label="Primary Response" placeholder="[ primary response ]" />
+                <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
                 <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
                 <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
                 <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />
