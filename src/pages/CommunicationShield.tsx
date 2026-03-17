@@ -26,7 +26,7 @@ const FALLBACK_INTENTS = [
 
 export default function CommunicationShield() {
   const { user } = useAuth();
-  const { profile, refetch: refetchProfile } = useProfile();
+  const { usage, limits, refetch: refetchProfile } = useProfile();
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [submittedMessage, setSubmittedMessage] = useState("");
@@ -46,7 +46,7 @@ export default function CommunicationShield() {
     const msg = inputMessage.trim();
     if (!msg || !user) return;
 
-    if ((profile?.message_rewrites_used ?? 0) >= (profile?.message_rewrites_limit ?? 250)) {
+    if ((usage?.message_rewrites_used ?? 0) >= limits.message_rewrites) {
       toast({ title: "Limit reached", description: "You've used all your message rewrites.", variant: "destructive" });
       return;
     }
