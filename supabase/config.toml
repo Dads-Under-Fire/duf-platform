@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.suggest-intents]
 verify_jwt = false
+
+[functions.verify-turnstile]
+verify_jwt = false
