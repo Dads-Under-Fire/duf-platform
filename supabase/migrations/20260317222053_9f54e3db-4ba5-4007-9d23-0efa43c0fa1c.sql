@@ -1,0 +1,1 @@
+ALTER TABLE public.usage_counters ADD COLUMN evidence_words_used integer NOT NULL DEFAULT 0;
