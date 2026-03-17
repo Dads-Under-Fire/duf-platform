@@ -7,6 +7,8 @@ import { toast } from "@/hooks/use-toast";
 import dufLogo from "@/assets/dufplatform.png";
 import TurnstileWidget from "@/components/TurnstileWidget";
 
+const TURNSTILE_ENABLED = import.meta.env.VITE_ENABLE_TURNSTILE === "true";
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -28,26 +30,28 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (!turnstileToken) {
-        toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
+      if (TURNSTILE_ENABLED) {
+        if (!turnstileToken) {
+          toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
 
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
-        "verify-turnstile",
-        { body: { token: turnstileToken } }
-      );
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          "verify-turnstile",
+          { body: { token: turnstileToken } }
+        );
 
-      if (verifyError || !verifyData?.success) {
-        toast({
-          title: "CAPTCHA verification failed",
-          description: verifyData?.error || "Please try again.",
-          variant: "destructive",
-        });
-        setTurnstileToken(null);
-        setLoading(false);
-        return;
+        if (verifyError || !verifyData?.success) {
+          toast({
+            title: "CAPTCHA verification failed",
+            description: verifyData?.error || "Please try again.",
+            variant: "destructive",
+          });
+          setTurnstileToken(null);
+          setLoading(false);
+          return;
+        }
       }
 
       if (isLogin) {
@@ -70,7 +74,7 @@ export default function Auth() {
     }
   };
 
-  const submitDisabled = loading || !turnstileToken;
+  const submitDisabled = loading || (TURNSTILE_ENABLED && !turnstileToken);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -101,11 +105,13 @@ export default function Auth() {
             className="bg-card border-border"
           />
 
-          <TurnstileWidget
-            onVerify={handleTurnstileVerify}
-            onExpire={handleTurnstileExpire}
-            onError={handleTurnstileExpire}
-          />
+          {TURNSTILE_ENABLED && (
+            <TurnstileWidget
+              onVerify={handleTurnstileVerify}
+              onExpire={handleTurnstileExpire}
+              onError={handleTurnstileExpire}
+            />
+          )}
 
           <Button type="submit" className="w-full" disabled={submitDisabled}>
             {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
