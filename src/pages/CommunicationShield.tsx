@@ -404,7 +404,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Intent options - after message submitted */}
-          {step === "select-intent" && (
+          {step === "select-intent" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
