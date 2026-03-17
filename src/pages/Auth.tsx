@@ -28,34 +28,33 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      if (!turnstileToken) {
+        toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+        "verify-turnstile",
+        { body: { token: turnstileToken } }
+      );
+
+      if (verifyError || !verifyData?.success) {
+        toast({
+          title: "CAPTCHA verification failed",
+          description: verifyData?.error || "Please try again.",
+          variant: "destructive",
+        });
+        setTurnstileToken(null);
+        setLoading(false);
+        return;
+      }
+
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate("/");
       } else {
-        // Verify Turnstile token server-side before signup
-        if (!turnstileToken) {
-          toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
-          setLoading(false);
-          return;
-        }
-
-        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
-          "verify-turnstile",
-          { body: { token: turnstileToken } }
-        );
-
-        if (verifyError || !verifyData?.success) {
-          toast({
-            title: "CAPTCHA verification failed",
-            description: verifyData?.error || "Please try again.",
-            variant: "destructive",
-          });
-          setTurnstileToken(null);
-          setLoading(false);
-          return;
-        }
-
         const { error } = await supabase.auth.signUp({
           email,
           password,
