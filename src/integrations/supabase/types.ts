@@ -169,6 +169,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_evidence_analysis_quota: {
+        Args: { p_user_id: string; p_word_count?: number }
+        Returns: {
+          allowed: boolean
+          limit: number
+          unit: string
+          used: number
+        }[]
+      }
       check_message_rewrite_quota: {
         Args: { p_user_id: string }
         Returns: {
@@ -181,8 +190,13 @@ export type Database = {
         Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
         Returns: {
           evidence_analyses_limit: number
+          evidence_words_limit: number
           message_rewrites_limit: number
         }[]
+      }
+      increment_evidence_analyses: {
+        Args: { p_user_id: string; p_word_count?: number }
+        Returns: undefined
       }
       increment_message_rewrites: {
         Args: { p_user_id: string }
