@@ -123,7 +123,7 @@ export default function CommunicationShield() {
       const aiResult: AIResult = data;
       setResult(aiResult);
 
-      await supabase.from("message_rewrites").insert({
+      await (supabase.from as any)("message_rewrites").insert({
         user_id: user!.id,
         original_message: submittedMessage,
         rewritten_message: aiResult.primary_response,
@@ -132,8 +132,7 @@ export default function CommunicationShield() {
         mode,
       });
 
-      await supabase
-        .from("profiles")
+      await (supabase.from as any)("profiles")
         .update({ message_rewrites_used: (profile?.message_rewrites_used ?? 0) + 1 })
         .eq("user_id", user!.id);
 

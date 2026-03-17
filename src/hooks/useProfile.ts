@@ -27,7 +27,7 @@ export function useProfile() {
         .eq("user_id", user.id)
         .single();
       if (error) throw error;
-      return data as Profile;
+      return data as unknown as Profile;
     },
     enabled: !!user,
   });
