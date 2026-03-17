@@ -96,13 +96,13 @@ export function AppSidebar() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Message Rewrites</p>
               <p className="text-xs">
-                <span className="text-primary font-bold">{profile?.message_rewrites_used ?? 0}</span>
-                <span className="text-muted-foreground"> / {profile?.message_rewrites_limit ?? 250} used</span>
+                <span className="text-primary font-bold">{usage?.message_rewrites_used ?? 0}</span>
+                <span className="text-muted-foreground"> / {limits.message_rewrites} used</span>
               </p>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(((profile?.message_rewrites_used ?? 0) / (profile?.message_rewrites_limit ?? 250)) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((usage?.message_rewrites_used ?? 0) / limits.message_rewrites) * 100, 100)}%` }}
                 />
               </div>
             </div>
@@ -110,13 +110,13 @@ export function AppSidebar() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Evidence Analyses</p>
               <p className="text-xs">
-                <span className="text-primary font-bold">{profile?.evidence_analyses_used ?? 0}</span>
-                <span className="text-muted-foreground"> / {profile?.evidence_analyses_limit ?? 25} used</span>
+                <span className="text-primary font-bold">{usage?.evidence_analyses_used ?? 0}</span>
+                <span className="text-muted-foreground"> / {limits.evidence_analyses} used</span>
               </p>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(((profile?.evidence_analyses_used ?? 0) / (profile?.evidence_analyses_limit ?? 25)) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((usage?.evidence_analyses_used ?? 0) / limits.evidence_analyses) * 100, 100)}%` }}
                 />
               </div>
             </div>
