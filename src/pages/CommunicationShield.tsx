@@ -233,7 +233,7 @@ export default function CommunicationShield() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">Court-Safe Response</h1>
+            <h1 className="text-lg font-semibold text-foreground">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h1>
           </div>
 
           {/* Scrollable content area */}
