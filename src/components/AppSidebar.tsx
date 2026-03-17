@@ -38,7 +38,7 @@ const navItems = [
 
 export function AppSidebar() {
   const { signOut } = useAuth();
-  const { profile } = useProfile();
+  const { profile, usage, limits } = useProfile();
   const { state, toggleSidebar } = useSidebar();
   const location = useLocation();
   const isMobile = useIsMobile();
