@@ -26,7 +26,7 @@ const FALLBACK_INTENTS = [
 
 export default function CommunicationShield() {
   const { user } = useAuth();
-  const { profile, refetch: refetchProfile } = useProfile();
+  const { usage, limits, refetch: refetchProfile } = useProfile();
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [submittedMessage, setSubmittedMessage] = useState("");
@@ -46,20 +46,44 @@ export default function CommunicationShield() {
     const msg = inputMessage.trim();
     if (!msg || !user) return;
 
-    if ((profile?.message_rewrites_used ?? 0) >= (profile?.message_rewrites_limit ?? 250)) {
+    if ((usage?.message_rewrites_used ?? 0) >= limits.message_rewrites) {
       toast({ title: "Limit reached", description: "You've used all your message rewrites.", variant: "destructive" });
       return;
     }
 
     setSubmittedMessage(msg);
     setInputMessage("");
-    setStep("select-intent");
     setResult(null);
     setCommunicationContext("");
     setShowOtherInput(false);
     setOtherText("");
 
-    // On mobile, show fallback intents immediately; replace if dynamic ones arrive within 3s
+    // In rewrite mode, skip intent selection and go directly to rewrite
+    if (mode === "rewrite") {
+      setStep("result");
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("rewrite-message", {
+          body: { message: msg, mode: "rewrite" },
+        });
+        if (error) throw error;
+
+        const aiResult: AIResult = data;
+        setResult(aiResult);
+
+        // Server handles saving + quota increment
+        refetchProfile();
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Respond mode: show intent selection
+    setStep("select-intent");
+
     if (isMobile) {
       setIntentOptions(FALLBACK_INTENTS);
       setLoadingIntents(false);
@@ -123,20 +147,7 @@ export default function CommunicationShield() {
       const aiResult: AIResult = data;
       setResult(aiResult);
 
-      await supabase.from("message_rewrites").insert({
-        user_id: user!.id,
-        original_message: submittedMessage,
-        rewritten_message: aiResult.primary_response,
-        tone_assessment: aiResult.tone_assessment,
-        risk_flags: aiResult.risk_flags,
-        mode,
-      });
-
-      await supabase
-        .from("profiles")
-        .update({ message_rewrites_used: (profile?.message_rewrites_used ?? 0) + 1 })
-        .eq("user_id", user!.id);
-
+      // Server handles saving + quota increment
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
@@ -198,7 +209,7 @@ export default function CommunicationShield() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">Court-Safe Response</h1>
+            <h1 className="text-lg font-semibold text-foreground">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h1>
           </div>
 
           {/* Scrollable content area */}
@@ -226,7 +237,7 @@ export default function CommunicationShield() {
             ) : result ? (
               <>
                 <div>
-                  <p className="font-semibold text-foreground mb-1">Court-Safe Response:</p>
+                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{result.primary_response}</p>
                 </div>
 
@@ -361,7 +372,7 @@ export default function CommunicationShield() {
                 ) : (
                   <>
                     <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite it to avoid conflict and reduce escalation.</p>
+                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
                   </>
                 )}
               </div>
@@ -369,7 +380,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Intent options - after message submitted */}
-          {step === "select-intent" && (
+          {step === "select-intent" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
@@ -534,7 +545,7 @@ export default function CommunicationShield() {
                 ) : (
                   <>
                     <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite it to avoid conflict and reduce escalation.</p>
+                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
                   </>
                 )}
               </div>
@@ -542,7 +553,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Communication Context - only after message submitted */}
-          {step !== "input" && (
+          {step !== "input" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
@@ -622,12 +633,12 @@ export default function CommunicationShield() {
         {/* Right panel - Court-Safe Response */}
         <div className="flex-1 p-6 flex flex-col">
           <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5">
-            <h2 className="text-lg font-semibold text-primary mb-1">Court-Safe Response</h2>
+            <h2 className="text-lg font-semibold text-primary mb-1">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
             <div className="h-px bg-border mb-3" />
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label="Primary Response" content={result.primary_response} />
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={result.primary_response} />
                 <ResponseSection label="Shorter Version" content={result.shorter_response} />
                 <ResponseSection label="Firmer Version" content={result.firmer_response} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
@@ -648,7 +659,7 @@ export default function CommunicationShield() {
               </div>
             ) : (
               <div className="flex-1 text-muted-foreground text-sm space-y-4">
-                <PlaceholderSection label="Primary Response" placeholder="[ primary response ]" />
+                <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
                 <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
                 <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
                 <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />

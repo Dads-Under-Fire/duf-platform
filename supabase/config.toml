@@ -1,1 +1,10 @@
-project_id = "bsbuvzkfmjdbheuzpapw"
+project_id = "ynbvwbfxbjlwhjuvczpe"
+
+[functions.rewrite-message]
+verify_jwt = false
+
+[functions.suggest-intents]
+verify_jwt = false
+
+[functions.verify-turnstile]
+verify_jwt = false

@@ -1,18 +1,77 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  logRequest,
+  checkRateLimit,
+  authenticateRequest,
+} from "../_shared/auth-rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const FN = "rewrite-message";
+// 10 requests per user per minute
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let userId: string | null = null;
+
   try {
-    const { message, mode, original_context, communication_context } = await req.json();
+    // ── 1. Auth ──
+    const auth = await authenticateRequest(req, FN).catch((res) => res as Response);
+    if (auth instanceof Response) return auth; // unauthenticated
+    userId = auth.userId;
+
+    // ── 2. Rate limit ──
+    if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+      logRequest({ userId, functionName: FN, status: "rate_limited" });
+      return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
+    }
+
+    // ── 3. Input validation ──
+    const body = await req.json();
+    const { message, mode, original_context, communication_context } = body;
+
+    if (!message || typeof message !== "string" || message.length > 4000) {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
+      return jsonResponse({ error: "Invalid message" }, 400);
+    }
+    if (mode !== "respond" && mode !== "rewrite") {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
+      return jsonResponse({ error: "Invalid mode" }, 400);
+    }
+    if (communication_context && (typeof communication_context !== "string" || communication_context.length > 500)) {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "context too long" });
+      return jsonResponse({ error: "Context too long" }, 400);
+    }
+    if (original_context && (typeof original_context !== "string" || original_context.length > 4000)) {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "original_context too long" });
+      return jsonResponse({ error: "Original context too long" }, 400);
+    }
+
+    // ── 4. Quota check (server-side, using auth-derived userId) ──
+    const { serviceClient } = auth;
+
+    const { data: quotaRows, error: quotaError } = await serviceClient.rpc(
+      "check_message_rewrite_quota",
+      { p_user_id: userId }
+    );
+
+    if (quotaError || !quotaRows || quotaRows.length === 0) {
+      console.error("Quota check failed:", quotaError);
+      logRequest({ userId, functionName: FN, status: "error", detail: "quota check failed" });
+      return jsonResponse({ error: "Could not verify quota" }, 500);
+    }
+
+    if (!quotaRows[0].allowed) {
+      logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
+      return jsonResponse({ error: "You've used all your message rewrites." }, 429);
+    }
+
+    // ── 5. AI call ──
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -84,12 +143,8 @@ You MUST respond by calling the provided tool with your structured output. Provi
                   shorter_response: { type: "string", description: "Shortest neutral version, 1 sentence" },
                   firmer_response: { type: "string", description: "Neutral but more boundaried and direct" },
                   tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-                  risk_flags: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "What was removed or improved",
-                  },
-                  why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer than an emotional reaction" },
+                  risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
+                  why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
                 },
                 required: ["primary_response", "shorter_response", "firmer_response", "tone_assessment", "risk_flags", "why_this_is_safer"],
                 additionalProperties: false,
@@ -103,16 +158,12 @@ You MUST respond by calling the provided tool with your structured output. Provi
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "AI gateway 429" });
+        return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        logRequest({ userId, functionName: FN, status: "error", detail: "AI gateway 402" });
+        return jsonResponse({ error: "Usage limit reached. Please add credits." }, 402);
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
@@ -125,14 +176,24 @@ You MUST respond by calling the provided tool with your structured output. Provi
 
     const result = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // ── 6. Persist & increment (server-side userId only) ──
+    await serviceClient.from("message_rewrites").insert({
+      user_id: userId,
+      original_message: message,
+      rewritten_message: result.primary_response,
+      tone_assessment: result.tone_assessment,
+      risk_flags: result.risk_flags,
+      mode: mode || "respond",
     });
+
+    await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+
+    logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+
+    return jsonResponse(result);
   } catch (e) {
     console.error("rewrite-message error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
+    return jsonResponse({ error: "An error occurred processing your request." }, 500);
   }
 });

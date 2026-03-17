@@ -1,45 +1,54 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  logRequest,
+  checkRateLimit,
+  authenticateRequest,
+} from "../_shared/auth-rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const FN = "suggest-intents";
+const RATE_LIMIT = 20; // lighter endpoint, allow more
+const RATE_WINDOW_MS = 60_000;
+const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let userId: string | null = null;
+
   try {
-    const { message, mode } = await req.json();
+    // ── 1. Auth ──
+    const auth = await authenticateRequest(req, FN).catch((res) => res as Response);
+    if (auth instanceof Response) return auth;
+    userId = auth.userId;
+
+    // ── 2. Rate limit ──
+    if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+      logRequest({ userId, functionName: FN, status: "rate_limited" });
+      return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
+    }
+
+    // ── 3. Input validation ──
+    const body = await req.json();
+    const { message, mode } = body;
+
+    if (!message || typeof message !== "string" || message.length > 4000) {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
+      return jsonResponse({ error: "Invalid message" }, 400);
+    }
+    if (mode !== "respond" && mode !== "rewrite") {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
+      return jsonResponse({ error: "Invalid mode" }, 400);
+    }
+
+    // ── 4. AI call ──
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `You are a custody communication specialist. Based on the message provided, suggest 4-6 short communication intent options that would be appropriate responses.
-
-${mode === "respond"
-  ? "The user received this message from the other parent and wants to respond."
-  : "The user wrote this message and wants to rewrite it to be court-safe."
-}
-
-Analyze the tone, content, and context of the message. Generate intent options that are relevant to what the message is about. For example:
-- If the message is hostile or insulting, include options like "Set a boundary", "Acknowledge without engaging"
-- If the message is about schedules or lateness, include options like "Explain a delay", "Confirm the plan", "Propose alternative time"
-- If the message is about logistics, include logistics-related intents
-- If the message is about finances, include finance-related intents
-
-Always include "General neutral response" as the last option.
-
-If you cannot confidently classify the message or determine relevant intents, return this exact fallback list:
-- "Set a boundary"
-- "Ask for clarification"
-- "Acknowledge without engaging"
-- "General neutral response"
-
-Each option should be a short phrase (2-5 words) describing the communication intent. Return exactly 4-6 options. Never return an empty list.
-
-You MUST respond by calling the provided tool.`;
+    const systemPrompt = `You are a custody communication specialist. Suggest 4-6 short communication intent options (2-5 words each) for this ${mode === "respond" ? "received" : "draft"} message. Always end with "General neutral response". Return JSON: {"options":["...",...]}.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -48,7 +57,7 @@ You MUST respond by calling the provided tool.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: message },
@@ -79,44 +88,41 @@ You MUST respond by calling the provided tool.`;
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "AI gateway 429" });
+        return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
+      }
+      if (response.status === 402) {
+        logRequest({ userId, functionName: FN, status: "error", detail: "AI gateway 402" });
+        return jsonResponse({ error: "Usage limit reached. Please add credits." }, 402);
+      }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+      logRequest({ userId, functionName: FN, status: "error", detail: `AI gateway ${response.status}` });
+      return jsonResponse(FALLBACK);
     }
 
     const aiData = await response.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in AI response");
-
-    let result: unknown;
-    const rawArgs = toolCall.function.arguments;
-    try {
-      result = JSON.parse(rawArgs);
-    } catch {
-      // Attempt to recover truncated JSON array
-      const lastBrace = rawArgs.lastIndexOf("}");
-      if (lastBrace > 0) {
-        try {
-          result = JSON.parse(rawArgs.substring(0, lastBrace + 1) + "]");
-          console.warn("Recovered truncated JSON from tool call arguments");
-        } catch {
-          console.error("Cannot repair truncated JSON:", rawArgs);
-          result = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
-        }
-      } else {
-        console.error("Cannot parse tool call arguments:", rawArgs);
-        result = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
-      }
+    if (!toolCall) {
+      console.error("No tool call in response, returning fallback");
+      logRequest({ userId, functionName: FN, status: "error", detail: "no tool call" });
+      return jsonResponse(FALLBACK);
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    let result: unknown;
+    try {
+      result = JSON.parse(toolCall.function.arguments);
+    } catch {
+      console.error("JSON parse failed, returning fallback");
+      result = FALLBACK;
+    }
+
+    logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+    return jsonResponse(result as Record<string, unknown>);
   } catch (e) {
     console.error("suggest-intents error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
+    return jsonResponse(FALLBACK);
   }
 });

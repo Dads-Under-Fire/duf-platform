@@ -1,23 +1,68 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback } from "react";
+import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import dufLogo from "@/assets/dufplatform.png";
+import TurnstileWidget from "@/components/TurnstileWidget";
+
+const TURNSTILE_ENABLED = import.meta.env.VITE_ENABLE_TURNSTILE === "true";
 
 export default function Auth() {
+  const { user, loading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Readable for future plan-aware signup
+  const plan = searchParams.get("plan");
+
+  const handleTurnstileVerify = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
+  // If already authenticated, redirect to root
+  if (!loading && user) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
+      if (TURNSTILE_ENABLED) {
+        if (!turnstileToken) {
+          toast({ title: "Please complete the CAPTCHA", variant: "destructive" });
+          setSubmitting(false);
+          return;
+        }
+
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          "verify-turnstile",
+          { body: { token: turnstileToken } }
+        );
+
+        if (verifyError || !verifyData?.success) {
+          toast({
+            title: "CAPTCHA verification failed",
+            description: verifyData?.error || "Please try again.",
+            variant: "destructive",
+          });
+          setTurnstileToken(null);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -34,16 +79,25 @@ export default function Auth() {
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  const submitDisabled = submitting || (TURNSTILE_ENABLED && !turnstileToken);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-2">
           <img src={dufLogo} alt="DUF Platform" className="h-10" />
-
           <p className="text-muted-foreground text-sm text-center">
             Documentation and communication assistance for custody disputes.
           </p>
@@ -67,15 +121,24 @@ export default function Auth() {
             minLength={6}
             className="bg-card border-border"
           />
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+
+          {TURNSTILE_ENABLED && (
+            <TurnstileWidget
+              onVerify={handleTurnstileVerify}
+              onExpire={handleTurnstileExpire}
+              onError={handleTurnstileExpire}
+            />
+          )}
+
+          <Button type="submit" className="w-full" disabled={submitDisabled}>
+            {submitting ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => { setIsLogin(!isLogin); setTurnstileToken(null); }}
             className="text-primary hover:underline"
           >
             {isLogin ? "Sign Up" : "Sign In"}
