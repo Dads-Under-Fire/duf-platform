@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,56 @@ serve(async (req) => {
   }
 
   try {
+    // --- Auth check ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: claimsData, error: claimsError } = await userClient.auth.getUser();
+    if (claimsError || !claimsData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.user.id;
+
+    // --- Server-side quota check ---
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: quotaRows, error: quotaError } = await serviceClient.rpc(
+      "check_message_rewrite_quota",
+      { p_user_id: userId }
+    );
+
+    if (quotaError || !quotaRows || quotaRows.length === 0) {
+      console.error("Quota check failed:", quotaError);
+      return new Response(JSON.stringify({ error: "Could not verify quota" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!quotaRows[0].allowed) {
+      return new Response(
+        JSON.stringify({ error: "You've used all your message rewrites." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // --- Process request ---
     const { message, mode, original_context, communication_context } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -125,13 +176,25 @@ You MUST respond by calling the provided tool with your structured output. Provi
 
     const result = JSON.parse(toolCall.function.arguments);
 
+    // --- Server-side: save rewrite and increment counter ---
+    await serviceClient.from("message_rewrites").insert({
+      user_id: userId,
+      original_message: message,
+      rewritten_message: result.primary_response,
+      tone_assessment: result.tone_assessment,
+      risk_flags: result.risk_flags,
+      mode: mode || "respond",
+    });
+
+    await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("rewrite-message error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "An error occurred processing your request." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

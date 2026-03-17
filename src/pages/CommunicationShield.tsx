@@ -71,19 +71,7 @@ export default function CommunicationShield() {
         const aiResult: AIResult = data;
         setResult(aiResult);
 
-        await (supabase.from as any)("message_rewrites").insert({
-          user_id: user!.id,
-          original_message: msg,
-          rewritten_message: aiResult.primary_response,
-          tone_assessment: aiResult.tone_assessment,
-          risk_flags: aiResult.risk_flags,
-          mode,
-        });
-
-        await (supabase.from as any)("profiles")
-          .update({ message_rewrites_used: (profile?.message_rewrites_used ?? 0) + 1 })
-          .eq("user_id", user!.id);
-
+        // Server handles saving + quota increment
         refetchProfile();
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
@@ -159,19 +147,7 @@ export default function CommunicationShield() {
       const aiResult: AIResult = data;
       setResult(aiResult);
 
-      await (supabase.from as any)("message_rewrites").insert({
-        user_id: user!.id,
-        original_message: submittedMessage,
-        rewritten_message: aiResult.primary_response,
-        tone_assessment: aiResult.tone_assessment,
-        risk_flags: aiResult.risk_flags,
-        mode,
-      });
-
-      await (supabase.from as any)("profiles")
-        .update({ message_rewrites_used: (profile?.message_rewrites_used ?? 0) + 1 })
-        .eq("user_id", user!.id);
-
+      // Server handles saving + quota increment
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });

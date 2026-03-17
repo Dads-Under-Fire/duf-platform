@@ -1,1 +1,7 @@
 project_id = "ynbvwbfxbjlwhjuvczpe"
+
+[functions.rewrite-message]
+verify_jwt = false
+
+[functions.suggest-intents]
+verify_jwt = false
