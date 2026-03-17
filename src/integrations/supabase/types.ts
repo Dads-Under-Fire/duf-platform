@@ -14,7 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      message_rewrites: {
+        Row: {
+          created_at: string
+          id: string
+          mode: string
+          original_message: string
+          rewritten_message: string | null
+          risk_flags: string[] | null
+          tone_assessment: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mode: string
+          original_message: string
+          rewritten_message?: string | null
+          risk_flags?: string[] | null
+          tone_assessment?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mode?: string
+          original_message?: string
+          rewritten_message?: string | null
+          risk_flags?: string[] | null
+          tone_assessment?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          evidence_analyses_limit: number
+          evidence_analyses_used: number
+          id: string
+          message_rewrites_limit: number
+          message_rewrites_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          evidence_analyses_limit?: number
+          evidence_analyses_used?: number
+          id?: string
+          message_rewrites_limit?: number
+          message_rewrites_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          evidence_analyses_limit?: number
+          evidence_analyses_used?: number
+          id?: string
+          message_rewrites_limit?: number
+          message_rewrites_used?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
