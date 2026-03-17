@@ -20,18 +20,18 @@ export type Database = {
           id: string
           mode: string
           original_message: string
-          rewritten_message: string | null
-          risk_flags: string[] | null
+          rewritten_message: string
+          risk_flags: Json | null
           tone_assessment: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          mode: string
+          mode?: string
           original_message: string
-          rewritten_message?: string | null
-          risk_flags?: string[] | null
+          rewritten_message: string
+          risk_flags?: Json | null
           tone_assessment?: string | null
           user_id: string
         }
@@ -40,8 +40,8 @@ export type Database = {
           id?: string
           mode?: string
           original_message?: string
-          rewritten_message?: string | null
-          risk_flags?: string[] | null
+          rewritten_message?: string
+          risk_flags?: Json | null
           tone_assessment?: string | null
           user_id?: string
         }
