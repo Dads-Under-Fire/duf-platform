@@ -135,6 +135,7 @@ export type Database = {
         Row: {
           created_at: string
           evidence_analyses_used: number
+          evidence_words_used: number
           id: string
           message_rewrites_used: number
           period_end: string
@@ -145,6 +146,7 @@ export type Database = {
         Insert: {
           created_at?: string
           evidence_analyses_used?: number
+          evidence_words_used?: number
           id?: string
           message_rewrites_used?: number
           period_end?: string
@@ -155,6 +157,7 @@ export type Database = {
         Update: {
           created_at?: string
           evidence_analyses_used?: number
+          evidence_words_used?: number
           id?: string
           message_rewrites_used?: number
           period_end?: string
