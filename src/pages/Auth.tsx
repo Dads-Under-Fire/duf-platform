@@ -101,15 +101,13 @@ export default function Auth() {
             className="bg-card border-border"
           />
 
-          {!isLogin && (
-            <TurnstileWidget
-              onVerify={handleTurnstileVerify}
-              onExpire={handleTurnstileExpire}
-              onError={handleTurnstileExpire}
-            />
-          )}
+          <TurnstileWidget
+            onVerify={handleTurnstileVerify}
+            onExpire={handleTurnstileExpire}
+            onError={handleTurnstileExpire}
+          />
 
-          <Button type="submit" className="w-full" disabled={signupDisabled}>
+          <Button type="submit" className="w-full" disabled={submitDisabled}>
             {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </Button>
         </form>
