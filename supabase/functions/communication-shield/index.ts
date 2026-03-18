@@ -265,7 +265,7 @@ You MUST call the provided tool with your structured output.`;
     // Return result with mode field so frontend knows which key to read
     return jsonResponse({ ...result, mode });
   } catch (e) {
-    console.error("communication-shield error:", e);
+    console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
     return jsonResponse({ error: "An error occurred processing your request." }, 500);
   }
