@@ -148,9 +148,9 @@ export default function Account() {
                     <Button onClick={() => setShowUpgradeModal(true)} className="gap-2">
                       <CreditCard className="h-4 w-4" />
                       {plan === "pro"
-                        ? "Upgrade to Case builder"
+                        ? "Upgrade to Case Builder"
                         : plan === "core"
-                        ? "Upgrade to pro"
+                        ? "Upgrade to Pro"
                         : "Upgrade plan"}
                     </Button>
                     <p className="text-xs text-muted-foreground">Unlock higher limits and advanced features</p>
