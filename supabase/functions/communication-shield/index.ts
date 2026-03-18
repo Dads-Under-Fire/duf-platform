@@ -114,7 +114,9 @@ Instead prefer responses that:
 
 ${LEGAL_SAFETY_RULES}
 
-${QUALITY_RULES}`;
+${QUALITY_RULES}
+
+${SCORING_INSTRUCTIONS}`;
 
 const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
