@@ -159,6 +159,15 @@ REWRITE MODE RULES:
 - Never return placeholder text — always produce a real, complete rewrite
 - The output must read as something the user could copy-paste and send immediately`;
 
+const STRICTER_RETRY_ADDENDUM = `
+
+CRITICAL RETRY INSTRUCTION: Your previous output was scored as legally unsafe. This time you MUST:
+- Produce ZERO apology language (no "sorry", "apologize", "regret")
+- Produce ZERO backward-looking explanations (no "because", "due to", "reason was")
+- Keep response under 3 sentences
+- Focus ONLY on forward-looking logistics
+- If unsure, use: "I will follow the agreed schedule moving forward."`;
+
 
 // ── Mode-specific tool schemas ──
 const RESPOND_TOOL = {
@@ -212,11 +221,14 @@ const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary
 const PLACEHOLDER_PATTERN = /\[.*?\]/;
 
 // Patterns that indicate unsafe apology/admission/backward-looking language
-const UNSAFE_PATTERNS = [
+const APOLOGY_PATTERNS = [
   /\bi('m| am) sorry\b/i,
   /\bi apologize\b/i,
   /\bi regret\b/i,
   /\bany confusion i caused\b/i,
+];
+
+const ADMISSION_PATTERNS = [
   /\bmy absence was due to\b/i,
   /\bi missed .{0,30} because\b/i,
   /\bi was late because\b/i,
@@ -231,9 +243,28 @@ const UNSAFE_PATTERNS = [
   /\bi admit\b/i,
 ];
 
+const ESCALATION_PATTERNS = [
+  /\byou always\b/i,
+  /\byou never\b/i,
+  /\bthat's a lie\b/i,
+  /\byou('re| are) (wrong|lying)\b/i,
+  /\bhow dare you\b/i,
+  /\bunbelievable\b/i,
+  /\byou have no right\b/i,
+];
+
+const INSULT_ENGAGEMENT_PATTERNS = [
+  /\bthat's unfair\b/i,
+  /\bthat hurts\b/i,
+  /\bi can't believe you\b/i,
+  /\byou('re| are) being (difficult|unreasonable|impossible)\b/i,
+];
+
+const ALL_UNSAFE_PATTERNS = [...APOLOGY_PATTERNS, ...ADMISSION_PATTERNS];
+
 function containsUnsafeLanguage(val: unknown): string | null {
   if (typeof val !== "string") return null;
-  for (const pattern of UNSAFE_PATTERNS) {
+  for (const pattern of ALL_UNSAFE_PATTERNS) {
     if (pattern.test(val)) return `matched unsafe pattern: ${pattern.source}`;
   }
   return null;
@@ -245,6 +276,154 @@ function containsPlaceholder(val: unknown): boolean {
 
 function isNonEmptyString(val: unknown): val is string {
   return typeof val === "string" && val.trim().length > 0;
+}
+
+// ── Quality Scoring System ──
+interface QualityScore {
+  admission_risk_score: number;
+  escalation_safety_score: number;
+  actionability_score: number;
+  focus_discipline_score: number;
+  court_safe_phrasing_score: number;
+  quality_score_total: number;
+  quality_score_status: "excellent" | "acceptable" | "weak" | "reject";
+  quality_score_notes: { triggered_rules: string[] };
+}
+
+function scoreOutput(
+  result: Record<string, unknown>,
+  mode: "respond" | "rewrite",
+): QualityScore {
+  const notes: string[] = [];
+
+  // Gather the text fields to analyze
+  const textFields: string[] = [];
+  if (mode === "respond") {
+    if (typeof result.primary_response === "string") textFields.push(result.primary_response);
+    // Only score response variants if recommendation is to respond
+    if (result.recommendation_type !== "do_not_respond") {
+      if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
+      if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
+    }
+  } else {
+    if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
+    if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
+    if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
+  }
+
+  const allText = textFields.join(" ");
+
+  // ── 1. Admission Risk Score ──
+  let admissionScore = 2;
+  let hasApology = false;
+  let hasAdmission = false;
+
+  for (const p of APOLOGY_PATTERNS) {
+    if (p.test(allText)) { hasApology = true; notes.push(`apology: ${p.source}`); }
+  }
+  for (const p of ADMISSION_PATTERNS) {
+    if (p.test(allText)) { hasAdmission = true; notes.push(`admission: ${p.source}`); }
+  }
+  if (PLACEHOLDER_PATTERN.test(allText)) {
+    notes.push("placeholder_brackets_detected");
+  }
+
+  if (hasApology || hasAdmission) {
+    admissionScore = 0;
+  } else {
+    // Check for borderline backward-looking language
+    const borderline = [/\bbecause\b/i, /\bdue to\b/i, /\bthe situation\b/i];
+    for (const p of borderline) {
+      if (p.test(allText)) { admissionScore = 1; notes.push(`borderline_admission: ${p.source}`); break; }
+    }
+  }
+
+  // ── 2. Escalation Safety Score ──
+  let escalationScore = 2;
+  let escalationHits = 0;
+  for (const p of ESCALATION_PATTERNS) {
+    if (p.test(allText)) { escalationHits++; notes.push(`escalation: ${p.source}`); }
+  }
+  if (escalationHits >= 2) escalationScore = 0;
+  else if (escalationHits === 1) escalationScore = 1;
+
+  // ── 3. Actionability Score ──
+  let actionabilityScore = 2;
+  const totalLen = allText.length;
+  if (totalLen < 10) {
+    actionabilityScore = 0;
+    notes.push("too_short");
+  } else if (totalLen > 1500) {
+    actionabilityScore = 1;
+    notes.push("overly_long");
+  }
+  // Check for vague/empty content
+  if (/^(ok|okay|sure|fine|noted|received)\.?$/i.test(allText.trim()) && mode === "rewrite") {
+    actionabilityScore = 1;
+    notes.push("vague_rewrite");
+  }
+
+  // ── 4. Focus Discipline Score ──
+  let focusScore = 2;
+  let insultEngagement = 0;
+  for (const p of INSULT_ENGAGEMENT_PATTERNS) {
+    if (p.test(allText)) { insultEngagement++; notes.push(`insult_engagement: ${p.source}`); }
+  }
+  if (insultEngagement >= 2) focusScore = 0;
+  else if (insultEngagement === 1) focusScore = 1;
+
+  // ── 5. Court-Safe Phrasing Score ──
+  let courtSafeScore = 2;
+  // Check for risky emotional language in outputs
+  const riskyEmotional = [
+    /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
+    /\bi('m| am) frustrated\b/i, /\bi('m| am) hurt\b/i,
+    /\byou make me\b/i, /\bthis is your fault\b/i,
+  ];
+  let riskyHits = 0;
+  for (const p of riskyEmotional) {
+    if (p.test(allText)) { riskyHits++; notes.push(`risky_phrasing: ${p.source}`); }
+  }
+  if (riskyHits >= 2) courtSafeScore = 0;
+  else if (riskyHits === 1) courtSafeScore = 1;
+
+  // Placeholder brackets are always risky
+  if (PLACEHOLDER_PATTERN.test(allText)) {
+    courtSafeScore = Math.min(courtSafeScore, 0);
+  }
+
+  // ── Total & Status ──
+  const total = admissionScore + escalationScore + actionabilityScore + focusScore + courtSafeScore;
+  let status: QualityScore["quality_score_status"];
+  if (total >= 9) status = "excellent";
+  else if (total >= 7) status = "acceptable";
+  else if (total >= 5) status = "weak";
+  else status = "reject";
+
+  return {
+    admission_risk_score: admissionScore,
+    escalation_safety_score: escalationScore,
+    actionability_score: actionabilityScore,
+    focus_discipline_score: focusScore,
+    court_safe_phrasing_score: courtSafeScore,
+    quality_score_total: total,
+    quality_score_status: status,
+    quality_score_notes: { triggered_rules: notes },
+  };
+}
+
+function scoreFallback(mode: "respond" | "rewrite"): QualityScore {
+  // Deterministic fallbacks are safe but not highly actionable
+  return {
+    admission_risk_score: 2,
+    escalation_safety_score: 2,
+    actionability_score: 1,
+    focus_discipline_score: 2,
+    court_safe_phrasing_score: 2,
+    quality_score_total: 9,
+    quality_score_status: "excellent",
+    quality_score_notes: { triggered_rules: ["deterministic_fallback"] },
+  };
 }
 
 function validateRespondResult(r: Record<string, unknown>): string | null {
@@ -307,9 +486,6 @@ function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
 }
 
 // ── Tier 3: Deterministic fallback templates ──
-// These are used ONLY when AI completely fails. They are clearly marked as
-// fallback/backup output and never include fake analysis fields.
-
 const RESPOND_FALLBACK_TEMPLATES: Record<string, string> = {
   "set a boundary": "Please keep communication focused on logistics regarding our child.",
   "ask for clarification": "Please clarify the specific logistical issue you need addressed.",
@@ -363,6 +539,76 @@ async function callOpenAI(
     },
     body: requestBody.replace(/"model":"[^"]+"/, `"model":"${model}"`),
   });
+}
+
+// ── Helper: attempt one AI call, parse, validate ──
+async function attemptAICall(
+  apiKey: string,
+  model: string,
+  requestBody: string,
+  mode: "respond" | "rewrite",
+  toolName: string,
+  label: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await callOpenAI(apiKey, model, requestBody);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[${FN}] ${label} failed: status=${response.status} body=${errText}`);
+      return null;
+    }
+    const aiData = await response.json();
+    const functionCall = aiData.output?.find(
+      (item: any) => item.type === "function_call" && item.name === toolName
+    );
+    if (!functionCall) {
+      console.warn(`[${FN}] ${label} no function_call in response`);
+      return null;
+    }
+    const parsed = JSON.parse(functionCall.arguments);
+    const validationError = mode === "respond"
+      ? validateRespondResult(parsed)
+      : validateRewriteResult(parsed);
+    if (validationError) {
+      console.warn(`[${FN}] ${label} validation failed: ${validationError}`);
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    console.warn(`[${FN}] ${label} error: ${err}`);
+    return null;
+  }
+}
+
+// ── Helper: build DB insert row with scoring ──
+function buildInsertRow(
+  userId: string,
+  message: string,
+  mode: "respond" | "rewrite",
+  result: Record<string, unknown>,
+  score: QualityScore,
+) {
+  return {
+    user_id: userId,
+    original_message: message,
+    mode,
+    primary_response: mode === "respond" ? (result.primary_response as string ?? null) : null,
+    primary_rewrite: mode === "rewrite" ? (result.primary_rewrite as string ?? null) : null,
+    recommendation_type: (result.recommendation_type as string) ?? null,
+    shorter_version: (result.shorter_version as string) ?? null,
+    firmer_version: (result.firmer_version as string) ?? null,
+    tone_assessment: (result.tone_assessment as string) ?? "Fallback",
+    risk_flags: (result.risk_flags as string[]) ?? [],
+    why_this_is_safer: (result.why_this_is_safer as string) ?? null,
+    quality_score_total: score.quality_score_total,
+    admission_risk_score: score.admission_risk_score,
+    escalation_safety_score: score.escalation_safety_score,
+    actionability_score: score.actionability_score,
+    focus_discipline_score: score.focus_discipline_score,
+    court_safe_phrasing_score: score.court_safe_phrasing_score,
+    quality_score_status: score.quality_score_status,
+    quality_score_notes: score.quality_score_notes,
+  };
 }
 
 serve(async (req) => {
@@ -440,41 +686,40 @@ serve(async (req) => {
       ? RESPOND_INTRO(original_context)
       : REWRITE_INTRO;
 
-    const systemPrompt = `You are a custody communication specialist trained in court-admissible co-parent messaging.
+    const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
 ${modeIntro}
 
 ${BASE_INSTRUCTIONS}
-${contextInstruction}
+${contextInstruction}${addendum}
 
 You MUST call the provided tool with your structured output.`;
 
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
 
-    // ── 6. Three-tier OpenAI call ──
-    const requestBody = JSON.stringify({
+    const buildRequestBody = (addendum = "") => JSON.stringify({
       model: MODEL_PRIMARY,
       input: [
-        { role: "developer", content: systemPrompt },
+        { role: "developer", content: buildSystemPrompt(addendum) },
         { role: "user", content: message },
       ],
       tools: [tool],
       tool_choice: "required",
     });
 
-    let aiResult: Record<string, unknown> | null = null;
-    let usedFallback = false;
+    const requestBody = buildRequestBody();
 
-    // Tier 1: Primary model attempt (with 429 retry)
+    let aiResult: Record<string, unknown> | null = null;
+    let score: QualityScore | null = null;
+
+    // ── 6. Tier 1: Primary model (with 429 retry) ──
     let response: Response | null = null;
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       response = await callOpenAI(OPENAI_API_KEY, MODEL_PRIMARY, requestBody);
-
       if (response.status !== 429) break;
       if (attempt === MAX_RETRIES) break;
-
       const retryAfter = response.headers.get("Retry-After");
       const waitMs = getRetryDelayMs(retryAfter, attempt);
       console.log(`[${FN}] Tier1 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
@@ -482,7 +727,7 @@ You MUST call the provided tool with your structured output.`;
       await new Promise((r) => setTimeout(r, waitMs));
     }
 
-    // Try to extract result from Tier 1
+    // Try to extract & score Tier 1
     if (response && response.ok) {
       try {
         const aiData = await response.json();
@@ -495,7 +740,28 @@ You MUST call the provided tool with your structured output.`;
             ? validateRespondResult(parsed)
             : validateRewriteResult(parsed);
           if (!validationError) {
-            aiResult = parsed;
+            const s = scoreOutput(parsed, mode);
+            console.log(`[${FN}] Tier1 score: ${s.quality_score_total}/10 (${s.quality_score_status}) | notes=${JSON.stringify(s.quality_score_notes.triggered_rules)}`);
+
+            if (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable") {
+              aiResult = parsed;
+              score = s;
+            } else {
+              // weak or reject — attempt stricter retry with same model
+              console.log(`[${FN}] Tier1 score ${s.quality_score_status}, attempting stricter retry`);
+              const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
+              const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
+              if (retryResult) {
+                const s2 = scoreOutput(retryResult, mode);
+                console.log(`[${FN}] Tier1-strict-retry score: ${s2.quality_score_total}/10 (${s2.quality_score_status})`);
+                if (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable") {
+                  aiResult = retryResult;
+                  score = s2;
+                } else {
+                  console.warn(`[${FN}] Tier1-strict-retry still ${s2.quality_score_status}, escalating to Tier2`);
+                }
+              }
+            }
           } else {
             console.warn(`[${FN}] Tier1 validation failed: ${validationError}`);
           }
@@ -510,80 +776,46 @@ You MUST call the provided tool with your structured output.`;
       console.warn(`[${FN}] Tier1 failed: status=${response?.status} body=${errText}`);
     }
 
-    // Tier 2: Retry with fallback model (if Tier 1 failed)
+    // ── Tier 2: Fallback model (if Tier 1 didn't produce acceptable result) ──
     if (!aiResult) {
       console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
-      try {
-        const tier2Response = await callOpenAI(OPENAI_API_KEY, MODEL_FALLBACK, requestBody);
-        if (tier2Response.ok) {
-          const aiData = await tier2Response.json();
-          const functionCall = aiData.output?.find(
-            (item: any) => item.type === "function_call" && item.name === toolName
-          );
-          if (functionCall) {
-            const parsed = JSON.parse(functionCall.arguments);
-            const validationError = mode === "respond"
-              ? validateRespondResult(parsed)
-              : validateRewriteResult(parsed);
-            if (!validationError) {
-              aiResult = parsed;
-              console.log(`[${FN}] Tier2 succeeded`);
-            } else {
-              console.warn(`[${FN}] Tier2 validation failed: ${validationError}`);
-            }
-          }
+      const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
+      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, stricterBody, mode, toolName, "Tier2");
+      if (tier2Result) {
+        const s = scoreOutput(tier2Result, mode);
+        console.log(`[${FN}] Tier2 score: ${s.quality_score_total}/10 (${s.quality_score_status})`);
+        if (s.quality_score_status !== "reject") {
+          aiResult = tier2Result;
+          score = s;
+          console.log(`[${FN}] Tier2 accepted (${s.quality_score_status})`);
         } else {
-          const t2Err = await tier2Response.text();
-          console.warn(`[${FN}] Tier2 failed: status=${tier2Response.status} body=${t2Err}`);
+          console.warn(`[${FN}] Tier2 score reject, falling to Tier3`);
         }
-      } catch (tier2Err) {
-        console.warn(`[${FN}] Tier2 error: ${tier2Err}`);
       }
     }
 
-    // Tier 3: Deterministic fallback (always succeeds)
+    // ── Tier 3: Deterministic fallback (always succeeds) ──
     if (!aiResult) {
       console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode} | context=${communication_context ?? "none"}`);
       const fallback = buildDeterministicFallback(mode, communication_context);
-      usedFallback = true;
+      const fallbackScore = scoreFallback(mode);
 
-      // Persist fallback (no quota increment for fallback)
-      await serviceClient.from("communication_shield_history").insert({
-        user_id: userId,
-        original_message: message,
-        mode,
-        primary_response: mode === "respond" ? (fallback as any).primary_response : null,
-        primary_rewrite: mode === "rewrite" ? (fallback as any).primary_rewrite : null,
-        recommendation_type: (fallback as any).recommendation_type ?? null,
-        shorter_version: null,
-        firmer_version: null,
-        tone_assessment: "Fallback",
-        risk_flags: [],
-        why_this_is_safer: null,
-      });
+      await serviceClient.from("communication_shield_history").insert(
+        buildInsertRow(userId, message, mode, fallback as any, fallbackScore)
+      );
 
-      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 deterministic | mode=${mode}` });
+      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 deterministic | mode=${mode} | score=${fallbackScore.quality_score_total}` });
       return jsonResponse(fallback);
     }
 
-    // ── 7. AI succeeded — persist & increment ──
-    await serviceClient.from("communication_shield_history").insert({
-      user_id: userId,
-      original_message: message,
-      mode,
-      primary_response: mode === "respond" ? (aiResult.primary_response as string) : null,
-      primary_rewrite: mode === "rewrite" ? (aiResult.primary_rewrite as string) : null,
-      recommendation_type: (aiResult.recommendation_type as string) ?? null,
-      shorter_version: aiResult.shorter_version as string,
-      firmer_version: aiResult.firmer_version as string,
-      tone_assessment: aiResult.tone_assessment as string,
-      risk_flags: aiResult.risk_flags as string[],
-      why_this_is_safer: aiResult.why_this_is_safer as string,
-    });
+    // ── 7. AI succeeded with acceptable score — persist & increment ──
+    await serviceClient.from("communication_shield_history").insert(
+      buildInsertRow(userId, message, mode, aiResult, score!)
+    );
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${aiResult.recommendation_type ?? "n/a"} | tone=${aiResult.tone_assessment}`);
+    console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${aiResult.recommendation_type ?? "n/a"} | tone=${aiResult.tone_assessment} | score=${score!.quality_score_total}/10 (${score!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
     return jsonResponse({ ...aiResult, mode });
