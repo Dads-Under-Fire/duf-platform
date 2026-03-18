@@ -449,14 +449,58 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   ];
   let emotionalHits = 0;
   for (const p of emotionalPatterns) { if (p.test(text)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
-  if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
+
+  // Short emotional message detection — single-word or very short reactive messages
+  const trimmed = text.trim();
+  const wordCount = trimmed.split(/\s+/).length;
+  const shortEmotionalPatterns = [
+    /^unbelievable[.!?]*$/i, /^seriously[.!?]*$/i, /^ridiculous[.!?]*$/i,
+    /^wow[.!?]*$/i, /^fine[.!?]*$/i, /^great[.!?]*$/i, /^nice[.!?]*$/i,
+    /^really[.!?]*$/i, /^typical[.!?]*$/i, /^incredible[.!?]*$/i,
+    /^amazing[.!?]*$/i, /^perfect[.!?]*$/i, /^lovely[.!?]*$/i,
+    /^figures?[.!?]*$/i, /^right[.!?]*$/i, /^sure[.!?]*$/i,
+    /^of course[.!?]*$/i, /^clearly[.!?]*$/i,
+  ];
+  let shortEmotionalHit = false;
+  if (wordCount <= 4) {
+    for (const p of shortEmotionalPatterns) {
+      if (p.test(trimmed)) { shortEmotionalHit = true; notes.push(`short_emotional: ${p.source}`); break; }
+    }
+    // Also catch short messages ending with ! or ? that express exasperation
+    if (!shortEmotionalHit && wordCount <= 3 && /[!?]{1,}$/.test(trimmed) && !/^(yes|no|ok|okay|confirmed|done|received|noted)[.!?]*$/i.test(trimmed)) {
+      shortEmotionalHit = true;
+      notes.push("short_emotional: short reactive message with punctuation");
+    }
+  }
+  if (shortEmotionalHit && emotionalHits === 0) {
+    emotionalHits++;
+    notes.push("-2: short emotional/reactive message");
+    deductions += 2;
+    issueCategories++;
+  }
+
+  if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
+
+  // Admission trap detection (-3)
+  const admissionTrapPatterns = [
+    /\bso you agree\b/i, /\byou admit\b/i, /\bthen you acknowledge\b/i,
+    /\bso basically you('re| are) saying\b/i, /\bso you('re| are) saying\b/i,
+    /\bso you confirm\b/i, /\byou('re| are) confirming\b/i,
+    /\bso you('re| are) admitting\b/i, /\byou just admitted\b/i,
+    /\bso you acknowledge\b/i, /\bthen you agree\b/i,
+    /\bso you concede\b/i, /\byou('re| are) conceding\b/i,
+    /\bso we can agree that\b/i, /\byou already said\b/i,
+    /\byou told me that\b/i, /\byou said yourself\b/i,
+  ];
+  let admissionTrapHits = 0;
+  for (const p of admissionTrapPatterns) { if (p.test(text)) { admissionTrapHits++; notes.push(`admission_trap: ${p.source}`); } }
+  if (admissionTrapHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission trap"); }
 
   // Hostile/aggressive tone (-2)
   const hostilePatterns = [
     /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish)\b/i,
     /\bshut up\b/i, /\bgo to hell\b/i, /\byou disgust me\b/i,
     /\bnobody (wants|likes|cares about) you\b/i,
-    /\bunbelievable\b/i,
   ];
   let hostileHits = 0;
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
@@ -499,7 +543,7 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   for (const p of vaguePatterns) { if (p.test(text)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
   if (vagueHits > 0) { deductions += 1; issueCategories++; notes.push("-1: vague phrasing"); }
 
-  // Escalation risk (-1)
+  // Escalation risk (-1) — only if not already caught by more specific categories
   let escalationHits = 0;
   for (const p of [...ESCALATION_PATTERNS, ...INSULT_ENGAGEMENT_PATTERNS]) {
     if (p.test(text) && !accusatoryHits) { escalationHits++; }
@@ -512,6 +556,14 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   if (threatHits > 0 || faultHits > 0 || accusatoryHits > 0) {
     score = Math.min(score, 4);
     notes.push("cap: threats/admissions/accusations caps at 4");
+  }
+  if (admissionTrapHits > 0) {
+    score = Math.min(score, 5);
+    notes.push("cap: admission trap caps at 5");
+  }
+  if (shortEmotionalHit) {
+    score = Math.min(score, 6);
+    notes.push("cap: short emotional message caps at 6");
   }
   if (emotionalHits > 0 || vagueHits > 0) {
     score = Math.min(score, 8);
