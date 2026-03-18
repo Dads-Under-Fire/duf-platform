@@ -102,7 +102,10 @@ const REWRITE_TOOL = {
 // ── Validation helpers ──
 const SHARED_REQUIRED = ["shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"] as const;
 
+const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
+
 function validateRespondResult(r: Record<string, unknown>): string | null {
+  if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
   if (typeof r.primary_response !== "string" || !r.primary_response) return "missing primary_response";
   for (const k of SHARED_REQUIRED) {
     if (k === "risk_flags") {
