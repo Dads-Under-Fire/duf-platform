@@ -20,7 +20,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
+  const serviceClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
+  );
+  const anonClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_ANON_KEY") ?? ""
   );
@@ -28,11 +33,23 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
+    const { data } = await anonClient.auth.getUser(token);
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { plan } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    let plan = body.plan;
+
+    // If no plan specified, read intended_plan from profile
+    if (!plan) {
+      const { data: profile } = await serviceClient
+        .from("profiles")
+        .select("intended_plan")
+        .eq("user_id", user.id)
+        .single();
+      plan = profile?.intended_plan;
+    }
+
     const priceId = PLAN_PRICES[plan];
     if (!priceId) throw new Error(`Invalid plan: ${plan}`);
 
