@@ -240,7 +240,7 @@ You MUST call the provided tool with your structured output.`;
       : validateRewriteResult(result);
 
     if (validationError) {
-      console.error("Validation failed:", validationError, result);
+      console.error(`[${FN}] validation_failed | user=${userId} | mode=${mode} | error=${validationError}`);
       logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
       return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
     }
