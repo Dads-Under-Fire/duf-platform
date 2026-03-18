@@ -883,10 +883,22 @@ function scoreRewriteQuality(
   };
 }
 
+function validateThreeAlternatives(r: Record<string, unknown>): string | null {
+  if (!Array.isArray(r.three_alternatives)) return "missing three_alternatives";
+  if (r.three_alternatives.length !== 3) return `three_alternatives must have exactly 3 items, got ${r.three_alternatives.length}`;
+  for (let i = 0; i < 3; i++) {
+    if (!isNonEmptyString(r.three_alternatives[i])) return `three_alternatives[${i}] is empty`;
+    if (containsPlaceholder(r.three_alternatives[i])) return `three_alternatives[${i}] contains placeholder`;
+    const unsafeMatch = containsUnsafeLanguage(r.three_alternatives[i]);
+    if (unsafeMatch) return `three_alternatives[${i}] contains unsafe language (${unsafeMatch})`;
+  }
+  return null;
+}
+
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
-  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder text";
+  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
 
   if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
     if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version for respond";
@@ -894,7 +906,7 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
     if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
 
-    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
+    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
       const unsafeMatch = containsUnsafeLanguage(r[field]);
       if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
     }
@@ -905,6 +917,8 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  const altError = validateThreeAlternatives(r);
+  if (altError) return altError;
   return null;
 }
 
@@ -922,6 +936,8 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  const altError = validateThreeAlternatives(r);
+  if (altError) return altError;
   return null;
 }
 
