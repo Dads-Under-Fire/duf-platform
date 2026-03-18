@@ -211,6 +211,34 @@ const REWRITE_TOOL = {
 const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
 const PLACEHOLDER_PATTERN = /\[.*?\]/;
 
+// Patterns that indicate unsafe apology/admission/backward-looking language
+const UNSAFE_PATTERNS = [
+  /\bi('m| am) sorry\b/i,
+  /\bi apologize\b/i,
+  /\bi regret\b/i,
+  /\bany confusion i caused\b/i,
+  /\bmy absence was due to\b/i,
+  /\bi missed .{0,30} because\b/i,
+  /\bi was late because\b/i,
+  /\bit happened because\b/i,
+  /\bthe reason was\b/i,
+  /\bwhat actually happened\b/i,
+  /\bi didn'?t do that because\b/i,
+  /\bi forgot to\b/i,
+  /\bi should have\b/i,
+  /\bi failed to\b/i,
+  /\bi acknowledge that i\b/i,
+  /\bi admit\b/i,
+];
+
+function containsUnsafeLanguage(val: unknown): string | null {
+  if (typeof val !== "string") return null;
+  for (const pattern of UNSAFE_PATTERNS) {
+    if (pattern.test(val)) return `matched unsafe pattern: ${pattern.source}`;
+  }
+  return null;
+}
+
 function containsPlaceholder(val: unknown): boolean {
   return typeof val === "string" && PLACEHOLDER_PATTERN.test(val);
 }
