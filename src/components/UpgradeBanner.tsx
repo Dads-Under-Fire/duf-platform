@@ -18,7 +18,17 @@ export function UpgradeBanner() {
   if (!anyExhausted) return null;
 
   const displayPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
-  const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
+
+  let creditType: string;
+  if (rewritesExhausted && evidenceExhausted) {
+    creditType = "";
+  } else if (evidenceExhausted) {
+    creditType = " evidence";
+  } else {
+    creditType = " message";
+  }
+
+  const message = `Your free${creditType} credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
   const ctaLabel = "Upgrade now";
 
   return (
