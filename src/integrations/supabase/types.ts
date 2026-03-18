@@ -44,33 +44,45 @@ export type Database = {
       message_rewrites: {
         Row: {
           created_at: string
+          firmer_version: string | null
           id: string
           mode: string
           original_message: string
+          recommendation_type: string | null
           rewritten_message: string
           risk_flags: Json | null
+          shorter_version: string | null
           tone_assessment: string | null
           user_id: string
+          why_this_is_safer: string | null
         }
         Insert: {
           created_at?: string
+          firmer_version?: string | null
           id?: string
           mode?: string
           original_message: string
+          recommendation_type?: string | null
           rewritten_message: string
           risk_flags?: Json | null
+          shorter_version?: string | null
           tone_assessment?: string | null
           user_id: string
+          why_this_is_safer?: string | null
         }
         Update: {
           created_at?: string
+          firmer_version?: string | null
           id?: string
           mode?: string
           original_message?: string
+          recommendation_type?: string | null
           rewritten_message?: string
           risk_flags?: Json | null
+          shorter_version?: string | null
           tone_assessment?: string | null
           user_id?: string
+          why_this_is_safer?: string | null
         }
         Relationships: []
       }
