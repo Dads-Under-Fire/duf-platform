@@ -222,9 +222,22 @@ const REWRITE_INTRO = `The user wants to REWRITE their own draft message so it i
 Your job:
 - Rewrite the user's message into neutral, court-safe language
 - Remove emotional, accusatory, inflammatory, sarcastic, or reactive phrasing
-- Preserve the core logistical intent of what the user is trying to communicate
+- PRESERVE SPECIFIC LOGISTICAL DETAILS from the original message: times, dates, locations, actions (pickup, drop-off), references to "today", "tomorrow", specific days, named events, or any concrete detail the user included
 - Keep the rewrite concise, calm, and documentation-friendly
 - Do not overexplain or add unnecessary context the user did not include
+- Do NOT strip away specifics and replace them with vague generic phrasing
+
+CONTEXT PRESERVATION RULES (CRITICAL):
+- If the original says "today" → the rewrite MUST say "today"
+- If the original mentions "pickup" → the rewrite MUST mention "pickup"
+- If the original mentions a specific time like "3pm" → the rewrite MUST include "3pm"
+- If the original references a specific action → the rewrite MUST reference that action
+- NEVER replace specific details with generic phrases like "the agreed schedule" or "moving forward" when the original contained concrete information
+- "I will follow the agreed schedule" is only acceptable when the original message itself was vague and contained no specific logistics
+- Example: "Are you going to show up on time for pickup today or not?" → GOOD: "I will be at the scheduled pickup location today." BAD: "I will follow the agreed schedule."
+- Example: "You better not be late dropping off the kids at 5pm" → GOOD: "I will have the children ready for the 5pm drop-off." BAD: "I will follow the agreed schedule moving forward."
+
+ALL THREE VARIANTS (primary_rewrite, shorter_version, firmer_version) must preserve the same specific context from the original. They should differ in tone/length but NOT in specificity.
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
