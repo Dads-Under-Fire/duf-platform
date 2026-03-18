@@ -9,8 +9,8 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface AIResult {
   primary_response: string;
-  shorter_response: string;
-  firmer_response: string;
+  shorter_version: string;
+  firmer_version: string;
   tone_assessment: string;
   risk_flags: string[];
   why_this_is_safer: string;
