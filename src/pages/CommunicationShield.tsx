@@ -779,3 +779,44 @@ function PlaceholderSection({ label, placeholder }: { label: string; placeholder
     </div>
   );
 }
+
+const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldCheck; label: string; className: string; description: string }> = {
+  respond: {
+    icon: ShieldCheck,
+    label: "Respond",
+    className: "bg-primary/10 border-primary/30 text-primary",
+    description: "A response is appropriate. Use the court-safe version below.",
+  },
+  do_not_respond: {
+    icon: ShieldOff,
+    label: "Do Not Respond",
+    className: "bg-destructive/10 border-destructive/30 text-destructive",
+    description: "The safest action is to not respond. See the explanation below.",
+  },
+  brief_boundary_response: {
+    icon: ShieldAlert,
+    label: "Brief Boundary Response",
+    className: "bg-accent/30 border-accent text-accent-foreground",
+    description: "Only a brief boundary statement is needed. Keep it minimal.",
+  },
+};
+
+function RecommendationBanner({ type, fallback }: { type: RecommendationType; fallback?: string }) {
+  const config = RECOMMENDATION_CONFIG[type];
+  const Icon = config.icon;
+  return (
+    <div className={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${config.className}`}>
+      <div className="flex items-center gap-2 font-semibold text-sm">
+        <Icon className="h-4 w-4 shrink-0" />
+        Recommendation: {config.label}
+      </div>
+      <p className="text-sm opacity-90">{config.description}</p>
+      {type === "do_not_respond" && fallback && (
+        <div className="mt-1 pt-2 border-t border-current/20">
+          <p className="text-xs font-medium opacity-70 mb-1">If you must reply:</p>
+          <p className="text-sm italic">{fallback}</p>
+        </div>
+      )}
+    </div>
+  );
+}
