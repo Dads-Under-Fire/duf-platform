@@ -663,7 +663,10 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
+                {result.mode === "respond" && result.recommendation_type && (
+                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                )}
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : result.recommendation_type === "do_not_respond" ? "Why You Shouldn't Respond" : "Primary Response"} content={getPrimaryText(result)} />
                 <ResponseSection label="Shorter Version" content={result.shorter_version} />
                 <ResponseSection label="Firmer Version" content={result.firmer_version} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
