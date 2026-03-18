@@ -124,8 +124,9 @@ serve(async (req) => {
     const validTypes = Object.keys(TYPE_INSTRUCTIONS);
     const type = validTypes.includes(analysis_type) ? analysis_type : "general";
 
-    // Count words before sending to OpenAI
     const wordCount = countWords(content);
+
+    console.log(`[${FN}] request_start | user=${userId} | type=${type} | word_count=${wordCount} | content_len=${content.length}`);
 
     // ── 4. Quota check (before AI call) ──
     const { serviceClient } = auth;
