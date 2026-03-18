@@ -49,14 +49,7 @@ export default function CommunicationShield() {
     if (!msg || !user) return;
 
     if (rewritesExhausted) {
-      const planLabel = intendedPlan === "case_builder" ? "Case Builder" : intendedPlan ? intendedPlan.charAt(0).toUpperCase() + intendedPlan.slice(1) : "a paid";
-      toast({
-        title: "Free credits used up",
-        description: intendedPlan
-          ? `Upgrade to the ${planLabel} plan to continue using Communication Shield.`
-          : "Upgrade your plan to continue using Communication Shield.",
-        variant: "destructive",
-      });
+      setShowUpgradeModal(true);
       return;
     }
 
