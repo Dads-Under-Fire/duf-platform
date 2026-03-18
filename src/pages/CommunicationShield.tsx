@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface AIResult {
   primary_response: string;
@@ -41,20 +42,14 @@ export default function CommunicationShield() {
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherText, setOtherText] = useState("");
   const [showDirections, setShowDirections] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
     if (!msg || !user) return;
 
     if (rewritesExhausted) {
-      const planLabel = intendedPlan === "case_builder" ? "Case Builder" : intendedPlan ? intendedPlan.charAt(0).toUpperCase() + intendedPlan.slice(1) : "a paid";
-      toast({
-        title: "Free credits used up",
-        description: intendedPlan
-          ? `Upgrade to the ${planLabel} plan to continue using Communication Shield.`
-          : "Upgrade your plan to continue using Communication Shield.",
-        variant: "destructive",
-      });
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -736,6 +731,12 @@ export default function CommunicationShield() {
           </button>
         </div>
       </div>
+
+      <UpgradeModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        lockedFeature="Communication Shield"
+      />
     </div>
   );
 }
