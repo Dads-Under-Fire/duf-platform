@@ -320,7 +320,7 @@ export default function CommunicationShield() {
             <button
               onClick={handleRegenerate}
               disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RefreshCw className="h-4 w-4" />
               Generate again
