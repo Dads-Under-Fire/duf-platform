@@ -731,6 +731,12 @@ export default function CommunicationShield() {
           </button>
         </div>
       </div>
+
+      <UpgradeModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        lockedFeature="Communication Shield"
+      />
     </div>
   );
 }
