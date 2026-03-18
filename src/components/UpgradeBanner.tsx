@@ -22,8 +22,6 @@ export function UpgradeBanner() {
   if (!shouldShow) return null;
 
   const displayPlan = intendedPlan || "core";
-
-  const displayPlan = intendedPlan || "core";
   const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
   const ctaLabel = "Upgrade Now";
 
