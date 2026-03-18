@@ -275,7 +275,28 @@ CONTEXT PRESERVATION RULES (CRITICAL):
 - Example: "Are you going to show up on time for pickup today or not?" → GOOD: "I will be at the scheduled pickup location today." BAD: "I will follow the agreed schedule."
 - Example: "You better not be late dropping off the kids at 5pm" → GOOD: "I will have the children ready for the 5pm drop-off." BAD: "I will follow the agreed schedule moving forward."
 
-ALL THREE VARIANTS (primary_rewrite, shorter_version, firmer_version) must preserve the same specific context from the original. They should differ in tone/length but NOT in specificity.
+ADMISSION TRAP REWRITE RULES (CRITICAL — overrides tone preservation):
+If the original message attempts to force an admission, confirm past wrongdoing, or reference past violations in a yes/no format:
+- The rewrite MUST NOT ask for confirmation of past events
+- The rewrite MUST NOT restate or imply wrongdoing
+- The rewrite MUST NOT include questions that create legal exposure
+- The rewrite MUST NOT confirm or deny any past conduct
+- Instead: convert the entire message to FORWARD-LOOKING language only
+- Focus on schedule adherence, expectations, or logistics
+- Remove ALL references to past behavior, past violations, or past events
+- This rule overrides context preservation — do NOT preserve backward-looking accusations even if they contain specific details
+- Examples:
+  INPUT: "So you're admitting you didn't follow the schedule last weekend?"
+  CORRECT: "Please follow the agreed schedule moving forward."
+  WRONG: "Please confirm the schedule was not followed."
+  WRONG: "Can you confirm you were late?"
+  WRONG: "Do you agree you violated the schedule?"
+  INPUT: "So you agree that you were late to pickup last Tuesday?"
+  CORRECT: "I will be at the scheduled pickup time going forward."
+  WRONG: "Were you late to pickup last Tuesday?"
+  WRONG: "Can you confirm you were late last Tuesday?"
+
+ALL THREE VARIANTS (primary_rewrite, shorter_version, firmer_version) must follow these admission trap rules. They should differ in tone/length but NOT in specificity or safety.
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
