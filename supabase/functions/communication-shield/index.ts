@@ -165,6 +165,8 @@ serve(async (req) => {
       return jsonResponse({ error: "Could not verify quota" }, 500);
     }
 
+    console.log(`[${FN}] quota_check | user=${userId} | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
+
     if (!quotaRows[0].allowed) {
       logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
       return jsonResponse({ error: "You've used all your message rewrites." }, 429);
