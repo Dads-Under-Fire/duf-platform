@@ -276,7 +276,7 @@ Analyze the incoming message carefully. Set "recommendation_type" to one of:
   • Set "shorter_version" and "firmer_version" to empty strings ""
   • Optionally set "fallback_response" to a very short neutral message ONLY if the user feels they absolutely must reply (e.g. "Received.")
 
-- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_rewrite" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
 
 CRITICAL DECISION RULES:
 - Never recommend "do_not_respond" for technical or system reasons.
