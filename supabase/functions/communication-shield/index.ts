@@ -125,6 +125,53 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
   return null;
 }
 
+function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
+  if (!retryAfter) return Math.pow(2, attempt) * 1000 + Math.random() * 500;
+
+  const seconds = Number.parseInt(retryAfter, 10);
+  if (!Number.isNaN(seconds) && seconds > 0) return seconds * 1000;
+
+  const retryAt = new Date(retryAfter).getTime();
+  if (!Number.isNaN(retryAt)) {
+    const delta = retryAt - Date.now();
+    if (delta > 0) return delta;
+  }
+
+  return Math.pow(2, attempt) * 1000 + Math.random() * 500;
+}
+
+function buildRateLimitedFallback(mode: "respond" | "rewrite") {
+  if (mode === "respond") {
+    return {
+      mode,
+      recommendation_type: "do_not_respond",
+      primary_response: "No response is recommended right now because guidance is temporarily unavailable. Waiting briefly is safer than sending a reactive reply.",
+      shorter_version: "Do not respond right now—pause and retry shortly.",
+      firmer_version: "Do not send a reply at this time. Wait, then retry for a court-safe response.",
+      fallback_response: "Received. I will respond after reviewing the schedule.",
+      tone_assessment: "Protective / Pause Recommended",
+      risk_flags: [
+        "AI service temporarily unavailable",
+        "Avoided potentially escalatory immediate response",
+      ],
+      why_this_is_safer: "A short pause reduces the chance of reactive language. Retrying shortly helps ensure a neutral, court-safe response.",
+    };
+  }
+
+  return {
+    mode,
+    primary_rewrite: "Rewrite guidance is temporarily unavailable. Please wait a moment and retry before sending your message.",
+    shorter_version: "Hold this message and retry shortly.",
+    firmer_version: "Do not send yet—retry in a moment for a court-safe rewrite.",
+    tone_assessment: "Pause Recommended",
+    risk_flags: [
+      "AI rewrite service temporarily unavailable",
+      "Prevented sending an unreviewed draft",
+    ],
+    why_this_is_safer: "Waiting avoids sending language that may escalate conflict. A short retry window helps preserve neutral, court-safe wording.",
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
