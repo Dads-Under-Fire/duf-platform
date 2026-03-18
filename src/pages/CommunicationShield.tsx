@@ -16,13 +16,15 @@ interface AIResult {
   fallback_response?: string;
   // rewrite mode
   primary_rewrite?: string;
-  // shared
-  shorter_version: string;
-  firmer_version: string;
-  tone_assessment: string;
-  risk_flags: string[];
-  why_this_is_safer: string;
+  // shared (optional because fallback results omit these)
+  shorter_version?: string;
+  firmer_version?: string;
+  tone_assessment?: string;
+  risk_flags?: string[];
+  why_this_is_safer?: string;
   mode: "respond" | "rewrite";
+  // fallback flag
+  is_fallback?: boolean;
 }
 
 /** Helper: get the primary text from result based on mode */
@@ -88,7 +90,6 @@ export default function CommunicationShield() {
         if (data?.error) throw new Error(data.error);
 
         const aiResult: AIResult = data;
-        if (!aiResult.primary_rewrite) throw new Error("Failed to generate rewrite. Please try again.");
         setResult(aiResult);
         refetchProfile();
       } catch (err: any) {
@@ -258,52 +259,56 @@ export default function CommunicationShield() {
               </div>
             ) : result ? (
               <>
-                {result.mode === "respond" && result.recommendation_type && (
-                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                )}
-
-                {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                  /* Do-not-respond: minimal layout */
-                  <DoNotRespondLayout result={result} />
+                {result.is_fallback ? (
+                  <FallbackResultLayout result={result} />
                 ) : (
-                  /* Normal respond or rewrite: full layout */
                   <>
-                    <div>
-                      <p className="font-semibold text-foreground mb-1">{result.mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
-                      <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
-                    </div>
+                    {result.mode === "respond" && result.recommendation_type && (
+                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                    )}
 
-                    <div className="h-px bg-border" />
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium mb-1">Shorter Version:</p>
-                      <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_version}</p>
-                    </div>
+                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+                      <DoNotRespondLayout result={result} />
+                    ) : (
+                      <>
+                        <div>
+                          <p className="font-semibold text-foreground mb-1">{result.mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
+                          <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
+                        </div>
 
-                    <div className="h-px bg-border" />
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium mb-1">Firmer Version:</p>
-                      <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_version}</p>
-                    </div>
+                        <div className="h-px bg-border" />
+                        <div>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">Shorter Version:</p>
+                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_version}</p>
+                        </div>
 
-                    <div className="h-px bg-border" />
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium mb-1">Tone Assessment:</p>
-                      <p className="text-foreground text-sm">{result.tone_assessment}</p>
-                    </div>
+                        <div className="h-px bg-border" />
+                        <div>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">Firmer Version:</p>
+                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_version}</p>
+                        </div>
 
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
-                      <ul className="space-y-1">
-                        {result.risk_flags.map((flag, i) => (
-                          <li key={i} className="text-foreground text-sm">• {flag}</li>
-                        ))}
-                      </ul>
-                    </div>
+                        <div className="h-px bg-border" />
+                        <div>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">Tone Assessment:</p>
+                          <p className="text-foreground text-sm">{result.tone_assessment}</p>
+                        </div>
 
-                    <div>
-                      <p className="text-muted-foreground text-sm font-medium mb-1">Why This Is Safer:</p>
-                      <p className="text-foreground text-sm whitespace-pre-wrap">{result.why_this_is_safer}</p>
-                    </div>
+                        <div>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
+                          <ul className="space-y-1">
+                            {(result.risk_flags ?? []).map((flag, i) => (
+                              <li key={i} className="text-foreground text-sm">• {flag}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">Why This Is Safer:</p>
+                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.why_this_is_safer}</p>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </>
@@ -669,28 +674,34 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                {result.mode === "respond" && result.recommendation_type && (
-                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                )}
-
-                {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                  <DoNotRespondLayout result={result} />
+                {result.is_fallback ? (
+                  <FallbackResultLayout result={result} />
                 ) : (
                   <>
-                    <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
-                    <ResponseSection label="Shorter Version" content={result.shorter_version} />
-                    <ResponseSection label="Firmer Version" content={result.firmer_version} />
-                    <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
-                    <div>
-                      <p className="text-muted-foreground mb-1">Risk Flags</p>
-                      <div className="h-px bg-border mb-2" />
-                      <ul className="space-y-1">
-                        {result.risk_flags.map((flag, i) => (
-                          <li key={i} className="text-foreground">• {flag}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer} />
+                    {result.mode === "respond" && result.recommendation_type && (
+                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                    )}
+
+                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+                      <DoNotRespondLayout result={result} />
+                    ) : (
+                      <>
+                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
+                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} />
+                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} />
+                        <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                        <div>
+                          <p className="text-muted-foreground mb-1">Risk Flags</p>
+                          <div className="h-px bg-border mb-2" />
+                          <ul className="space-y-1">
+                            {(result.risk_flags ?? []).map((flag, i) => (
+                              <li key={i} className="text-foreground">• {flag}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -786,6 +797,26 @@ function ResponseSection({ label, content }: { label: string; content: string })
       <p className="text-muted-foreground mb-1">{label}</p>
       <div className="h-px bg-border mb-2" />
       <p className="text-foreground whitespace-pre-wrap">{content}</p>
+    </div>
+  );
+}
+
+function FallbackResultLayout({ result }: { result: AIResult }) {
+  const text = getPrimaryText(result);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-muted bg-muted/30 px-4 py-3 flex items-start gap-2">
+        <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-sm text-muted-foreground">
+          Using backup safe {result.mode === "rewrite" ? "rewrite" : "response"} template. You can regenerate for a full AI result.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold text-foreground mb-1">
+          {result.mode === "rewrite" ? "Safe Rewrite:" : "Safe Response:"}
+        </p>
+        <p className="text-foreground text-sm whitespace-pre-wrap">{text}</p>
+      </div>
     </div>
   );
 }
