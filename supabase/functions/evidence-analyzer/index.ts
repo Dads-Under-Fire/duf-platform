@@ -11,7 +11,7 @@ import {
 const FN = "evidence-analyzer";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
-const MODEL = "gpt-4o-mini";
+const MODEL = "gpt-4o";
 
 // ── Prompts (server-side only) ──
 const TYPE_INSTRUCTIONS: Record<string, string> = {
