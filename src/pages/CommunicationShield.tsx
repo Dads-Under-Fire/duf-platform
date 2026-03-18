@@ -257,8 +257,12 @@ export default function CommunicationShield() {
               </div>
             ) : result ? (
               <>
+                {result.mode === "respond" && result.recommendation_type && (
+                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                )}
+
                 <div>
-                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
+                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : result.recommendation_type === "do_not_respond" ? "Why You Shouldn't Respond:" : "Court-Safe Response:"}</p>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
                 </div>
 
