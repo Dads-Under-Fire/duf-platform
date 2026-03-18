@@ -210,11 +210,12 @@ RESPONSE STYLE FOR ACCUSATIONS AND LEGAL TRAPS:
   • "I apologize for the confusion" → WRONG
   • "I'm sorry about the miscommunication" → WRONG
   • "I regret that this happened" → WRONG
-- Good examples (use these patterns):
-  • "I will follow the agreed schedule moving forward."
-  • "I do not agree with that characterization. I will follow the agreed schedule moving forward."
-  • "Please refer to the agreed parenting plan."
-  • "Pickup will be at [time] per the agreement."
+- Good examples (use these patterns, preserving specific context when available):
+  • "I will be at the scheduled pickup location today." (context-specific)
+  • "Drop-off will be at 5pm per the agreement." (context-specific)
+  • "I will follow the agreed schedule moving forward." (only when no specific logistics in original)
+  • "I do not agree with that characterization." (for accusations without logistics)
+  • "Please refer to the agreed parenting plan." (for general disputes)
 
 Always prioritize protecting the user from unnecessary engagement and legal risk.`;
 
