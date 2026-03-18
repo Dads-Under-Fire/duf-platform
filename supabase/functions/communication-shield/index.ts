@@ -259,6 +259,7 @@ You MUST call the provided tool with your structured output.`;
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
+    console.log(`[${FN}] success | user=${userId} | mode=${mode} | tone=${result.tone_assessment}`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
     // Return result with mode field so frontend knows which key to read
