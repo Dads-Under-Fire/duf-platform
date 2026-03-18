@@ -7,10 +7,16 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
+type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
+
 interface AIResult {
-  // respond mode returns primary_response; rewrite mode returns primary_rewrite
+  // respond mode
+  recommendation_type?: RecommendationType;
   primary_response?: string;
+  fallback_response?: string;
+  // rewrite mode
   primary_rewrite?: string;
+  // shared
   shorter_version: string;
   firmer_version: string;
   tone_assessment: string;
