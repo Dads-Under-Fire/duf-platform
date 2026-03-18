@@ -26,7 +26,7 @@ const FALLBACK_INTENTS = [
 
 export default function CommunicationShield() {
   const { user } = useAuth();
-  const { usage, limits, refetch: refetchProfile } = useProfile();
+  const { usage, limits, intendedPlan, rewritesExhausted, refetch: refetchProfile } = useProfile();
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [submittedMessage, setSubmittedMessage] = useState("");
