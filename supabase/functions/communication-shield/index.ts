@@ -1058,12 +1058,12 @@ function normalizeRiskFlags(flags: string[] | undefined): string[] {
   return flags;
 }
 
-// ── Build DB insert row — canonical fields only (legacy fields deprecated) ──
+// ── Build DB insert row — mode-aware scoring ──
 function buildInsertRow(
   userId: string, message: string, mode: "respond" | "rewrite",
   result: Record<string, unknown>,
   originalScore: { score: number; notes: string[] },
-  rewriteScore: RewriteQualityResult,
+  outputScore: RewriteQualityResult,
 ) {
   const row = {
     user_id: userId,
@@ -1077,12 +1077,13 @@ function buildInsertRow(
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
     risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    // ── Canonical scoring fields ──
+    // ── Scoring: always write original_score ──
     original_score: originalScore.score,
     original_score_notes: JSON.parse(JSON.stringify(originalScore.notes)),
-    rewrite_quality_score: rewriteScore.score,
-    rewrite_quality_notes: JSON.parse(JSON.stringify(rewriteScore.notes)),
-    // ── Legacy fields deprecated — set to null ──
+    // ── Rewrite scoring: only for rewrite mode ──
+    rewrite_quality_score: mode === "rewrite" ? outputScore.score : null as number | null,
+    rewrite_quality_notes: mode === "rewrite" ? JSON.parse(JSON.stringify(outputScore.notes)) : null,
+    // ── Legacy granular fields — leave null (not actively calculated) ──
     quality_score_total: null as number | null,
     admission_risk_score: null as number | null,
     escalation_safety_score: null as number | null,
@@ -1092,7 +1093,7 @@ function buildInsertRow(
     quality_score_status: null as string | null,
     quality_score_notes: null as Record<string, unknown> | null,
   };
-  console.log(`[${FN}] buildInsertRow | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score} | original_score_notes_len=${(row.original_score_notes as string[]).length} | rewrite_quality_notes_len=${(row.rewrite_quality_notes as string[]).length}`);
+  console.log(`[${FN}] buildInsertRow | mode=${mode} | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score}`);
   return row;
 }
 
