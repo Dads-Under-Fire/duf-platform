@@ -8,12 +8,22 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface AIResult {
-  primary_response: string;
+  // respond mode returns primary_response; rewrite mode returns primary_rewrite
+  primary_response?: string;
+  primary_rewrite?: string;
   shorter_version: string;
   firmer_version: string;
   tone_assessment: string;
   risk_flags: string[];
   why_this_is_safer: string;
+  mode: "respond" | "rewrite";
+}
+
+/** Helper: get the primary text from result based on mode */
+function getPrimaryText(result: AIResult): string {
+  return result.mode === "rewrite"
+    ? (result.primary_rewrite ?? "")
+    : (result.primary_response ?? "");
 }
 
 type Step = "input" | "select-intent" | "result";
@@ -170,9 +180,12 @@ export default function CommunicationShield() {
   };
 
   const copyResult = () => {
-    if (result?.primary_response) {
-      navigator.clipboard.writeText(result.primary_response);
-      toast({ title: "Copied", description: "Primary response copied to clipboard." });
+    if (result) {
+      const text = getPrimaryText(result);
+      if (text) {
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: mode === "rewrite" ? "Rewrite copied to clipboard." : "Response copied to clipboard." });
+      }
     }
   };
 
@@ -240,7 +253,7 @@ export default function CommunicationShield() {
               <>
                 <div>
                   <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.primary_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
                 </div>
 
                 <div className="h-px bg-border" />
@@ -640,7 +653,7 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={result.primary_response} />
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
                 <ResponseSection label="Shorter Version" content={result.shorter_version} />
                 <ResponseSection label="Firmer Version" content={result.firmer_version} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
