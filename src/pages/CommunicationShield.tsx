@@ -65,7 +65,7 @@ export default function CommunicationShield() {
       setStep("result");
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke("rewrite-message", {
+        const { data, error } = await supabase.functions.invoke("communication-shield", {
           body: { message: msg, mode: "rewrite" },
         });
         if (error) throw error;
