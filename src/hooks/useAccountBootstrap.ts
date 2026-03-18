@@ -8,15 +8,13 @@ type PlanType = "free" | "core" | "pro" | "case_builder";
  * Self-healing bootstrap: ensures profiles, subscriptions, and usage_counters
  * rows exist for the authenticated user. Runs once per session.
  *
- * Returns:
- *  - bootstrapped: true once check/creation is complete
- *  - pendingPaidPlan: if the user has a pending paid subscription that needs checkout
+ * Paid plan signups always start on free/active. The intended paid plan is
+ * stored in profiles.intended_plan for upgrade prompts.
  */
 export function useAccountBootstrap() {
   const { user } = useAuth();
   const didRun = useRef(false);
   const [bootstrapped, setBootstrapped] = useState(false);
-  const [pendingPaidPlan, setPendingPaidPlan] = useState<PlanType | null>(null);
 
   useEffect(() => {
     if (!user || didRun.current) return;
@@ -25,10 +23,12 @@ export function useAccountBootstrap() {
     (async () => {
       try {
         const userId = user.id;
+        const selectedPlan = (user.user_metadata?.selected_plan as PlanType) || "free";
+        const intendedPlan = selectedPlan !== "free" ? selectedPlan : null;
 
         // 1. Ensure profile exists
         const { data: profile } = await (supabase.from as any)("profiles")
-          .select("id")
+          .select("id, intended_plan")
           .eq("user_id", userId)
           .maybeSingle();
 
@@ -36,36 +36,30 @@ export function useAccountBootstrap() {
           await (supabase.from as any)("profiles").insert({
             user_id: userId,
             display_name: user.user_metadata?.display_name || user.email,
+            intended_plan: intendedPlan,
           });
+        } else if (intendedPlan && !profile.intended_plan) {
+          // Update intended_plan if it wasn't set yet
+          await (supabase.from as any)("profiles")
+            .update({ intended_plan: intendedPlan })
+            .eq("user_id", userId);
         }
 
-        // 2. Determine selected plan from user_metadata
-        const selectedPlan = (user.user_metadata?.selected_plan as PlanType) || "free";
-        const isPaid = selectedPlan !== "free";
-
-        // 3. Ensure subscription exists
+        // 2. Ensure subscription exists — always free/active until payment
         const { data: sub } = await (supabase.from as any)("subscriptions")
-          .select("id, plan, status")
+          .select("id")
           .eq("user_id", userId)
           .maybeSingle();
 
         if (!sub) {
-          // No subscription row — create one
           await (supabase.from as any)("subscriptions").insert({
             user_id: userId,
-            plan: selectedPlan,
-            status: isPaid ? "inactive" : "active",
+            plan: "free",
+            status: "active",
           });
-
-          if (isPaid) {
-            setPendingPaidPlan(selectedPlan);
-          }
-        } else if (isPaid && sub.status === "inactive" && sub.plan === selectedPlan) {
-          // Existing pending paid subscription (e.g. abandoned checkout)
-          setPendingPaidPlan(selectedPlan);
         }
 
-        // 4. Ensure usage_counters row for current period
+        // 3. Ensure usage_counters row for current period
         const { data: usage } = await (supabase.from as any)("usage_counters")
           .select("id")
           .eq("user_id", userId)
@@ -86,5 +80,5 @@ export function useAccountBootstrap() {
     })();
   }, [user]);
 
-  return { bootstrapped, pendingPaidPlan };
+  return { bootstrapped };
 }
