@@ -30,6 +30,7 @@ export function UpgradeBanner() {
   const evidenceLimit = limits.evidence_uses_words
     ? limits.evidence_words
     : limits.evidence_analyses;
+  const evidenceUnitLabel = limits.evidence_uses_words ? "evidence word" : "evidence analysis";
 
   let message: string;
   let ctaLabel: string;
@@ -44,7 +45,11 @@ export function UpgradeBanner() {
     message = `You're on the Free plan. Complete your ${formatPlanLabel(intendedPlan)} plan upgrade to unlock full access.`;
     ctaLabel = "Continue to Checkout";
   } else {
-    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceLimit - evidenceUsed} evidence analysis left.`;
+    const remaining = evidenceLimit - evidenceUsed;
+    const evidenceText = limits.evidence_uses_words
+      ? `${remaining.toLocaleString()} evidence words`
+      : `${remaining} evidence analys${remaining === 1 ? "is" : "es"}`;
+    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceText} left.`;
     ctaLabel = "Upgrade Now";
   }
 
@@ -59,7 +64,7 @@ export function UpgradeBanner() {
           <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
             <span>Rewrites: {rewritesUsed}/{limits.message_rewrites}</span>
             <span className="text-border">•</span>
-            <span>Evidence: {evidenceUsed}/{evidenceLimit}</span>
+            <span>{limits.evidence_uses_words ? "Words" : "Analyses"}: {evidenceUsed.toLocaleString()}/{evidenceLimit.toLocaleString()}</span>
           </div>
           <Button
             size="sm"
