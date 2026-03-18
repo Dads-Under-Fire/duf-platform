@@ -287,9 +287,7 @@ You MUST call the provided tool with your structured output.`;
 
       // Retry with exponential backoff + jitter
       const retryAfter = response.headers.get("Retry-After");
-      const waitMs = retryAfter
-        ? parseInt(retryAfter, 10) * 1000
-        : Math.pow(2, attempt) * 1000 + Math.random() * 500;
+      const waitMs = getRetryDelayMs(retryAfter, attempt);
       console.log(`[${FN}] OpenAI 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
       await response.text(); // consume body
       await new Promise((r) => setTimeout(r, waitMs));
