@@ -141,34 +141,22 @@ function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
 }
 
 function buildRateLimitedFallback(mode: "respond" | "rewrite") {
-  if (mode === "respond") {
-    return {
-      mode,
-      recommendation_type: "do_not_respond",
-      primary_response: "No response is recommended right now because guidance is temporarily unavailable. Waiting briefly is safer than sending a reactive reply.",
-      shorter_version: "Do not respond right now—pause and retry shortly.",
-      firmer_version: "Do not send a reply at this time. Wait, then retry for a court-safe response.",
-      fallback_response: "Received. I will respond after reviewing the schedule.",
-      tone_assessment: "Protective / Pause Recommended",
-      risk_flags: [
-        "AI service temporarily unavailable",
-        "Avoided potentially escalatory immediate response",
-      ],
-      why_this_is_safer: "A short pause reduces the chance of reactive language. Retrying shortly helps ensure a neutral, court-safe response.",
-    };
+  if (mode === "rewrite") {
+    // Rewrite mode: never return fake content — signal an error so frontend shows a toast
+    return null;
   }
 
+  // Respond mode: return a legitimate do-not-respond recommendation with communication reasoning
   return {
     mode,
-    primary_rewrite: "Rewrite guidance is temporarily unavailable. Please wait a moment and retry before sending your message.",
-    shorter_version: "Hold this message and retry shortly.",
-    firmer_version: "Do not send yet—retry in a moment for a court-safe rewrite.",
-    tone_assessment: "Pause Recommended",
-    risk_flags: [
-      "AI rewrite service temporarily unavailable",
-      "Prevented sending an unreviewed draft",
-    ],
-    why_this_is_safer: "Waiting avoids sending language that may escalate conflict. A short retry window helps preserve neutral, court-safe wording.",
+    recommendation_type: "do_not_respond",
+    primary_response: "No immediate response is needed. Taking a pause before replying helps ensure your message is deliberate, neutral, and court-safe rather than reactive.",
+    shorter_version: "",
+    firmer_version: "",
+    fallback_response: "Received. I will follow up regarding the schedule.",
+    tone_assessment: "",
+    risk_flags: [],
+    why_this_is_safer: "Pausing before responding reduces the risk of reactive or emotionally charged language. A brief delay protects your position and keeps communication court-appropriate.",
   };
 }
 
