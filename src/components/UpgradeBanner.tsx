@@ -30,6 +30,7 @@ export function UpgradeBanner() {
   const evidenceLimit = limits.evidence_uses_words
     ? limits.evidence_words
     : limits.evidence_analyses;
+  const evidenceUnitLabel = limits.evidence_uses_words ? "evidence word" : "evidence analysis";
 
   let message: string;
   let ctaLabel: string;

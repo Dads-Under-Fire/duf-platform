@@ -18,9 +18,9 @@ function formatPlanLabel(plan: string): string {
 }
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  core: ["100 message rewrites/month", "15,000 evidence words/month", "Unlimited evidence analyses"],
-  pro: ["250 message rewrites/month", "60,000 evidence words/month", "Unlimited evidence analyses"],
-  case_builder: ["Unlimited message rewrites", "200,000 evidence words/month", "Unlimited evidence analyses"],
+  core: ["100 message rewrites/month", "15,000 evidence words/month"],
+  pro: ["250 message rewrites/month", "60,000 evidence words/month"],
+  case_builder: ["Unlimited message rewrites (fair use)", "200,000 evidence words/month"],
 };
 
 interface UpgradeModalProps {
