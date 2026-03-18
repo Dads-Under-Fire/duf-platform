@@ -544,7 +544,24 @@ function scoreOutput(
   }
 
   // ── Calculate server-side score ──
-  const serverScore = Math.max(1, 10 - deductions);
+  let serverScore = Math.max(1, 10 - deductions);
+
+  // ── Hard caps: enforce strict ceilings ──
+  // If ANY emotional or vague language exists, cap at 8
+  if (emotionalHits > 0 || vagueHits > 0) {
+    serverScore = Math.min(serverScore, 8);
+    notes.push("cap: emotional/vague language caps score at 8");
+  }
+  // If multiple issue categories triggered (2+), cap at 7
+  if (issueCategories >= 2) {
+    serverScore = Math.min(serverScore, 7);
+    notes.push(`cap: ${issueCategories} issue categories caps score at 7`);
+  }
+  // If 3+ issue categories, cap at 6
+  if (issueCategories >= 3) {
+    serverScore = Math.min(serverScore, 6);
+    notes.push(`cap: ${issueCategories} issue categories caps score at 6`);
+  }
 
   // ── Incorporate AI self-score (take the minimum for safety) ──
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
