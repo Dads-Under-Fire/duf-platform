@@ -42,6 +42,7 @@ export default function CommunicationShield() {
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherText, setOtherText] = useState("");
   const [showDirections, setShowDirections] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
