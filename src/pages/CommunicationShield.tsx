@@ -136,7 +136,7 @@ export default function CommunicationShield() {
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("rewrite-message", {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
         body: {
           message: submittedMessage,
           mode,
