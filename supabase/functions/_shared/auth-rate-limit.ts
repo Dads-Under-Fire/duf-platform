@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 // ── CORS ──
 export const corsHeaders = {
@@ -106,13 +106,13 @@ export async function authenticateRequest(req: Request, functionName: string): P
   });
 
   const token = authHeader.replace("Bearer ", "");
-  const { data, error } = await userClient.auth.getClaims(token);
-  if (error || !data?.claims) {
+  const { data, error } = await userClient.auth.getUser(token);
+  if (error || !data?.user) {
     logRequest({ userId: null, functionName, status: "unauthenticated", detail: error?.message ?? "Invalid token" });
     throw jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  const userId = data.claims.sub as string;
+  const userId = data.user.id;
   const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
 
   return { userId, userClient, serviceClient };
