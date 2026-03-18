@@ -652,7 +652,7 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={result.primary_response} />
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
                 <ResponseSection label="Shorter Version" content={result.shorter_version} />
                 <ResponseSection label="Firmer Version" content={result.firmer_version} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
