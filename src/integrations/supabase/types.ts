@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      communication_shield_history: {
+        Row: {
+          created_at: string
+          firmer_version: string | null
+          id: string
+          mode: string
+          original_message: string
+          primary_response: string | null
+          primary_rewrite: string | null
+          recommendation_type: string | null
+          risk_flags: Json | null
+          shorter_version: string | null
+          tone_assessment: string | null
+          user_id: string
+          why_this_is_safer: string | null
+        }
+        Insert: {
+          created_at?: string
+          firmer_version?: string | null
+          id?: string
+          mode?: string
+          original_message: string
+          primary_response?: string | null
+          primary_rewrite?: string | null
+          recommendation_type?: string | null
+          risk_flags?: Json | null
+          shorter_version?: string | null
+          tone_assessment?: string | null
+          user_id: string
+          why_this_is_safer?: string | null
+        }
+        Update: {
+          created_at?: string
+          firmer_version?: string | null
+          id?: string
+          mode?: string
+          original_message?: string
+          primary_response?: string | null
+          primary_rewrite?: string | null
+          recommendation_type?: string | null
+          risk_flags?: Json | null
+          shorter_version?: string | null
+          tone_assessment?: string | null
+          user_id?: string
+          why_this_is_safer?: string | null
+        }
+        Relationships: []
+      }
       evidence_analyses: {
         Row: {
           analysis_result: string
@@ -38,51 +86,6 @@ export type Database = {
           id?: string
           original_content?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      message_rewrites: {
-        Row: {
-          created_at: string
-          firmer_version: string | null
-          id: string
-          mode: string
-          original_message: string
-          recommendation_type: string | null
-          rewritten_message: string
-          risk_flags: Json | null
-          shorter_version: string | null
-          tone_assessment: string | null
-          user_id: string
-          why_this_is_safer: string | null
-        }
-        Insert: {
-          created_at?: string
-          firmer_version?: string | null
-          id?: string
-          mode?: string
-          original_message: string
-          recommendation_type?: string | null
-          rewritten_message: string
-          risk_flags?: Json | null
-          shorter_version?: string | null
-          tone_assessment?: string | null
-          user_id: string
-          why_this_is_safer?: string | null
-        }
-        Update: {
-          created_at?: string
-          firmer_version?: string | null
-          id?: string
-          mode?: string
-          original_message?: string
-          recommendation_type?: string | null
-          rewritten_message?: string
-          risk_flags?: Json | null
-          shorter_version?: string | null
-          tone_assessment?: string | null
-          user_id?: string
-          why_this_is_safer?: string | null
         }
         Relationships: []
       }

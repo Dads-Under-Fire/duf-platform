@@ -326,13 +326,12 @@ You MUST call the provided tool with your structured output.`;
     }
 
     // ── 8. Persist & increment (only after success) ──
-    const primaryText = mode === "respond" ? result.primary_response : result.primary_rewrite;
-
-    await serviceClient.from("message_rewrites").insert({
+    await serviceClient.from("communication_shield_history").insert({
       user_id: userId,
       original_message: message,
-      rewritten_message: primaryText,
       mode,
+      primary_response: mode === "respond" ? result.primary_response : null,
+      primary_rewrite: mode === "rewrite" ? result.primary_rewrite : null,
       recommendation_type: result.recommendation_type ?? null,
       shorter_version: result.shorter_version,
       firmer_version: result.firmer_version,
