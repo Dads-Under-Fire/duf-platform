@@ -43,12 +43,7 @@ export function UpgradeBanner() {
           <Zap className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm text-foreground truncate">{message}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rewrites: {rewritesUsed}/{limits.message_rewrites}</span>
-            <span className="text-border">•</span>
-            <span>{limits.evidence_uses_words ? "Words" : "Analyses"}: {evidenceUsed.toLocaleString()}/{evidenceLimit.toLocaleString()}</span>
-          </div>
+        <div className="shrink-0">
           <Button
             size="sm"
             onClick={() => setShowModal(true)}
