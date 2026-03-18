@@ -105,29 +105,38 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - 10 = near-perfect — NO meaningful improvement possible
    
    Deduction rules for self_score (start at 10, apply ALL that match):
-   - -3 if accusatory language remains in output
-   - -3 if admission of fault or apology language exists in output
-   - -2 if emotional language remains
-   - -2 if vague phrasing exists (maybe, hopefully, kind of, sometime soon)
-   - -2 if defensive tone or justification appears (because, due to, let me explain)
-   - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
-   - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
-   - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
+    - -3 if accusatory language remains in output
+    - -3 if admission of fault or apology language exists in output
+    - -2 if emotional language remains
+    - -2 if vague phrasing exists (maybe, hopefully, kind of, sometime soon)
+    - -2 if defensive tone or justification appears (because, due to, let me explain)
+    - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
+    - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
+    - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
     - -2 if adds meaning, context, or framing not clearly present in original message
     - -2 if the original contained specific logistics (times, dates, actions) but the rewrite replaced them with generic phrases like "the agreed schedule" or "moving forward"
     - -1 if generic or bland wording when a more specific/clear phrasing was possible
     - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
     - -1 if slightly controlling or patronizing tone
-   - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
-   
-   HARD RULES for self_score:
-   - If ANY emotional, vague, or apologetic language exists → must not exceed 8
-   - If 2+ issue categories apply → score must be 6-7 range
-   - If 3+ issue categories apply → score must be 5-6 range
-   - A rewrite being safer than the original does NOT automatically make it a 10
-   - If the original message was already clean/safe, do NOT reward unnecessary rewriting — if the rewrite adds formality or wording without improving safety, reduce score
-   - Only give 10 if: fully neutral, concise, natural-sounding, legally safe, no added meaning, no unnecessary formality, and would require zero meaningful improvement
-   - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
+    - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
+    
+    HARD CAPS for self_score (these override all other scoring):
+    - If ANY admission trap language remains in the rewrite (asks for confirmation of past events, restates wrongdoing, includes questions that create legal exposure like "Can you confirm...?", "Do you agree...?", "Were you late...?") → MAX score = 6
+    - If ANY threat language remains in the rewrite → MAX score = 7
+    - If the rewrite introduces NEW legal risk not present in the original → MAX score = 5
+    - If ANY emotional, vague, or apologetic language exists → must not exceed 8
+    - If 2+ issue categories apply → score must be 6-7 range
+    - If 3+ issue categories apply → score must be 5-6 range
+    - A rewrite being safer than the original does NOT automatically make it a 10
+    - If the original message was already clean/safe, do NOT reward unnecessary rewriting — if the rewrite adds formality or wording without improving safety, reduce score
+    
+    REQUIREMENTS for 9-10 score (ALL must be true):
+    - Fully neutral tone — no emotional, accusatory, or defensive language
+    - Zero admission risk — no confirmation questions, no restating of past conduct
+    - Zero escalation potential — nothing that could provoke further conflict
+    - Preserves logistics cleanly — specific details retained without introducing risk
+    - Concise, natural-sounding, and would require zero meaningful improvement
+    - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
    
    Also provide "self_score_deductions" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
 
