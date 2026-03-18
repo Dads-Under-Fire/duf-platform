@@ -11,7 +11,8 @@ import {
 const FN = "communication-shield";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
-const MODEL = "gpt-4o-mini";
+const MODEL_PRIMARY = "gpt-4o-mini";
+const MODEL_FALLBACK = "gpt-4o-mini"; // same model for retry; swap to a different model if desired
 
 // ── Prompts (server-side only) ──
 const BASE_INSTRUCTIONS = `All responses must:
@@ -142,8 +143,64 @@ function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
   return Math.pow(2, attempt) * 1000 + Math.random() * 500;
 }
 
-// No fallback function — system failures always return errors, never fake AI recommendations.
-// do-not-respond is ONLY valid from a successful AI result in respond mode.
+// ── Tier 3: Deterministic fallback templates ──
+// These are used ONLY when AI completely fails. They are clearly marked as
+// fallback/backup output and never include fake analysis fields.
+
+const RESPOND_FALLBACK_TEMPLATES: Record<string, string> = {
+  "set a boundary": "Please keep communication focused on logistics regarding our child.",
+  "ask for clarification": "Please clarify the specific logistical issue you need addressed.",
+  "acknowledge without engaging": "Received. I will review and respond if needed.",
+  "general neutral response": "Thank you. I will review this and respond as needed.",
+};
+const RESPOND_FALLBACK_DEFAULT = "Thank you. I will review this and respond as needed.";
+
+const REWRITE_FALLBACK = "I would like to discuss the logistics. Please let me know the relevant details so we can coordinate.";
+
+function matchIntent(context: string | undefined): string {
+  if (!context) return RESPOND_FALLBACK_DEFAULT;
+  const lower = context.toLowerCase().trim();
+  for (const [key, value] of Object.entries(RESPOND_FALLBACK_TEMPLATES)) {
+    if (lower.includes(key)) return value;
+  }
+  return RESPOND_FALLBACK_DEFAULT;
+}
+
+function buildDeterministicFallback(
+  mode: "respond" | "rewrite",
+  communicationContext?: string,
+) {
+  if (mode === "rewrite") {
+    return {
+      mode,
+      is_fallback: true,
+      primary_rewrite: REWRITE_FALLBACK,
+    };
+  }
+
+  return {
+    mode,
+    is_fallback: true,
+    recommendation_type: "respond",
+    primary_response: matchIntent(communicationContext),
+  };
+}
+
+// ── OpenAI call helper (single attempt) ──
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  requestBody: string,
+): Promise<Response> {
+  return fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: requestBody.replace(/"model":"[^"]+"/, `"model":"${model}"`),
+  });
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -159,7 +216,6 @@ serve(async (req) => {
     userId = auth.userId;
 
     // ── 2. Rate limit ──
-    // Note: plan info logged after quota check below
     if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
       logRequest({ userId, functionName: FN, status: "rate_limited" });
       return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
@@ -233,9 +289,9 @@ You MUST call the provided tool with your structured output.`;
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
 
-    // ── 6. OpenAI Responses API call (with retry on 429) ──
+    // ── 6. Three-tier OpenAI call ──
     const requestBody = JSON.stringify({
-      model: MODEL,
+      model: MODEL_PRIMARY,
       input: [
         { role: "developer", content: systemPrompt },
         { role: "user", content: message },
@@ -244,82 +300,129 @@ You MUST call the provided tool with your structured output.`;
       tool_choice: "required",
     });
 
+    let aiResult: Record<string, unknown> | null = null;
+    let usedFallback = false;
+
+    // Tier 1: Primary model attempt (with 429 retry)
     let response: Response | null = null;
-    const MAX_RETRIES = 3;
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: requestBody,
-      });
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      response = await callOpenAI(OPENAI_API_KEY, MODEL_PRIMARY, requestBody);
 
       if (response.status !== 429) break;
 
-      // Retry with exponential backoff + jitter
       const retryAfter = response.headers.get("Retry-After");
       const waitMs = getRetryDelayMs(retryAfter, attempt);
-      console.log(`[${FN}] OpenAI 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
-      await response.text(); // consume body
+      console.log(`[${FN}] Tier1 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
+      await response.text();
       await new Promise((r) => setTimeout(r, waitMs));
     }
 
-    if (!response || !response.ok) {
-      if (response?.status === 429) {
-        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries" });
-        console.warn(`[${FN}] OpenAI still rate-limited after retries`);
-        return jsonResponse({ error: "The service is temporarily busy. Please try again in a moment." }, 503);
+    // Try to extract result from Tier 1
+    if (response && response.ok) {
+      try {
+        const aiData = await response.json();
+        const functionCall = aiData.output?.find(
+          (item: any) => item.type === "function_call" && item.name === toolName
+        );
+        if (functionCall) {
+          const parsed = JSON.parse(functionCall.arguments);
+          const validationError = mode === "respond"
+            ? validateRespondResult(parsed)
+            : validateRewriteResult(parsed);
+          if (!validationError) {
+            aiResult = parsed;
+          } else {
+            console.warn(`[${FN}] Tier1 validation failed: ${validationError}`);
+          }
+        } else {
+          console.warn(`[${FN}] Tier1 no function_call in response`);
+        }
+      } catch (parseErr) {
+        console.warn(`[${FN}] Tier1 parse error: ${parseErr}`);
       }
-      const t = response ? await response.text() : "no response";
-      console.error("OpenAI error:", response?.status, t);
-      throw new Error("OpenAI API error");
+    } else {
+      const errText = response ? await response.text() : "no response";
+      console.warn(`[${FN}] Tier1 failed: status=${response?.status} body=${errText}`);
     }
 
-    const aiData = await response.json();
-
-    // Responses API: output[] → find function_call matching our tool
-    const functionCall = aiData.output?.find(
-      (item: any) => item.type === "function_call" && item.name === toolName
-    );
-    if (!functionCall) throw new Error("No function call in AI response");
-
-    const result = JSON.parse(functionCall.arguments);
-
-    // ── 7. Validate structured output ──
-    const validationError = mode === "respond"
-      ? validateRespondResult(result)
-      : validateRewriteResult(result);
-
-    if (validationError) {
-      console.error(`[${FN}] validation_failed | user=${userId} | mode=${mode} | error=${validationError}`);
-      logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
-      return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
+    // Tier 2: Retry with fallback model (if Tier 1 failed)
+    if (!aiResult) {
+      console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
+      try {
+        const tier2Response = await callOpenAI(OPENAI_API_KEY, MODEL_FALLBACK, requestBody);
+        if (tier2Response.ok) {
+          const aiData = await tier2Response.json();
+          const functionCall = aiData.output?.find(
+            (item: any) => item.type === "function_call" && item.name === toolName
+          );
+          if (functionCall) {
+            const parsed = JSON.parse(functionCall.arguments);
+            const validationError = mode === "respond"
+              ? validateRespondResult(parsed)
+              : validateRewriteResult(parsed);
+            if (!validationError) {
+              aiResult = parsed;
+              console.log(`[${FN}] Tier2 succeeded`);
+            } else {
+              console.warn(`[${FN}] Tier2 validation failed: ${validationError}`);
+            }
+          }
+        } else {
+          const t2Err = await tier2Response.text();
+          console.warn(`[${FN}] Tier2 failed: status=${tier2Response.status} body=${t2Err}`);
+        }
+      } catch (tier2Err) {
+        console.warn(`[${FN}] Tier2 error: ${tier2Err}`);
+      }
     }
 
-    // ── 8. Persist & increment (only after success) ──
+    // Tier 3: Deterministic fallback (always succeeds)
+    if (!aiResult) {
+      console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode} | context=${communication_context ?? "none"}`);
+      const fallback = buildDeterministicFallback(mode, communication_context);
+      usedFallback = true;
+
+      // Persist fallback (no quota increment for fallback)
+      await serviceClient.from("communication_shield_history").insert({
+        user_id: userId,
+        original_message: message,
+        mode,
+        primary_response: mode === "respond" ? (fallback as any).primary_response : null,
+        primary_rewrite: mode === "rewrite" ? (fallback as any).primary_rewrite : null,
+        recommendation_type: (fallback as any).recommendation_type ?? null,
+        shorter_version: null,
+        firmer_version: null,
+        tone_assessment: "Fallback",
+        risk_flags: [],
+        why_this_is_safer: null,
+      });
+
+      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 deterministic | mode=${mode}` });
+      return jsonResponse(fallback);
+    }
+
+    // ── 7. AI succeeded — persist & increment ──
     await serviceClient.from("communication_shield_history").insert({
       user_id: userId,
       original_message: message,
       mode,
-      primary_response: mode === "respond" ? result.primary_response : null,
-      primary_rewrite: mode === "rewrite" ? result.primary_rewrite : null,
-      recommendation_type: result.recommendation_type ?? null,
-      shorter_version: result.shorter_version,
-      firmer_version: result.firmer_version,
-      tone_assessment: result.tone_assessment,
-      risk_flags: result.risk_flags,
-      why_this_is_safer: result.why_this_is_safer,
+      primary_response: mode === "respond" ? (aiResult.primary_response as string) : null,
+      primary_rewrite: mode === "rewrite" ? (aiResult.primary_rewrite as string) : null,
+      recommendation_type: (aiResult.recommendation_type as string) ?? null,
+      shorter_version: aiResult.shorter_version as string,
+      firmer_version: aiResult.firmer_version as string,
+      tone_assessment: aiResult.tone_assessment as string,
+      risk_flags: aiResult.risk_flags as string[],
+      why_this_is_safer: aiResult.why_this_is_safer as string,
     });
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${result.recommendation_type ?? "n/a"} | tone=${result.tone_assessment}`);
+    console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${aiResult.recommendation_type ?? "n/a"} | tone=${aiResult.tone_assessment}`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    // Return result with mode field so frontend knows which key to read
-    return jsonResponse({ ...result, mode });
+    return jsonResponse({ ...aiResult, mode });
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
