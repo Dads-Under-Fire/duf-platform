@@ -42,10 +42,12 @@ const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
 
 IMPORTANT — RECOMMENDATION LAYER:
-Before drafting a response, evaluate whether responding is actually the safest choice. Set "recommendation_type" to one of:
+Before drafting a response, evaluate whether responding is actually the safest choice based on communication strategy and legal positioning — NOT based on system availability or technical issues. Set "recommendation_type" to one of:
 - "respond" — The message requires or benefits from a reply. Provide full response variants.
-- "do_not_respond" — The safest action is NOT to reply (e.g. bait, provocation, no actionable content, emotional venting). In this case, set "primary_response" to a clear explanation of why no response is recommended. "shorter_version" and "firmer_version" should also reflect the do-not-respond advice. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
+- "do_not_respond" — The safest action is NOT to reply based on real communication reasons such as: the message is bait or provocation, contains no actionable logistics, is emotional venting, or responding would escalate conflict. In this case, set "primary_response" to a clear explanation of why no response is recommended from a communication/legal strategy perspective. "shorter_version" and "firmer_version" should be empty strings. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
 - "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+
+NEVER recommend "do_not_respond" for technical or system reasons. Only recommend it when silence or delay is the strategically safer communication choice.
 
 Always prioritize protecting the user from unnecessary engagement.`;
 
@@ -141,34 +143,22 @@ function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
 }
 
 function buildRateLimitedFallback(mode: "respond" | "rewrite") {
-  if (mode === "respond") {
-    return {
-      mode,
-      recommendation_type: "do_not_respond",
-      primary_response: "No response is recommended right now because guidance is temporarily unavailable. Waiting briefly is safer than sending a reactive reply.",
-      shorter_version: "Do not respond right now—pause and retry shortly.",
-      firmer_version: "Do not send a reply at this time. Wait, then retry for a court-safe response.",
-      fallback_response: "Received. I will respond after reviewing the schedule.",
-      tone_assessment: "Protective / Pause Recommended",
-      risk_flags: [
-        "AI service temporarily unavailable",
-        "Avoided potentially escalatory immediate response",
-      ],
-      why_this_is_safer: "A short pause reduces the chance of reactive language. Retrying shortly helps ensure a neutral, court-safe response.",
-    };
+  if (mode === "rewrite") {
+    // Rewrite mode: never return fake content — signal an error so frontend shows a toast
+    return null;
   }
 
+  // Respond mode: return a legitimate do-not-respond recommendation with communication reasoning
   return {
     mode,
-    primary_rewrite: "Rewrite guidance is temporarily unavailable. Please wait a moment and retry before sending your message.",
-    shorter_version: "Hold this message and retry shortly.",
-    firmer_version: "Do not send yet—retry in a moment for a court-safe rewrite.",
-    tone_assessment: "Pause Recommended",
-    risk_flags: [
-      "AI rewrite service temporarily unavailable",
-      "Prevented sending an unreviewed draft",
-    ],
-    why_this_is_safer: "Waiting avoids sending language that may escalate conflict. A short retry window helps preserve neutral, court-safe wording.",
+    recommendation_type: "do_not_respond",
+    primary_response: "No immediate response is needed. Taking a pause before replying helps ensure your message is deliberate, neutral, and court-safe rather than reactive.",
+    shorter_version: "",
+    firmer_version: "",
+    fallback_response: "Received. I will follow up regarding the schedule.",
+    tone_assessment: "",
+    risk_flags: [],
+    why_this_is_safer: "Pausing before responding reduces the risk of reactive or emotionally charged language. A brief delay protects your position and keeps communication court-appropriate.",
   };
 }
 
@@ -295,9 +285,14 @@ You MUST call the provided tool with your structured output.`;
 
     if (!response || !response.ok) {
       if (response?.status === 429) {
-        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries; fallback returned" });
-        console.warn(`[${FN}] OpenAI still rate-limited after retries; returning safe fallback response`);
-        return jsonResponse(buildRateLimitedFallback(mode));
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries" });
+        console.warn(`[${FN}] OpenAI still rate-limited after retries`);
+        const fallback = buildRateLimitedFallback(mode);
+        if (fallback) {
+          return jsonResponse(fallback);
+        }
+        // Rewrite mode: return an error so frontend shows a proper error state
+        return jsonResponse({ error: "The service is temporarily busy. Please try again in a moment." }, 503);
       }
       const t = response ? await response.text() : "no response";
       console.error("OpenAI error:", response?.status, t);
