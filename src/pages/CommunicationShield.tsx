@@ -180,10 +180,12 @@ export default function CommunicationShield() {
   };
 
   const copyResult = () => {
-    if (result?.primary_response) {
-      navigator.clipboard.writeText(result.primary_response);
-      toast({ title: "Copied", description: "Primary response copied to clipboard." });
-    }
+    if (result) {
+      const text = getPrimaryText(result);
+      if (text) {
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: mode === "rewrite" ? "Rewrite copied to clipboard." : "Response copied to clipboard." });
+      }
   };
 
   const handleStartOver = () => {
