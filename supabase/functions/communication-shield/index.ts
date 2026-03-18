@@ -65,23 +65,31 @@ const QUALITY_RULES = `OUTPUT QUALITY — ABSOLUTE RULES:
 - All text must read as something a real person would actually send or read.`;
 
 const SCORING_INSTRUCTIONS = `STRICT SELF-SCORING — You MUST score your own output honestly using "self_score" (integer 1-10).
+Legal safety takes priority over politeness. Do NOT inflate scores.
+
 Start at 10 and subtract points based on these rules:
-- -3 if your rewrite/response introduces new meaning NOT present in the original message
-- -3 if emotional tone remains in the output (frustration, anger, hurt, passive-aggression)
-- -2 if wording is vague or unclear
-- -2 if the output is unnecessarily verbose (more than 3 sentences when fewer would suffice)
-- -2 if phrasing is unnatural or overly formal (sounds like a lawyer wrote it, not a real person)
-- -2 if the rewrite is weaker than the original (too passive, loses the user's intent)
-- -3 if escalation risk remains (accusatory, retaliatory, or inflammatory language)
+- -2 if emotional language remains (sorry, upset, frustrated, disappointed, hurt, angry, etc.)
+- -2 if vague phrasing exists (maybe, kind of, trying to, sort of, hopefully, etc.)
+- -1 to -2 if intent is indirect or unclear (reader wouldn't know what action to take)
+- -2 if defensive tone or justification appears (explaining past actions, giving reasons)
+- -3 if accusatory language remains (you always, you never, your fault, you caused)
+- -3 if admission of fault exists (I forgot, I should have, I failed, I'm sorry, I apologize)
+- -1 if unnecessarily verbose (could be said in fewer words without losing meaning)
 
-A score of 10 is ONLY appropriate when:
-- Fully neutral tone with no emotional language
-- Clear, concise, and natural phrasing
-- No added meaning beyond the original
-- Realistic phrasing a real person would send
+Scoring guidelines:
+- 10 = perfect — fully neutral, clear, precise, no emotional language, no risk
+- 9 = very strong — minimal improvement needed
+- 7-8 = acceptable but has minor issues
+- 5-6 = risky, should be rewritten
+- below 5 = high risk
 
-Typical outputs should score between 5-9. A perfect 10 should be rare.
-Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: slightly verbose"). If no deductions, use ["none"].
+HARD RULES:
+- If ANY emotional or vague language exists, score MUST NOT exceed 8
+- If MULTIPLE issues exist (2+ categories triggered), score should be 6-7 range
+- Only give 10 if message is fully neutral, clear, precise, and natural
+- A perfect 10 should be RARE — most outputs score 7-9
+
+Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: emotional language - sorry"). If no deductions, use ["none"].
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the original message (e.g. "Removed accusatory language", "De-escalated hostile tone", "Removed emotional bait")
