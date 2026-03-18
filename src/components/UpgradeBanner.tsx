@@ -10,48 +10,20 @@ function formatPlanLabel(plan: string): string {
 }
 
 export function UpgradeBanner() {
-  const { plan, intendedPlan, usage, limits, rewritesExhausted, evidenceExhausted } = useProfile();
+  const { plan, intendedPlan, rewritesExhausted, evidenceExhausted } = useProfile();
   const [showModal, setShowModal] = useState(false);
 
   // Don't show banner for paid users
   if (plan !== "free") return null;
 
-  // Don't show if no intended plan and credits aren't close to exhaustion
-  const rewritesUsed = usage?.message_rewrites_used ?? 0;
-  const rewritesNearing = rewritesUsed >= Math.max(limits.message_rewrites - 1, 0);
   const anyExhausted = rewritesExhausted || evidenceExhausted;
-  const shouldShow = !!intendedPlan || anyExhausted || rewritesNearing;
+  const shouldShow = !!intendedPlan || anyExhausted;
 
   if (!shouldShow) return null;
 
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceUnitLabel = limits.evidence_uses_words ? "evidence word" : "evidence analysis";
-
-  let message: string;
-  let ctaLabel: string;
-
-  if (anyExhausted && intendedPlan) {
-    message = `Your free credits are used up. Continue to the ${formatPlanLabel(intendedPlan)} plan to unlock more.`;
-    ctaLabel = "Continue to Checkout";
-  } else if (anyExhausted) {
-    message = "Your free credits are used up. Upgrade to keep using all features.";
-    ctaLabel = "Upgrade Now";
-  } else if (intendedPlan) {
-    message = `You're on the Free plan. Complete your ${formatPlanLabel(intendedPlan)} plan upgrade to unlock full access.`;
-    ctaLabel = "Continue to Checkout";
-  } else {
-    const remaining = evidenceLimit - evidenceUsed;
-    const evidenceText = limits.evidence_uses_words
-      ? `${remaining.toLocaleString()} evidence words`
-      : `${remaining} evidence analys${remaining === 1 ? "is" : "es"}`;
-    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceText} left.`;
-    ctaLabel = "Upgrade Now";
-  }
+  const displayPlan = intendedPlan || "core";
+  const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
+  const ctaLabel = "Upgrade Now";
 
   return (
     <>
@@ -60,12 +32,7 @@ export function UpgradeBanner() {
           <Zap className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm text-foreground truncate">{message}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rewrites: {rewritesUsed}/{limits.message_rewrites}</span>
-            <span className="text-border">•</span>
-            <span>{limits.evidence_uses_words ? "Words" : "Analyses"}: {evidenceUsed.toLocaleString()}/{evidenceLimit.toLocaleString()}</span>
-          </div>
+        <div className="shrink-0">
           <Button
             size="sm"
             onClick={() => setShowModal(true)}
