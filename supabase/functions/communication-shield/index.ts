@@ -990,8 +990,6 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
-  const altError = validateThreeAlternatives(r);
-  if (altError) return altError;
   return null;
 }
 
