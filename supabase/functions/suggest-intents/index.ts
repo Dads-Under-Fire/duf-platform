@@ -8,8 +8,9 @@ import {
 } from "../_shared/auth-rate-limit.ts";
 
 const FN = "suggest-intents";
-const RATE_LIMIT = 20; // lighter endpoint, allow more
+const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60_000;
+const MODEL = "gpt-5.4-mini";
 const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
 
 serve(async (req) => {
@@ -44,75 +45,76 @@ serve(async (req) => {
       return jsonResponse({ error: "Invalid mode" }, 400);
     }
 
-    // ── 4. AI call ──
+    // ── 4. OpenAI Responses API call ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-    const systemPrompt = `You are a custody communication specialist. Suggest 4-6 short communication intent options (2-5 words each) for this ${mode === "respond" ? "received" : "draft"} message. Always end with "General neutral response". Return JSON: {"options":["...",...]}.`;
+    const systemPrompt = `You are a custody communication specialist. Suggest 4-6 short communication intent options (2-5 words each) for this ${mode === "respond" ? "received" : "draft"} message. Always end with "General neutral response".`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-5.4-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
+        model: MODEL,
+        input: [
+          { role: "developer", content: systemPrompt },
           { role: "user", content: message },
         ],
         tools: [
           {
             type: "function",
-            function: {
-              name: "suggest_intents",
-              description: "Return suggested communication intent options",
-              parameters: {
-                type: "object",
-                properties: {
-                  options: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "4-6 short communication intent phrases",
-                  },
+            name: "suggest_intents",
+            description: "Return suggested communication intent options",
+            parameters: {
+              type: "object",
+              properties: {
+                options: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "4-6 short communication intent phrases",
                 },
-                required: ["options"],
-                additionalProperties: false,
               },
+              required: ["options"],
+              additionalProperties: false,
             },
+            strict: true,
           },
         ],
-        tool_choice: { type: "function", function: { name: "suggest_intents" } },
+        tool_choice: "required",
       }),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
-        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "AI gateway 429" });
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429" });
         return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
       }
       if (response.status === 402) {
-        logRequest({ userId, functionName: FN, status: "error", detail: "AI gateway 402" });
+        logRequest({ userId, functionName: FN, status: "error", detail: "OpenAI 402" });
         return jsonResponse({ error: "Usage limit reached. Please add credits." }, 402);
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      logRequest({ userId, functionName: FN, status: "error", detail: `AI gateway ${response.status}` });
+      console.error("OpenAI error:", response.status, t);
+      logRequest({ userId, functionName: FN, status: "error", detail: `OpenAI ${response.status}` });
       return jsonResponse(FALLBACK);
     }
 
     const aiData = await response.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
-      console.error("No tool call in response, returning fallback");
-      logRequest({ userId, functionName: FN, status: "error", detail: "no tool call" });
+
+    // Responses API returns output array with function_call items
+    const functionCall = aiData.output?.find((item: any) => item.type === "function_call");
+    if (!functionCall) {
+      console.error("No function call in response, returning fallback");
+      logRequest({ userId, functionName: FN, status: "error", detail: "no function call" });
       return jsonResponse(FALLBACK);
     }
 
     let result: unknown;
     try {
-      result = JSON.parse(toolCall.function.arguments);
+      result = JSON.parse(functionCall.arguments);
     } catch {
       console.error("JSON parse failed, returning fallback");
       result = FALLBACK;
