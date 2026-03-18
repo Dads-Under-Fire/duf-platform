@@ -700,6 +700,14 @@ async function attemptAICall(
   }
 }
 
+// ── Normalize risk_flags: never return empty array ──
+function normalizeRiskFlags(flags: string[] | undefined): string[] {
+  if (!flags || !Array.isArray(flags) || flags.length === 0) {
+    return ["No risk flags"];
+  }
+  return flags;
+}
+
 // ── Helper: build DB insert row with scoring ──
 function buildInsertRow(
   userId: string,
