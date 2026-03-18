@@ -65,23 +65,31 @@ const QUALITY_RULES = `OUTPUT QUALITY — ABSOLUTE RULES:
 - All text must read as something a real person would actually send or read.`;
 
 const SCORING_INSTRUCTIONS = `STRICT SELF-SCORING — You MUST score your own output honestly using "self_score" (integer 1-10).
+Legal safety takes priority over politeness. Do NOT inflate scores.
+
 Start at 10 and subtract points based on these rules:
-- -3 if your rewrite/response introduces new meaning NOT present in the original message
-- -3 if emotional tone remains in the output (frustration, anger, hurt, passive-aggression)
-- -2 if wording is vague or unclear
-- -2 if the output is unnecessarily verbose (more than 3 sentences when fewer would suffice)
-- -2 if phrasing is unnatural or overly formal (sounds like a lawyer wrote it, not a real person)
-- -2 if the rewrite is weaker than the original (too passive, loses the user's intent)
-- -3 if escalation risk remains (accusatory, retaliatory, or inflammatory language)
+- -2 if emotional language remains (sorry, upset, frustrated, disappointed, hurt, angry, etc.)
+- -2 if vague phrasing exists (maybe, kind of, trying to, sort of, hopefully, etc.)
+- -1 to -2 if intent is indirect or unclear (reader wouldn't know what action to take)
+- -2 if defensive tone or justification appears (explaining past actions, giving reasons)
+- -3 if accusatory language remains (you always, you never, your fault, you caused)
+- -3 if admission of fault exists (I forgot, I should have, I failed, I'm sorry, I apologize)
+- -1 if unnecessarily verbose (could be said in fewer words without losing meaning)
 
-A score of 10 is ONLY appropriate when:
-- Fully neutral tone with no emotional language
-- Clear, concise, and natural phrasing
-- No added meaning beyond the original
-- Realistic phrasing a real person would send
+Scoring guidelines:
+- 10 = perfect — fully neutral, clear, precise, no emotional language, no risk
+- 9 = very strong — minimal improvement needed
+- 7-8 = acceptable but has minor issues
+- 5-6 = risky, should be rewritten
+- below 5 = high risk
 
-Typical outputs should score between 5-9. A perfect 10 should be rare.
-Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: slightly verbose"). If no deductions, use ["none"].
+HARD RULES:
+- If ANY emotional or vague language exists, score MUST NOT exceed 8
+- If MULTIPLE issues exist (2+ categories triggered), score should be 6-7 range
+- Only give 10 if message is fully neutral, clear, precise, and natural
+- A perfect 10 should be RARE — most outputs score 7-9
+
+Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: emotional language - sorry"). If no deductions, use ["none"].
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the original message (e.g. "Removed accusatory language", "De-escalated hostile tone", "Removed emotional bait")
@@ -383,7 +391,10 @@ function scoreOutput(
   let focusScore = 2;
   let courtSafeScore = 2;
 
-  // ── 1. Emotional tone remaining (-3) ──
+  // ── Track how many issue categories are triggered ──
+  let issueCategories = 0;
+
+  // ── 1. Emotional language (-2) ──
   const emotionalPatterns = [
     ...APOLOGY_PATTERNS,
     /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
@@ -392,108 +403,165 @@ function scoreOutput(
     /\bi('m| am) disappointed\b/i, /\bi('m| am) angry\b/i,
     /\bi can't believe\b/i, /\bthis is so unfair\b/i,
     /\bhow could you\b/i, /\byou('re| are) being selfish\b/i,
+    /\bsorry\b/i, /\bupset\b/i, /\bfrustrated\b/i,
+    /\bhurt\b/i, /\bangry\b/i, /\bdisappointed\b/i,
+    /\bworried\b/i, /\bscared\b/i, /\bheartbroken\b/i,
   ];
   let emotionalHits = 0;
   for (const p of emotionalPatterns) {
-    if (p.test(allText)) { emotionalHits++; notes.push(`emotional_tone: ${p.source}`); }
+    if (p.test(allText)) { emotionalHits++; notes.push(`emotional: ${p.source}`); }
   }
   if (emotionalHits > 0) {
-    deductions += 3;
-    notes.push("-3: emotional tone remains");
-    courtSafeScore = Math.min(courtSafeScore, emotionalHits >= 2 ? 0 : 1);
+    deductions += 2;
+    issueCategories++;
+    notes.push("-2: emotional language detected");
+    courtSafeScore = Math.min(courtSafeScore, 1);
   }
 
-  // ── 2. Admission / backward-looking language (-3) ──
-  let hasAdmission = false;
-  for (const p of ADMISSION_PATTERNS) {
-    if (p.test(allText)) { hasAdmission = true; notes.push(`admission: ${p.source}`); }
-  }
-  if (hasAdmission) {
-    deductions += 3;
-    notes.push("-3: introduces explanations/admissions");
-    admissionScore = 0;
-  } else {
-    const borderline = [/\bbecause\b/i, /\bdue to\b/i, /\bthe situation\b/i];
-    for (const p of borderline) {
-      if (p.test(allText)) {
-        deductions += 1;
-        admissionScore = 1;
-        notes.push(`-1: borderline backward-looking (${p.source})`);
-        break;
-      }
-    }
-  }
-
-  // ── 3. Escalation risk remains (-3) ──
-  let escalationHits = 0;
-  for (const p of ESCALATION_PATTERNS) {
-    if (p.test(allText)) { escalationHits++; notes.push(`escalation: ${p.source}`); }
-  }
-  let insultEngagement = 0;
-  for (const p of INSULT_ENGAGEMENT_PATTERNS) {
-    if (p.test(allText)) { insultEngagement++; notes.push(`insult_engagement: ${p.source}`); }
-  }
-  if (escalationHits > 0 || insultEngagement > 0) {
-    deductions += 3;
-    notes.push("-3: escalation risk remains");
-    escalationScore = escalationHits >= 2 ? 0 : 1;
-    focusScore = insultEngagement >= 2 ? 0 : (insultEngagement === 1 ? 1 : focusScore);
-  }
-
-  // ── 4. Vague or unclear wording (-2) ──
+  // ── 2. Vague phrasing (-2) ──
+  const vaguePatterns = [
+    ...VAGUE_PATTERNS,
+    /\bmaybe\b/i, /\bkind of\b/i, /\btrying to\b/i,
+    /\bsort of\b/i, /\bhopefully\b/i, /\bi think\b/i,
+    /\bi guess\b/i, /\bprobably\b/i, /\bi suppose\b/i,
+  ];
   let vagueHits = 0;
-  for (const p of VAGUE_PATTERNS) {
+  for (const p of vaguePatterns) {
     if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); }
   }
   if (vagueHits > 0 || (/^(ok|okay|sure|fine|noted|received)\.?$/i.test(allText.trim()) && mode === "rewrite")) {
     deductions += 2;
-    notes.push("-2: wording is vague or unclear");
+    issueCategories++;
+    notes.push("-2: vague phrasing detected");
     actionabilityScore = Math.min(actionabilityScore, 1);
   }
 
-  // ── 5. Unnecessarily verbose (-2) ──
-  // Count sentences across all text fields
+  // ── 3. Indirect or unclear intent (-1 to -2) ──
+  const indirectPatterns = [
+    ...PASSIVE_WEAK_PATTERNS,
+    /\bso we can discuss\b/i, /\blet me know your thoughts\b/i,
+    /\bwe can talk about this\b/i, /\bi'd like to discuss\b/i,
+    /\bperhaps we could\b/i,
+  ];
+  let indirectHits = 0;
+  for (const p of indirectPatterns) {
+    if (p.test(allText)) { indirectHits++; notes.push(`indirect: ${p.source}`); }
+  }
+  if (indirectHits > 0) {
+    const indirectDeduction = indirectHits >= 2 ? 2 : 1;
+    deductions += indirectDeduction;
+    issueCategories++;
+    notes.push(`-${indirectDeduction}: indirect or unclear intent`);
+    focusScore = Math.min(focusScore, 1);
+  }
+
+  // ── 4. Defensive tone or justification (-2) ──
+  const defensivePatterns = [
+    ...ADMISSION_PATTERNS,
+    /\bbecause\b/i, /\bdue to\b/i, /\bthe reason\b/i,
+    /\blet me explain\b/i, /\bwhat happened was\b/i,
+    /\bi was just\b/i, /\bi only\b/i, /\bi didn't mean\b/i,
+    /\bin my defense\b/i, /\bto be fair\b/i,
+  ];
+  let defensiveHits = 0;
+  for (const p of defensivePatterns) {
+    if (p.test(allText)) { defensiveHits++; notes.push(`defensive: ${p.source}`); }
+  }
+  if (defensiveHits > 0) {
+    deductions += 2;
+    issueCategories++;
+    notes.push("-2: defensive tone or justification");
+    admissionScore = Math.min(admissionScore, defensiveHits >= 2 ? 0 : 1);
+  }
+
+  // ── 5. Accusatory language (-3) ──
+  const accusatoryPatterns = [
+    ...ESCALATION_PATTERNS,
+    ...INSULT_ENGAGEMENT_PATTERNS,
+    /\byour fault\b/i, /\byou caused\b/i, /\byou did this\b/i,
+    /\byou('re| are) the (problem|reason)\b/i,
+    /\byou refuse\b/i, /\byou won't\b/i,
+  ];
+  let accusatoryHits = 0;
+  for (const p of accusatoryPatterns) {
+    if (p.test(allText)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); }
+  }
+  if (accusatoryHits > 0) {
+    deductions += 3;
+    issueCategories++;
+    notes.push("-3: accusatory language detected");
+    escalationScore = accusatoryHits >= 2 ? 0 : 1;
+  }
+
+  // ── 6. Admission of fault (-3) ──
+  const faultAdmissionPatterns = [
+    /\bi forgot\b/i, /\bi should have\b/i, /\bi failed\b/i,
+    /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bi regret\b/i,
+    /\bi admit\b/i, /\bi acknowledge\b/i, /\bmy fault\b/i,
+    /\bi was wrong\b/i, /\bi made a mistake\b/i,
+  ];
+  let faultHits = 0;
+  for (const p of faultAdmissionPatterns) {
+    if (p.test(allText)) { faultHits++; notes.push(`fault_admission: ${p.source}`); }
+  }
+  if (faultHits > 0) {
+    deductions += 3;
+    issueCategories++;
+    notes.push("-3: admission of fault");
+    admissionScore = 0;
+  }
+
+  // ── 7. Unnecessary verbosity (-1) ──
   const primaryText = mode === "respond"
     ? (result.primary_response as string ?? "")
     : (result.primary_rewrite as string ?? "");
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-  if (sentenceCount > 4 || primaryText.length > 600) {
-    deductions += 2;
-    notes.push(`-2: unnecessarily verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
+  if (sentenceCount > 3 || primaryText.length > 400) {
+    deductions += 1;
+    issueCategories++;
+    notes.push(`-1: unnecessarily verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
     actionabilityScore = Math.min(actionabilityScore, 1);
   }
 
-  // ── 6. Unnatural or overly formal phrasing (-2) ──
+  // ── 8. Overly formal phrasing (-1 bonus deduction) ──
   let formalHits = 0;
   for (const p of OVERLY_FORMAL_PATTERNS) {
     if (p.test(allText)) { formalHits++; notes.push(`overly_formal: ${p.source}`); }
   }
   if (formalHits > 0) {
-    deductions += 2;
-    notes.push("-2: phrasing is unnatural or overly formal");
+    deductions += 1;
+    issueCategories++;
+    notes.push("-1: overly formal phrasing");
     courtSafeScore = Math.min(courtSafeScore, 1);
   }
 
-  // ── 7. Too passive / weaker than needed (-2) ──
-  let passiveHits = 0;
-  for (const p of PASSIVE_WEAK_PATTERNS) {
-    if (p.test(allText)) { passiveHits++; notes.push(`passive: ${p.source}`); }
-  }
-  if (passiveHits > 0) {
-    deductions += 2;
-    notes.push("-2: rewrite is too passive/weak");
-    focusScore = Math.min(focusScore, 1);
-  }
-
-  // ── 8. Placeholder brackets detected ──
+  // ── 9. Placeholder brackets detected ──
   if (PLACEHOLDER_PATTERN.test(allText)) {
     deductions += 3;
+    issueCategories++;
     notes.push("-3: placeholder brackets detected");
     courtSafeScore = 0;
   }
 
   // ── Calculate server-side score ──
-  const serverScore = Math.max(1, 10 - deductions);
+  let serverScore = Math.max(1, 10 - deductions);
+
+  // ── Hard caps: enforce strict ceilings ──
+  // If ANY emotional or vague language exists, cap at 8
+  if (emotionalHits > 0 || vagueHits > 0) {
+    serverScore = Math.min(serverScore, 8);
+    notes.push("cap: emotional/vague language caps score at 8");
+  }
+  // If multiple issue categories triggered (2+), cap at 7
+  if (issueCategories >= 2) {
+    serverScore = Math.min(serverScore, 7);
+    notes.push(`cap: ${issueCategories} issue categories caps score at 7`);
+  }
+  // If 3+ issue categories, cap at 6
+  if (issueCategories >= 3) {
+    serverScore = Math.min(serverScore, 6);
+    notes.push(`cap: ${issueCategories} issue categories caps score at 6`);
+  }
 
   // ── Incorporate AI self-score (take the minimum for safety) ──
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
