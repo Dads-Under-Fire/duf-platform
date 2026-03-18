@@ -202,7 +202,7 @@ ${SYSTEM_PROMPT_SUFFIX}`;
     // ── 6. Validate structured output ──
     const validationError = validateResult(result);
     if (validationError) {
-      console.error("Validation failed:", validationError, result);
+      console.error(`[${FN}] validation_failed | user=${userId} | type=${type} | error=${validationError}`);
       logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
       return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
     }
