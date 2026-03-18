@@ -220,6 +220,7 @@ ${SYSTEM_PROMPT_SUFFIX}`;
       p_word_count: wordCount,
     });
 
+    console.log(`[${FN}] success | user=${userId} | type=${type} | word_count=${wordCount} | findings=${result.key_findings?.length ?? 0} | red_flags=${result.red_flags?.length ?? 0}`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: wordCount });
 
     return jsonResponse({ ...result, word_count: wordCount });
