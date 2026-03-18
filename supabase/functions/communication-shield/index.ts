@@ -272,7 +272,7 @@ Analyze the incoming message carefully. Set "recommendation_type" to one of:
   Examples that qualify for do_not_respond: "You're a terrible father." / "No one wants you around." / "You disgust me."
   IMPORTANT: Do NOT select do_not_respond if the message mentions ANY of: times, dates, pickup, drop-off, schedule, custody, keeping the child, arrangements, school, health, or agreements — even buried in hostility.
   When choosing do_not_respond:
-  • Set "primary_response" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
+  • Set "primary_rewrite" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
   • Set "shorter_version" and "firmer_version" to empty strings ""
   • Optionally set "fallback_response" to a very short neutral message ONLY if the user feels they absolutely must reply (e.g. "Received.")
 
