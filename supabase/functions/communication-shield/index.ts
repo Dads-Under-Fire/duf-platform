@@ -277,6 +277,12 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
   if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
 
+  // Hard legal-safety check for rewrite outputs
+  for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
+    const unsafeMatch = containsUnsafeLanguage(r[field]);
+    if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
+  }
+
   for (const k of ["shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"] as const) {
     if (!isNonEmptyString(r[k])) return `missing ${k}`;
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
