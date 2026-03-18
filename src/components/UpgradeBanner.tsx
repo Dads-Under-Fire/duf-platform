@@ -45,7 +45,11 @@ export function UpgradeBanner() {
     message = `You're on the Free plan. Complete your ${formatPlanLabel(intendedPlan)} plan upgrade to unlock full access.`;
     ctaLabel = "Continue to Checkout";
   } else {
-    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceLimit - evidenceUsed} evidence analysis left.`;
+    const remaining = evidenceLimit - evidenceUsed;
+    const evidenceText = limits.evidence_uses_words
+      ? `${remaining.toLocaleString()} evidence words`
+      : `${remaining} evidence analys${remaining === 1 ? "is" : "es"}`;
+    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceText} left.`;
     ctaLabel = "Upgrade Now";
   }
 
