@@ -978,9 +978,10 @@ function matchIntent(context: string | undefined): string {
 
 function buildDeterministicFallback(mode: "respond" | "rewrite", communicationContext?: string) {
   if (mode === "rewrite") {
-    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK };
+    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
   }
-  return { mode, is_fallback: true, recommendation_type: "respond", primary_response: matchIntent(communicationContext) };
+  const fallbackText = matchIntent(communicationContext);
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: fallbackText, primary_response: fallbackText, three_alternatives: [] };
 }
 
 // ── OpenAI call helper ──
