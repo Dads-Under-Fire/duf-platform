@@ -1249,13 +1249,19 @@ You MUST call the provided tool with your structured output.`;
     console.log(`[${FN}] success | mode=${mode} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    return jsonResponse({
+    // For respond mode, also populate primary_response for backward compatibility
+    const responsePayload: Record<string, unknown> = {
       ...aiResult,
       mode,
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
       original_score: originalScoreResult.score,
       rewrite_quality_score: rewriteScore!.score,
-    });
+      three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
+    };
+    if (mode === "respond") {
+      responsePayload.primary_response = aiResult.primary_rewrite;
+    }
+    return jsonResponse(responsePayload);
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
