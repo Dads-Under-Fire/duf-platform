@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
+import Evidence from "./pages/Evidence";
 import Auth from "./pages/Auth";
 import Account from "./pages/Account";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
@@ -20,6 +21,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/evidence" element={<Evidence />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/account" element={<Account />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />

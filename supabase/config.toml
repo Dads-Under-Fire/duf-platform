@@ -1,6 +1,9 @@
 project_id = "ynbvwbfxbjlwhjuvczpe"
 
-[functions.rewrite-message]
+[functions.communication-shield]
+verify_jwt = false
+
+[functions.evidence-analyzer]
 verify_jwt = false
 
 [functions.suggest-intents]
