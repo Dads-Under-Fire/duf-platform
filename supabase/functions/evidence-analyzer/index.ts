@@ -142,12 +142,14 @@ serve(async (req) => {
       return jsonResponse({ error: "Could not verify quota" }, 500);
     }
 
+    console.log(`[${FN}] quota_check | user=${userId} | used=${quotaRows[0].used}/${quotaRows[0].limit} | unit=${quotaRows[0].unit} | allowed=${quotaRows[0].allowed}`);
+
     if (!quotaRows[0].allowed) {
       const unit = quotaRows[0].unit;
       const msg = unit === "words"
         ? "You've reached your monthly evidence word limit."
         : "You've used all your free evidence analyses.";
-      logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
+      logRequest({ userId, functionName: FN, status: "rate_limited", detail: `quota exhausted (${unit})` });
       return jsonResponse({ error: msg }, 429);
     }
 
