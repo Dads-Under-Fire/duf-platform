@@ -94,32 +94,40 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    Also provide "original_score_deductions" — array of strings describing each issue found.
 
 2. "self_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
-   Score the rewrite quality:
-   - 1-3 = poor rewrite
-   - 4-5 = weak rewrite
-   - 6-7 = acceptable but flawed
-   - 8-9 = strong rewrite
-   - 10 = excellent rewrite
+   A score of 10 should be EXCEPTIONALLY RARE — reserved only for rewrites that require zero improvement.
    
-   Deduction rules for self_score (start at 10):
+   Score the rewrite quality:
+   - 1-3 = poor rewrite (unsafe, emotional, or unusable)
+   - 4-5 = weak rewrite (multiple flaws, needs significant revision)
+   - 6-7 = acceptable but noticeably flawed
+   - 8-9 = strong rewrite with minor issues
+   - 10 = near-perfect — NO meaningful improvement possible
+   
+   Deduction rules for self_score (start at 10, apply ALL that match):
+   - -3 if accusatory language remains in output
+   - -3 if admission of fault or apology language exists in output
    - -2 if emotional language remains
-   - -2 if vague phrasing exists
-   - -2 if defensive tone or justification appears
-   - -3 if accusatory language remains
-   - -3 if admission of fault exists in the output
-   - -2 if overly formal or unnatural phrasing
-   - -2 if unnecessarily verbose
-   - -2 if too passive or weak
-   - -2 if adds meaning not in original
-   - -1 if indirect or unclear intent
+   - -2 if vague phrasing exists (maybe, hopefully, kind of, sometime soon)
+   - -2 if defensive tone or justification appears (because, due to, let me explain)
+   - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
+   - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
+   - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
+   - -2 if adds meaning, context, or framing not clearly present in original message
+   - -1 if generic or bland wording when a more specific/clear phrasing was possible
+   - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
+   - -1 if slightly controlling or patronizing tone
+   - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
    
    HARD RULES for self_score:
-   - If ANY emotional or vague language exists → must not exceed 8
-   - If MULTIPLE issues (2+) → score should be 6-7 range
-   - Only give 10 if output is fully neutral, clear, concise, natural, and legally safe
-   - A perfect 10 should be RARE
+   - If ANY emotional, vague, or apologetic language exists → must not exceed 8
+   - If 2+ issue categories apply → score must be 6-7 range
+   - If 3+ issue categories apply → score must be 5-6 range
+   - A rewrite being safer than the original does NOT automatically make it a 10
+   - If the original message was already clean/safe, do NOT reward unnecessary rewriting — if the rewrite adds formality or wording without improving safety, reduce score
+   - Only give 10 if: fully neutral, concise, natural-sounding, legally safe, no added meaning, no unnecessary formality, and would require zero meaningful improvement
+   - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
    
-   Also provide "self_score_deductions" — array of strings describing each deduction.
+   Also provide "self_score_deductions" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the ORIGINAL message (e.g. "Emotional language detected", "Accusatory tone", "Admission of fault")
@@ -626,6 +634,31 @@ function scoreRewriteQuality(
     notes.push("-3: placeholder brackets"); courtSafeScore = 0;
   }
 
+  // 11. Controlling / patronizing tone (-1)
+  const controllingPatterns = [
+    /\byou need to\b/i, /\byou must\b/i, /\byou should\b/i,
+    /\bi expect you to\b/i, /\bi need you to\b/i,
+    /\bgoing forward,? you will\b/i, /\bi trust that you\b/i,
+  ];
+  let controlHits = 0;
+  for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; notes.push(`controlling: ${p.source}`); } }
+  if (controlHits > 0) { deductions += 1; issueCategories++; notes.push("-1: controlling/patronizing tone"); }
+
+  // 12. Generic/bland wording (-1)
+  const genericPatterns = [
+    /\bi appreciate your (cooperation|understanding|patience)\b/i,
+    /\bthank you for your (cooperation|understanding|patience)\b/i,
+    /\bi look forward to\b/i, /\bmoving forward together\b/i,
+    /\bin the best interest of\b/i,
+  ];
+  let genericHits = 0;
+  for (const p of genericPatterns) { if (p.test(allText)) { genericHits++; notes.push(`generic: ${p.source}`); } }
+  if (genericHits > 0) { deductions += 1; issueCategories++; notes.push("-1: generic/bland wording"); }
+
+  // 13. Unnecessary formalization — penalize if rewrite is longer than needed
+  const wordCount = allText.split(/\s+/).length;
+  if (wordCount > 60) { deductions += 1; issueCategories++; notes.push(`-1: high word count (${wordCount})`); }
+
   let serverScore = Math.max(1, 10 - deductions);
 
   // Hard caps
@@ -633,7 +666,8 @@ function scoreRewriteQuality(
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  // Incorporate AI self-score
+  // Default cap: most rewrites should not be 10 unless truly flawless
+  // If server found zero issues but AI gave 10, still cap at 9 unless text is very short and clean
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
@@ -648,6 +682,13 @@ function scoreRewriteQuality(
   } else {
     total = serverScore;
   }
+
+  // Final 10 gate: only allow 10 if server found literally zero issues AND text is concise
+  if (total >= 10 && (issueCategories > 0 || sentenceCount > 2 || primaryText.length > 200)) {
+    total = 9;
+    notes.push("cap: 10 requires zero issues + concise output");
+  }
+
   total = Math.max(1, Math.min(10, total));
 
   let status: RewriteQualityResult["quality_score_status"];
