@@ -64,37 +64,68 @@ const QUALITY_RULES = `OUTPUT QUALITY — ABSOLUTE RULES:
 - Do not output system-level language such as "retry shortly", "guidance unavailable", "service error", or "temporarily unable".
 - All text must read as something a real person would actually send or read.`;
 
-const SCORING_INSTRUCTIONS = `STRICT SELF-SCORING — You MUST score your own output honestly using "self_score" (integer 1-10).
-Legal safety takes priority over politeness. Do NOT inflate scores.
+const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate scores:
 
-Start at 10 and subtract points based on these rules:
-- -2 if emotional language remains (sorry, upset, frustrated, disappointed, hurt, angry, etc.)
-- -2 if vague phrasing exists (maybe, kind of, trying to, sort of, hopefully, etc.)
-- -1 to -2 if intent is indirect or unclear (reader wouldn't know what action to take)
-- -2 if defensive tone or justification appears (explaining past actions, giving reasons)
-- -3 if accusatory language remains (you always, you never, your fault, you caused)
-- -3 if admission of fault exists (I forgot, I should have, I failed, I'm sorry, I apologize)
-- -1 if unnecessarily verbose (could be said in fewer words without losing meaning)
+1. "original_score" (integer 1-10): Evaluate the ORIGINAL message the user submitted.
+   Score the original message for risk:
+   - 1-3 = very risky (threats, admissions, strong accusations, hostile language)
+   - 4-5 = risky (emotional, defensive, vague, passive-aggressive)
+   - 6-7 = moderate issues (some emotional language, minor vagueness)
+   - 8-9 = mostly safe (minor issues only)
+   - 10 = already clean, neutral, and court-safe
+   
+   Deduction rules for original_score (start at 10):
+   - -3 if threats or intimidation
+   - -3 if admission of fault (sorry, my fault, I forgot, I should have)
+   - -3 if strong accusations (you always, you never, your fault, you caused)
+   - -2 if emotional language (upset, frustrated, hurt, angry, disappointed)
+   - -2 if hostile or aggressive tone
+   - -2 if passive aggression or sarcasm
+   - -2 if over-explaining or justification
+   - -2 if apology language (sorry, I apologize)
+   - -1 if vague phrasing (maybe, kind of, hopefully)
+   - -1 if escalation risk
+   
+   HARD RULES for original_score:
+   - If admissions, threats, or strong accusations exist → must score 1-4
+   - If emotional or vague language exists → must not exceed 7-8
+   - Only score 9-10 if message is already fully neutral and concise
 
-Scoring guidelines:
-- 10 = perfect — fully neutral, clear, precise, no emotional language, no risk
-- 9 = very strong — minimal improvement needed
-- 7-8 = acceptable but has minor issues
-- 5-6 = risky, should be rewritten
-- below 5 = high risk
+   Also provide "original_score_deductions" — array of strings describing each issue found.
 
-HARD RULES:
-- If ANY emotional or vague language exists, score MUST NOT exceed 8
-- If MULTIPLE issues exist (2+ categories triggered), score should be 6-7 range
-- Only give 10 if message is fully neutral, clear, precise, and natural
-- A perfect 10 should be RARE — most outputs score 7-9
-
-Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: emotional language - sorry"). If no deductions, use ["none"].
+2. "self_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
+   Score the rewrite quality:
+   - 1-3 = poor rewrite
+   - 4-5 = weak rewrite
+   - 6-7 = acceptable but flawed
+   - 8-9 = strong rewrite
+   - 10 = excellent rewrite
+   
+   Deduction rules for self_score (start at 10):
+   - -2 if emotional language remains
+   - -2 if vague phrasing exists
+   - -2 if defensive tone or justification appears
+   - -3 if accusatory language remains
+   - -3 if admission of fault exists in the output
+   - -2 if overly formal or unnatural phrasing
+   - -2 if unnecessarily verbose
+   - -2 if too passive or weak
+   - -2 if adds meaning not in original
+   - -1 if indirect or unclear intent
+   
+   HARD RULES for self_score:
+   - If ANY emotional or vague language exists → must not exceed 8
+   - If MULTIPLE issues (2+) → score should be 6-7 range
+   - Only give 10 if output is fully neutral, clear, concise, natural, and legally safe
+   - A perfect 10 should be RARE
+   
+   Also provide "self_score_deductions" — array of strings describing each deduction.
 
 RISK FLAGS RULES:
-- risk_flags MUST list every issue found in the original message (e.g. "Removed accusatory language", "De-escalated hostile tone", "Removed emotional bait")
+- risk_flags MUST list every issue found in the ORIGINAL message (e.g. "Emotional language detected", "Accusatory tone", "Admission of fault")
 - If the original input is already perfectly neutral with no issues, set risk_flags to ["No risk flags"]
-- NEVER return an empty array for risk_flags`;
+- NEVER return an empty array for risk_flags
+- Risk flags describe the ORIGINAL message only, NOT the rewrite quality`;
 
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
@@ -221,12 +252,14 @@ const RESPOND_TOOL = {
       firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
       fallback_response: { type: "string", description: "Optional very short fallback if user must reply despite do_not_respond recommendation" },
       tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-      risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved. Use ['No risk flags'] if original was already neutral." },
+      risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this recommendation is safer" },
-      self_score: { type: "integer", description: "Honest self-score 1-10 starting at 10 with deductions applied" },
-      self_score_deductions: { type: "array", items: { type: "string" }, description: "List of deductions applied, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
+      original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
+      original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−3: accusatory language'. Use ['none'] if clean." },
+      self_score: { type: "integer", description: "Quality score of YOUR generated output only (1=poor, 10=excellent)" },
+      self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your output quality, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "self_score", "self_score_deductions"],
+    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
     additionalProperties: false,
   },
   strict: true,
@@ -243,12 +276,14 @@ const REWRITE_TOOL = {
       shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
       firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
       tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-      risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved. Use ['No risk flags'] if original was already neutral." },
+      risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
-      self_score: { type: "integer", description: "Honest self-score 1-10 starting at 10 with deductions applied" },
-      self_score_deductions: { type: "array", items: { type: "string" }, description: "List of deductions applied, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
+      original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
+      original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−2: emotional language'. Use ['none'] if clean." },
+      self_score: { type: "integer", description: "Quality score of YOUR rewritten output only (1=poor, 10=excellent)" },
+      self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your rewrite quality, e.g. '−1: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "self_score", "self_score_deductions"],
+    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
     additionalProperties: false,
   },
   strict: true,
@@ -258,7 +293,6 @@ const REWRITE_TOOL = {
 const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
 const PLACEHOLDER_PATTERN = /\[.*?\]/;
 
-// Patterns that indicate unsafe apology/admission/backward-looking language
 const APOLOGY_PATTERNS = [
   /\bi('m| am) sorry\b/i,
   /\bi apologize\b/i,
@@ -316,19 +350,141 @@ function isNonEmptyString(val: unknown): val is string {
   return typeof val === "string" && val.trim().length > 0;
 }
 
-// ── Quality Scoring System (Deduction-Based) ──
-interface QualityScore {
+// ── Scoring: Original Message (server-side verification) ──
+function scoreOriginalMessage(originalMessage: string): { score: number; notes: string[] } {
+  const notes: string[] = [];
+  let deductions = 0;
+  let issueCategories = 0;
+
+  const text = originalMessage;
+
+  // Threats / intimidation (-3)
+  const threatPatterns = [
+    /\bi('ll| will) (make sure|destroy|ruin|end)\b/i,
+    /\byou('ll| will) (regret|pay|lose|suffer)\b/i,
+    /\bwatch (out|yourself)\b/i, /\bi('m| am) going to\b.*\b(court|lawyer|police)\b/i,
+    /\bi('ll| will) take\b.*\b(kids?|children|custody)\b/i,
+  ];
+  let threatHits = 0;
+  for (const p of threatPatterns) { if (p.test(text)) { threatHits++; notes.push(`threat: ${p.source}`); } }
+  if (threatHits > 0) { deductions += 3; issueCategories++; notes.push("-3: threats/intimidation"); }
+
+  // Admission of fault (-3)
+  const faultPatterns = [
+    /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bmy fault\b/i,
+    /\bi forgot\b/i, /\bi should have\b/i, /\bi failed\b/i,
+    /\bi was wrong\b/i, /\bi made a mistake\b/i, /\bi admit\b/i,
+    /\bi regret\b/i,
+  ];
+  let faultHits = 0;
+  for (const p of faultPatterns) { if (p.test(text)) { faultHits++; notes.push(`fault: ${p.source}`); } }
+  if (faultHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission of fault"); }
+
+  // Strong accusations (-3)
+  const accusatoryPatterns = [
+    /\byou always\b/i, /\byou never\b/i, /\byour fault\b/i,
+    /\byou caused\b/i, /\byou did this\b/i, /\byou('re| are) (wrong|lying|the problem|the reason)\b/i,
+    /\bthat's a lie\b/i, /\bhow dare you\b/i, /\byou have no right\b/i,
+  ];
+  let accusatoryHits = 0;
+  for (const p of accusatoryPatterns) { if (p.test(text)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); } }
+  if (accusatoryHits > 0) { deductions += 3; issueCategories++; notes.push("-3: accusatory language"); }
+
+  // Emotional language (-2)
+  const emotionalPatterns = [
+    /\bupset\b/i, /\bfrustrated\b/i, /\bhurt\b/i, /\bangry\b/i,
+    /\bdisappointed\b/i, /\bworried\b/i, /\bscared\b/i, /\bheartbroken\b/i,
+    /\bi feel\b/i, /\bit makes me\b/i, /\byou make me\b/i,
+    /\bi can't believe\b/i, /\bthis is so unfair\b/i, /\bhow could you\b/i,
+  ];
+  let emotionalHits = 0;
+  for (const p of emotionalPatterns) { if (p.test(text)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
+  if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
+
+  // Hostile/aggressive tone (-2)
+  const hostilePatterns = [
+    /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish)\b/i,
+    /\bshut up\b/i, /\bgo to hell\b/i, /\byou disgust me\b/i,
+    /\bnobody (wants|likes|cares about) you\b/i,
+    /\bunbelievable\b/i,
+  ];
+  let hostileHits = 0;
+  for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
+  if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); }
+
+  // Passive aggression / sarcasm (-2)
+  const passiveAggressivePatterns = [
+    /\bthanks for nothing\b/i, /\bwhatever\b/i, /\bgood luck with that\b/i,
+    /\bnice try\b/i, /\bsure,? (right|okay)\b/i, /\boh really\b/i,
+    /\bthat's rich\b/i, /\bclassic you\b/i,
+  ];
+  let paHits = 0;
+  for (const p of passiveAggressivePatterns) { if (p.test(text)) { paHits++; notes.push(`passive_aggressive: ${p.source}`); } }
+  if (paHits > 0) { deductions += 2; issueCategories++; notes.push("-2: passive aggression/sarcasm"); }
+
+  // Over-explaining / justification (-2)
+  const justificationPatterns = [
+    /\bbecause\b/i, /\bdue to\b/i, /\bthe reason\b/i,
+    /\blet me explain\b/i, /\bwhat happened was\b/i,
+    /\bi was just\b/i, /\bin my defense\b/i, /\bto be fair\b/i,
+  ];
+  let justHits = 0;
+  for (const p of justificationPatterns) { if (p.test(text)) { justHits++; notes.push(`justification: ${p.source}`); } }
+  if (justHits > 0) { deductions += 2; issueCategories++; notes.push("-2: over-explaining/justification"); }
+
+  // Apology language (-2)
+  let apologyHits = 0;
+  for (const p of APOLOGY_PATTERNS) { if (p.test(text)) { apologyHits++; notes.push(`apology: ${p.source}`); } }
+  if (apologyHits > 0 && faultHits === 0) { // avoid double-counting with fault
+    deductions += 2; issueCategories++; notes.push("-2: apology language");
+  }
+
+  // Vague phrasing (-1)
+  const vaguePatterns = [
+    /\bmaybe\b/i, /\bkind of\b/i, /\bhopefully\b/i,
+    /\bi think\b/i, /\bi guess\b/i, /\bprobably\b/i,
+    /\bsort of\b/i, /\bi suppose\b/i,
+  ];
+  let vagueHits = 0;
+  for (const p of vaguePatterns) { if (p.test(text)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
+  if (vagueHits > 0) { deductions += 1; issueCategories++; notes.push("-1: vague phrasing"); }
+
+  // Escalation risk (-1)
+  let escalationHits = 0;
+  for (const p of [...ESCALATION_PATTERNS, ...INSULT_ENGAGEMENT_PATTERNS]) {
+    if (p.test(text) && !accusatoryHits) { escalationHits++; }
+  }
+  if (escalationHits > 0 && accusatoryHits === 0) { deductions += 1; issueCategories++; notes.push("-1: escalation risk"); }
+
+  let score = Math.max(1, 10 - deductions);
+
+  // Hard caps
+  if (threatHits > 0 || faultHits > 0 || accusatoryHits > 0) {
+    score = Math.min(score, 4);
+    notes.push("cap: threats/admissions/accusations caps at 4");
+  }
+  if (emotionalHits > 0 || vagueHits > 0) {
+    score = Math.min(score, 8);
+  }
+
+  score = Math.max(1, Math.min(10, score));
+
+  return { score, notes };
+}
+
+// ── Scoring: Rewrite Quality (server-side verification) ──
+interface RewriteQualityResult {
+  score: number | null;
+  notes: string[];
+  // Legacy fields kept for DB compatibility
   admission_risk_score: number;
   escalation_safety_score: number;
   actionability_score: number;
   focus_discipline_score: number;
   court_safe_phrasing_score: number;
-  quality_score_total: number | null;
   quality_score_status: "excellent" | "acceptable" | "weak" | "reject" | null;
-  quality_score_notes: { triggered_rules: string[] };
 }
 
-// Patterns for detecting overly formal / unnatural phrasing
 const OVERLY_FORMAL_PATTERNS = [
   /\bhereby\b/i, /\bwherein\b/i, /\bnotwithstanding\b/i,
   /\bpursuant to\b/i, /\bin accordance with\b/i,
@@ -337,7 +493,6 @@ const OVERLY_FORMAL_PATTERNS = [
   /\bplease be advised\b/i, /\bkindly be informed\b/i,
 ];
 
-// Patterns for detecting weak/passive language
 const PASSIVE_WEAK_PATTERNS = [
   /\bperhaps we could\b/i, /\bmaybe we should\b/i,
   /\bi was wondering if\b/i, /\bif that's okay with you\b/i,
@@ -345,22 +500,22 @@ const PASSIVE_WEAK_PATTERNS = [
   /\bi just wanted to\b/i, /\bi was hoping\b/i,
 ];
 
-// Patterns for vague wording
-const VAGUE_PATTERNS = [
+const VAGUE_REWRITE_PATTERNS = [
   /\bsometime soon\b/i, /\bat some point\b/i,
   /\bwhen you get a chance\b/i, /\bwhenever works\b/i,
   /\bin the near future\b/i, /\bas needed\b/i,
-  /\bthe appropriate\b/i, /\bvarious\b/i,
+  /\bmaybe\b/i, /\bkind of\b/i, /\btrying to\b/i,
+  /\bsort of\b/i, /\bhopefully\b/i, /\bi think\b/i,
+  /\bi guess\b/i, /\bprobably\b/i, /\bi suppose\b/i,
 ];
 
-function scoreOutput(
+function scoreRewriteQuality(
   result: Record<string, unknown>,
   mode: "respond" | "rewrite",
-): QualityScore {
+): RewriteQualityResult {
   const notes: string[] = [];
   let deductions = 0;
 
-  // Gather the text fields to analyze
   const textFields: string[] = [];
   if (mode === "respond") {
     if (typeof result.primary_response === "string") textFields.push(result.primary_response);
@@ -377,85 +532,35 @@ function scoreOutput(
   const allText = textFields.join(" ");
   if (!allText.trim()) {
     return {
+      score: null, notes: ["empty_output"],
       admission_risk_score: 0, escalation_safety_score: 0, actionability_score: 0,
-      focus_discipline_score: 0, court_safe_phrasing_score: 0,
-      quality_score_total: null, quality_score_status: null,
-      quality_score_notes: { triggered_rules: ["empty_output"] },
+      focus_discipline_score: 0, court_safe_phrasing_score: 0, quality_score_status: null,
     };
   }
 
-  // ── Category scores (still tracked for DB columns, 0-2 scale) ──
-  let admissionScore = 2;
-  let escalationScore = 2;
-  let actionabilityScore = 2;
-  let focusScore = 2;
-  let courtSafeScore = 2;
-
-  // ── Track how many issue categories are triggered ──
+  let admissionScore = 2, escalationScore = 2, actionabilityScore = 2, focusScore = 2, courtSafeScore = 2;
   let issueCategories = 0;
 
-  // ── 1. Emotional language (-2) ──
+  // 1. Emotional language (-2)
   const emotionalPatterns = [
     ...APOLOGY_PATTERNS,
     /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
     /\bi('m| am) frustrated\b/i, /\bi('m| am) hurt\b/i,
     /\byou make me\b/i, /\bthis is your fault\b/i,
-    /\bi('m| am) disappointed\b/i, /\bi('m| am) angry\b/i,
-    /\bi can't believe\b/i, /\bthis is so unfair\b/i,
-    /\bhow could you\b/i, /\byou('re| are) being selfish\b/i,
     /\bsorry\b/i, /\bupset\b/i, /\bfrustrated\b/i,
     /\bhurt\b/i, /\bangry\b/i, /\bdisappointed\b/i,
     /\bworried\b/i, /\bscared\b/i, /\bheartbroken\b/i,
   ];
   let emotionalHits = 0;
-  for (const p of emotionalPatterns) {
-    if (p.test(allText)) { emotionalHits++; notes.push(`emotional: ${p.source}`); }
-  }
-  if (emotionalHits > 0) {
-    deductions += 2;
-    issueCategories++;
-    notes.push("-2: emotional language detected");
-    courtSafeScore = Math.min(courtSafeScore, 1);
-  }
+  for (const p of emotionalPatterns) { if (p.test(allText)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
+  if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language in output"); courtSafeScore = Math.min(courtSafeScore, 1); }
 
-  // ── 2. Vague phrasing (-2) ──
-  const vaguePatterns = [
-    ...VAGUE_PATTERNS,
-    /\bmaybe\b/i, /\bkind of\b/i, /\btrying to\b/i,
-    /\bsort of\b/i, /\bhopefully\b/i, /\bi think\b/i,
-    /\bi guess\b/i, /\bprobably\b/i, /\bi suppose\b/i,
-  ];
+  // 2. Vague phrasing (-2)
   let vagueHits = 0;
-  for (const p of vaguePatterns) {
-    if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); }
-  }
-  if (vagueHits > 0 || (/^(ok|okay|sure|fine|noted|received)\.?$/i.test(allText.trim()) && mode === "rewrite")) {
-    deductions += 2;
-    issueCategories++;
-    notes.push("-2: vague phrasing detected");
-    actionabilityScore = Math.min(actionabilityScore, 1);
-  }
+  for (const p of VAGUE_REWRITE_PATTERNS) { if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
+  if (vagueHits > 0) { deductions += 2; issueCategories++; notes.push("-2: vague phrasing in output"); actionabilityScore = Math.min(actionabilityScore, 1); }
 
-  // ── 3. Indirect or unclear intent (-1 to -2) ──
-  const indirectPatterns = [
-    ...PASSIVE_WEAK_PATTERNS,
-    /\bso we can discuss\b/i, /\blet me know your thoughts\b/i,
-    /\bwe can talk about this\b/i, /\bi'd like to discuss\b/i,
-    /\bperhaps we could\b/i,
-  ];
-  let indirectHits = 0;
-  for (const p of indirectPatterns) {
-    if (p.test(allText)) { indirectHits++; notes.push(`indirect: ${p.source}`); }
-  }
-  if (indirectHits > 0) {
-    const indirectDeduction = indirectHits >= 2 ? 2 : 1;
-    deductions += indirectDeduction;
-    issueCategories++;
-    notes.push(`-${indirectDeduction}: indirect or unclear intent`);
-    focusScore = Math.min(focusScore, 1);
-  }
-
-  // ── 4. Defensive tone or justification (-2) ──
+  // 3. Defensive tone (-2)
   const defensivePatterns = [
     ...ADMISSION_PATTERNS,
     /\bbecause\b/i, /\bdue to\b/i, /\bthe reason\b/i,
@@ -464,106 +569,71 @@ function scoreOutput(
     /\bin my defense\b/i, /\bto be fair\b/i,
   ];
   let defensiveHits = 0;
-  for (const p of defensivePatterns) {
-    if (p.test(allText)) { defensiveHits++; notes.push(`defensive: ${p.source}`); }
-  }
-  if (defensiveHits > 0) {
-    deductions += 2;
-    issueCategories++;
-    notes.push("-2: defensive tone or justification");
-    admissionScore = Math.min(admissionScore, defensiveHits >= 2 ? 0 : 1);
-  }
+  for (const p of defensivePatterns) { if (p.test(allText)) { defensiveHits++; notes.push(`defensive: ${p.source}`); } }
+  if (defensiveHits > 0) { deductions += 2; issueCategories++; notes.push("-2: defensive/justification in output"); admissionScore = Math.min(admissionScore, defensiveHits >= 2 ? 0 : 1); }
 
-  // ── 5. Accusatory language (-3) ──
+  // 4. Accusatory language (-3)
   const accusatoryPatterns = [
-    ...ESCALATION_PATTERNS,
-    ...INSULT_ENGAGEMENT_PATTERNS,
+    ...ESCALATION_PATTERNS, ...INSULT_ENGAGEMENT_PATTERNS,
     /\byour fault\b/i, /\byou caused\b/i, /\byou did this\b/i,
     /\byou('re| are) the (problem|reason)\b/i,
-    /\byou refuse\b/i, /\byou won't\b/i,
   ];
   let accusatoryHits = 0;
-  for (const p of accusatoryPatterns) {
-    if (p.test(allText)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); }
-  }
-  if (accusatoryHits > 0) {
-    deductions += 3;
-    issueCategories++;
-    notes.push("-3: accusatory language detected");
-    escalationScore = accusatoryHits >= 2 ? 0 : 1;
-  }
+  for (const p of accusatoryPatterns) { if (p.test(allText)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); } }
+  if (accusatoryHits > 0) { deductions += 3; issueCategories++; notes.push("-3: accusatory language in output"); escalationScore = accusatoryHits >= 2 ? 0 : 1; }
 
-  // ── 6. Admission of fault (-3) ──
-  const faultAdmissionPatterns = [
+  // 5. Admission of fault (-3)
+  const faultPatterns = [
     /\bi forgot\b/i, /\bi should have\b/i, /\bi failed\b/i,
     /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bi regret\b/i,
-    /\bi admit\b/i, /\bi acknowledge\b/i, /\bmy fault\b/i,
-    /\bi was wrong\b/i, /\bi made a mistake\b/i,
+    /\bi admit\b/i, /\bmy fault\b/i, /\bi was wrong\b/i, /\bi made a mistake\b/i,
   ];
   let faultHits = 0;
-  for (const p of faultAdmissionPatterns) {
-    if (p.test(allText)) { faultHits++; notes.push(`fault_admission: ${p.source}`); }
-  }
-  if (faultHits > 0) {
-    deductions += 3;
-    issueCategories++;
-    notes.push("-3: admission of fault");
-    admissionScore = 0;
-  }
+  for (const p of faultPatterns) { if (p.test(allText)) { faultHits++; notes.push(`fault: ${p.source}`); } }
+  if (faultHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission of fault in output"); admissionScore = 0; }
 
-  // ── 7. Unnecessary verbosity (-1) ──
-  const primaryText = mode === "respond"
-    ? (result.primary_response as string ?? "")
-    : (result.primary_rewrite as string ?? "");
+  // 6. Overly formal (-2)
+  let formalHits = 0;
+  for (const p of OVERLY_FORMAL_PATTERNS) { if (p.test(allText)) { formalHits++; notes.push(`formal: ${p.source}`); } }
+  if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); courtSafeScore = Math.min(courtSafeScore, 1); }
+
+  // 7. Verbosity (-2)
+  const primaryText = mode === "respond" ? (result.primary_response as string ?? "") : (result.primary_rewrite as string ?? "");
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
   if (sentenceCount > 3 || primaryText.length > 400) {
-    deductions += 1;
-    issueCategories++;
-    notes.push(`-1: unnecessarily verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
+    deductions += 2; issueCategories++;
+    notes.push(`-2: verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
     actionabilityScore = Math.min(actionabilityScore, 1);
   }
 
-  // ── 8. Overly formal phrasing (-1 bonus deduction) ──
-  let formalHits = 0;
-  for (const p of OVERLY_FORMAL_PATTERNS) {
-    if (p.test(allText)) { formalHits++; notes.push(`overly_formal: ${p.source}`); }
-  }
-  if (formalHits > 0) {
-    deductions += 1;
-    issueCategories++;
-    notes.push("-1: overly formal phrasing");
-    courtSafeScore = Math.min(courtSafeScore, 1);
-  }
+  // 8. Too passive/weak (-2)
+  let weakHits = 0;
+  for (const p of PASSIVE_WEAK_PATTERNS) { if (p.test(allText)) { weakHits++; notes.push(`weak: ${p.source}`); } }
+  if (weakHits > 0) { deductions += 2; issueCategories++; notes.push("-2: too passive/weak"); focusScore = Math.min(focusScore, 1); }
 
-  // ── 9. Placeholder brackets detected ──
+  // 9. Indirect intent (-1)
+  const indirectPatterns = [
+    /\bso we can discuss\b/i, /\blet me know your thoughts\b/i,
+    /\bwe can talk about this\b/i, /\bi'd like to discuss\b/i,
+  ];
+  let indirectHits = 0;
+  for (const p of indirectPatterns) { if (p.test(allText)) { indirectHits++; notes.push(`indirect: ${p.source}`); } }
+  if (indirectHits > 0) { deductions += 1; issueCategories++; notes.push("-1: indirect intent"); focusScore = Math.min(focusScore, 1); }
+
+  // 10. Placeholder brackets
   if (PLACEHOLDER_PATTERN.test(allText)) {
-    deductions += 3;
-    issueCategories++;
-    notes.push("-3: placeholder brackets detected");
-    courtSafeScore = 0;
+    deductions += 3; issueCategories++;
+    notes.push("-3: placeholder brackets"); courtSafeScore = 0;
   }
 
-  // ── Calculate server-side score ──
   let serverScore = Math.max(1, 10 - deductions);
 
-  // ── Hard caps: enforce strict ceilings ──
-  // If ANY emotional or vague language exists, cap at 8
-  if (emotionalHits > 0 || vagueHits > 0) {
-    serverScore = Math.min(serverScore, 8);
-    notes.push("cap: emotional/vague language caps score at 8");
-  }
-  // If multiple issue categories triggered (2+), cap at 7
-  if (issueCategories >= 2) {
-    serverScore = Math.min(serverScore, 7);
-    notes.push(`cap: ${issueCategories} issue categories caps score at 7`);
-  }
-  // If 3+ issue categories, cap at 6
-  if (issueCategories >= 3) {
-    serverScore = Math.min(serverScore, 6);
-    notes.push(`cap: ${issueCategories} issue categories caps score at 6`);
-  }
+  // Hard caps
+  if (emotionalHits > 0 || vagueHits > 0) { serverScore = Math.min(serverScore, 8); }
+  if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
+  if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  // ── Incorporate AI self-score (take the minimum for safety) ──
+  // Incorporate AI self-score
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
@@ -572,7 +642,6 @@ function scoreOutput(
     }
   }
 
-  // Final score: minimum of server and AI self-score, clamped 1-10
   let total: number;
   if (aiSelfScore !== null && aiSelfScore >= 1 && aiSelfScore <= 10) {
     total = Math.min(serverScore, aiSelfScore);
@@ -581,36 +650,17 @@ function scoreOutput(
   }
   total = Math.max(1, Math.min(10, total));
 
-  // ── Status thresholds ──
-  let status: QualityScore["quality_score_status"];
+  let status: RewriteQualityResult["quality_score_status"];
   if (total >= 9) status = "excellent";
   else if (total >= 7) status = "acceptable";
   else if (total >= 5) status = "weak";
   else status = "reject";
 
   return {
-    admission_risk_score: admissionScore,
-    escalation_safety_score: escalationScore,
-    actionability_score: actionabilityScore,
-    focus_discipline_score: focusScore,
-    court_safe_phrasing_score: courtSafeScore,
-    quality_score_total: total,
-    quality_score_status: status,
-    quality_score_notes: { triggered_rules: notes },
-  };
-}
-
-function scoreFallback(_mode: "respond" | "rewrite"): QualityScore {
-  // Deterministic fallbacks get a moderate score, never 10
-  return {
-    admission_risk_score: 2,
-    escalation_safety_score: 2,
-    actionability_score: 1,
-    focus_discipline_score: 2,
-    court_safe_phrasing_score: 2,
-    quality_score_total: 7,
-    quality_score_status: "acceptable",
-    quality_score_notes: { triggered_rules: ["deterministic_fallback"] },
+    score: total, notes,
+    admission_risk_score: admissionScore, escalation_safety_score: escalationScore,
+    actionability_score: actionabilityScore, focus_discipline_score: focusScore,
+    court_safe_phrasing_score: courtSafeScore, quality_score_status: status,
   };
 }
 
@@ -625,7 +675,6 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
     if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
 
-    // Hard legal-safety check: block apology/admission/backward-looking language
     for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
       const unsafeMatch = containsUnsafeLanguage(r[field]);
       if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
@@ -644,7 +693,6 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
   if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
 
-  // Hard legal-safety check for rewrite outputs
   for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
     const unsafeMatch = containsUnsafeLanguage(r[field]);
     if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
@@ -660,16 +708,10 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
 
 function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
   if (!retryAfter) return Math.pow(2, attempt) * 1000 + Math.random() * 500;
-
   const seconds = Number.parseInt(retryAfter, 10);
   if (!Number.isNaN(seconds) && seconds > 0) return seconds * 1000;
-
   const retryAt = new Date(retryAfter).getTime();
-  if (!Number.isNaN(retryAt)) {
-    const delta = retryAt - Date.now();
-    if (delta > 0) return delta;
-  }
-
+  if (!Number.isNaN(retryAt)) { const delta = retryAt - Date.now(); if (delta > 0) return delta; }
   return Math.pow(2, attempt) * 1000 + Math.random() * 500;
 }
 
@@ -681,7 +723,6 @@ const RESPOND_FALLBACK_TEMPLATES: Record<string, string> = {
   "general neutral response": "Thank you. I will review this and respond as needed.",
 };
 const RESPOND_FALLBACK_DEFAULT = "Thank you. I will review this and respond as needed.";
-
 const REWRITE_FALLBACK = "I would like to discuss the logistics. Please let me know the relevant details so we can coordinate.";
 
 function matchIntent(context: string | undefined): string {
@@ -693,96 +734,50 @@ function matchIntent(context: string | undefined): string {
   return RESPOND_FALLBACK_DEFAULT;
 }
 
-function buildDeterministicFallback(
-  mode: "respond" | "rewrite",
-  communicationContext?: string,
-) {
+function buildDeterministicFallback(mode: "respond" | "rewrite", communicationContext?: string) {
   if (mode === "rewrite") {
-    return {
-      mode,
-      is_fallback: true,
-      primary_rewrite: REWRITE_FALLBACK,
-    };
+    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK };
   }
-
-  return {
-    mode,
-    is_fallback: true,
-    recommendation_type: "respond",
-    primary_response: matchIntent(communicationContext),
-  };
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_response: matchIntent(communicationContext) };
 }
 
-// ── OpenAI call helper (single attempt) ──
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  requestBody: string,
-): Promise<Response> {
+// ── OpenAI call helper ──
+async function callOpenAI(apiKey: string, model: string, requestBody: string): Promise<Response> {
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: requestBody.replace(/"model":"[^"]+"/, `"model":"${model}"`),
   });
 }
 
-// ── Helper: attempt one AI call, parse, validate ──
 async function attemptAICall(
-  apiKey: string,
-  model: string,
-  requestBody: string,
-  mode: "respond" | "rewrite",
-  toolName: string,
-  label: string,
+  apiKey: string, model: string, requestBody: string,
+  mode: "respond" | "rewrite", toolName: string, label: string,
 ): Promise<Record<string, unknown> | null> {
   try {
     const response = await callOpenAI(apiKey, model, requestBody);
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`[${FN}] ${label} failed: status=${response.status} body=${errText}`);
-      return null;
-    }
+    if (!response.ok) { console.warn(`[${FN}] ${label} failed: status=${response.status}`); return null; }
     const aiData = await response.json();
-    const functionCall = aiData.output?.find(
-      (item: any) => item.type === "function_call" && item.name === toolName
-    );
-    if (!functionCall) {
-      console.warn(`[${FN}] ${label} no function_call in response`);
-      return null;
-    }
+    const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
+    if (!functionCall) { console.warn(`[${FN}] ${label} no function_call`); return null; }
     const parsed = JSON.parse(functionCall.arguments);
-    const validationError = mode === "respond"
-      ? validateRespondResult(parsed)
-      : validateRewriteResult(parsed);
-    if (validationError) {
-      console.warn(`[${FN}] ${label} validation failed: ${validationError}`);
-      return null;
-    }
+    const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
+    if (validationError) { console.warn(`[${FN}] ${label} validation failed: ${validationError}`); return null; }
     return parsed;
-  } catch (err) {
-    console.warn(`[${FN}] ${label} error: ${err}`);
-    return null;
-  }
+  } catch (err) { console.warn(`[${FN}] ${label} error: ${err}`); return null; }
 }
 
-// ── Normalize risk_flags: never return empty array ──
 function normalizeRiskFlags(flags: string[] | undefined): string[] {
-  if (!flags || !Array.isArray(flags) || flags.length === 0) {
-    return ["No risk flags"];
-  }
+  if (!flags || !Array.isArray(flags) || flags.length === 0) return ["No risk flags"];
   return flags;
 }
 
-// ── Helper: build DB insert row with scoring ──
+// ── Build DB insert row with dual scoring ──
 function buildInsertRow(
-  userId: string,
-  message: string,
-  mode: "respond" | "rewrite",
+  userId: string, message: string, mode: "respond" | "rewrite",
   result: Record<string, unknown>,
-  score: QualityScore,
+  originalScore: { score: number; notes: string[] },
+  rewriteScore: RewriteQualityResult,
 ) {
   return {
     user_id: userId,
@@ -796,14 +791,20 @@ function buildInsertRow(
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
     risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    quality_score_total: score.quality_score_total,
-    admission_risk_score: score.admission_risk_score,
-    escalation_safety_score: score.escalation_safety_score,
-    actionability_score: score.actionability_score,
-    focus_discipline_score: score.focus_discipline_score,
-    court_safe_phrasing_score: score.court_safe_phrasing_score,
-    quality_score_status: score.quality_score_status,
-    quality_score_notes: score.quality_score_notes,
+    // New dual scores (primary)
+    original_score: originalScore.score,
+    original_score_notes: originalScore.notes,
+    rewrite_quality_score: rewriteScore.score,
+    rewrite_quality_notes: rewriteScore.notes,
+    // Legacy fields (kept for compatibility)
+    quality_score_total: rewriteScore.score,
+    admission_risk_score: rewriteScore.admission_risk_score,
+    escalation_safety_score: rewriteScore.escalation_safety_score,
+    actionability_score: rewriteScore.actionability_score,
+    focus_discipline_score: rewriteScore.focus_discipline_score,
+    court_safe_phrasing_score: rewriteScore.court_safe_phrasing_score,
+    quality_score_status: rewriteScore.quality_score_status,
+    quality_score_notes: { triggered_rules: rewriteScore.notes },
   };
 }
 
@@ -815,18 +816,15 @@ serve(async (req) => {
   let userId: string | null = null;
 
   try {
-    // ── 1. Auth ──
     const auth = await authenticateRequest(req, FN).catch((res) => res as Response);
     if (auth instanceof Response) return auth;
     userId = auth.userId;
 
-    // ── 2. Rate limit ──
     if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
       logRequest({ userId, functionName: FN, status: "rate_limited" });
       return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
     }
 
-    // ── 3. Input validation ──
     const body = await req.json();
     const { message, mode, original_context, communication_context } = body;
 
@@ -834,43 +832,36 @@ serve(async (req) => {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
       return jsonResponse({ error: "Invalid message" }, 400);
     }
-    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message?.length ?? 0} | has_context=${!!communication_context}`);
+    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message?.length ?? 0}`);
 
     if (mode !== "respond" && mode !== "rewrite") {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
       return jsonResponse({ error: "Invalid mode" }, 400);
     }
     if (communication_context && (typeof communication_context !== "string" || communication_context.length > 500)) {
-      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "context too long" });
       return jsonResponse({ error: "Context too long" }, 400);
     }
     if (original_context && (typeof original_context !== "string" || original_context.length > 4000)) {
-      logRequest({ userId, functionName: FN, status: "invalid_input", detail: "original_context too long" });
       return jsonResponse({ error: "Original context too long" }, 400);
     }
 
-    // ── 4. Quota check ──
+    // Quota check
     const { serviceClient } = auth;
-
-    const { data: quotaRows, error: quotaError } = await serviceClient.rpc(
-      "check_message_rewrite_quota",
-      { p_user_id: userId }
-    );
-
+    const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
     if (quotaError || !quotaRows || quotaRows.length === 0) {
       console.error("Quota check failed:", quotaError);
-      logRequest({ userId, functionName: FN, status: "error", detail: "quota check failed" });
       return jsonResponse({ error: "Could not verify quota" }, 500);
     }
-
-    console.log(`[${FN}] quota_check | user=${userId} | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
-
+    console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
     if (!quotaRows[0].allowed) {
-      logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
       return jsonResponse({ error: "You've used all your message rewrites." }, 429);
     }
 
-    // ── 5. Build prompt & tool for this mode ──
+    // Score the original message (server-side, independent of AI)
+    const originalScoreResult = scoreOriginalMessage(message);
+    console.log(`[${FN}] original_score: ${originalScoreResult.score}/10 | notes=${JSON.stringify(originalScoreResult.notes)}`);
+
+    // Build prompt & tool
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -878,9 +869,7 @@ serve(async (req) => {
       ? `\nThe user selected the following communication context: "${communication_context}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
       : "";
 
-    const modeIntro = mode === "respond"
-      ? RESPOND_INTRO(original_context)
-      : REWRITE_INTRO;
+    const modeIntro = mode === "respond" ? RESPOND_INTRO(original_context) : REWRITE_INTRO;
 
     const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
@@ -905,11 +894,10 @@ You MUST call the provided tool with your structured output.`;
     });
 
     const requestBody = buildRequestBody();
-
     let aiResult: Record<string, unknown> | null = null;
-    let score: QualityScore | null = null;
+    let rewriteScore: RewriteQualityResult | null = null;
 
-    // ── 6. Tier 1: Primary model (with 429 retry) ──
+    // Tier 1: Primary model
     let response: Response | null = null;
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -923,46 +911,36 @@ You MUST call the provided tool with your structured output.`;
       await new Promise((r) => setTimeout(r, waitMs));
     }
 
-    // Try to extract & score Tier 1
     if (response && response.ok) {
       try {
         const aiData = await response.json();
-        const functionCall = aiData.output?.find(
-          (item: any) => item.type === "function_call" && item.name === toolName
-        );
+        const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
         if (functionCall) {
           const parsed = JSON.parse(functionCall.arguments);
-          const validationError = mode === "respond"
-            ? validateRespondResult(parsed)
-            : validateRewriteResult(parsed);
+          const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
           if (!validationError) {
-            const s = scoreOutput(parsed, mode);
-            console.log(`[${FN}] Tier1 score: ${s.quality_score_total}/10 (${s.quality_score_status}) | notes=${JSON.stringify(s.quality_score_notes.triggered_rules)}`);
+            const s = scoreRewriteQuality(parsed, mode);
+            console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
 
             if (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable") {
               aiResult = parsed;
-              score = s;
+              rewriteScore = s;
             } else {
-              // weak or reject — attempt stricter retry with same model
               console.log(`[${FN}] Tier1 score ${s.quality_score_status}, attempting stricter retry`);
               const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
               const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
               if (retryResult) {
-                const s2 = scoreOutput(retryResult, mode);
-                console.log(`[${FN}] Tier1-strict-retry score: ${s2.quality_score_total}/10 (${s2.quality_score_status})`);
+                const s2 = scoreRewriteQuality(retryResult, mode);
+                console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
                 if (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable") {
                   aiResult = retryResult;
-                  score = s2;
-                } else {
-                  console.warn(`[${FN}] Tier1-strict-retry still ${s2.quality_score_status}, escalating to Tier2`);
+                  rewriteScore = s2;
                 }
               }
             }
           } else {
             console.warn(`[${FN}] Tier1 validation failed: ${validationError}`);
           }
-        } else {
-          console.warn(`[${FN}] Tier1 no function_call in response`);
         }
       } catch (parseErr) {
         console.warn(`[${FN}] Tier1 parse error: ${parseErr}`);
@@ -972,49 +950,66 @@ You MUST call the provided tool with your structured output.`;
       console.warn(`[${FN}] Tier1 failed: status=${response?.status} body=${errText}`);
     }
 
-    // ── Tier 2: Fallback model (if Tier 1 didn't produce acceptable result) ──
+    // Tier 2: Fallback model
     if (!aiResult) {
       console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
       const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
       const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, stricterBody, mode, toolName, "Tier2");
       if (tier2Result) {
-        const s = scoreOutput(tier2Result, mode);
-        console.log(`[${FN}] Tier2 score: ${s.quality_score_total}/10 (${s.quality_score_status})`);
+        const s = scoreRewriteQuality(tier2Result, mode);
+        console.log(`[${FN}] Tier2 score: ${s.score}/10 (${s.quality_score_status})`);
         if (s.quality_score_status !== "reject") {
           aiResult = tier2Result;
-          score = s;
-          console.log(`[${FN}] Tier2 accepted (${s.quality_score_status})`);
-        } else {
-          console.warn(`[${FN}] Tier2 score reject, falling to Tier3`);
+          rewriteScore = s;
         }
       }
     }
 
-    // ── Tier 3: Deterministic fallback (always succeeds) ──
+    // Tier 3: Deterministic fallback
     if (!aiResult) {
-      console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode} | context=${communication_context ?? "none"}`);
+      console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode}`);
       const fallback = buildDeterministicFallback(mode, communication_context);
-      const fallbackScore = scoreFallback(mode);
+      const fallbackRewriteScore: RewriteQualityResult = {
+        score: 7, notes: ["deterministic_fallback"],
+        admission_risk_score: 2, escalation_safety_score: 2, actionability_score: 1,
+        focus_discipline_score: 2, court_safe_phrasing_score: 2, quality_score_status: "acceptable",
+      };
 
       await serviceClient.from("communication_shield_history").insert(
-        buildInsertRow(userId, message, mode, fallback as any, fallbackScore)
+        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackRewriteScore)
       );
 
-      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 deterministic | mode=${mode} | score=${fallbackScore.quality_score_total}` });
+      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
       return jsonResponse(fallback);
     }
 
-    // ── 7. AI succeeded with acceptable score — persist & increment ──
+    // AI succeeded — persist & increment
+    // Also incorporate AI's original_score (take minimum with server-side)
+    const aiOriginalScore = typeof aiResult.original_score === "number" ? aiResult.original_score : null;
+    if (aiOriginalScore !== null && aiOriginalScore >= 1 && aiOriginalScore <= 10) {
+      originalScoreResult.score = Math.min(originalScoreResult.score, aiOriginalScore);
+      originalScoreResult.notes.push(`ai_original_score: ${aiOriginalScore}`);
+      if (Array.isArray(aiResult.original_score_deductions)) {
+        originalScoreResult.notes.push(`ai_original_deductions: ${(aiResult.original_score_deductions as string[]).join("; ")}`);
+      }
+    }
+
     await serviceClient.from("communication_shield_history").insert(
-      buildInsertRow(userId, message, mode, aiResult, score!)
+      buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!)
     );
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${aiResult.recommendation_type ?? "n/a"} | tone=${aiResult.tone_assessment} | score=${score!.quality_score_total}/10 (${score!.quality_score_status})`);
+    console.log(`[${FN}] success | mode=${mode} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    return jsonResponse({ ...aiResult, mode, risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined) });
+    return jsonResponse({
+      ...aiResult,
+      mode,
+      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
+      original_score: originalScoreResult.score,
+      rewrite_quality_score: rewriteScore!.score,
+    });
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
