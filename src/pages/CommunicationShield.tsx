@@ -697,7 +697,7 @@ export default function CommunicationShield() {
             <button
               onClick={handleStartOver}
               disabled={loading}
-              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40"
+              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
             >
               <RotateCcw className="h-4 w-4" />
               Start Over
