@@ -169,7 +169,7 @@ export default function Account() {
                   <Button
                     variant="outline"
                     onClick={handleManageBilling}
-                    disabled={portalLoading}
+                    disabled={portalLoading || !hasPaidSubscription}
                     className="gap-2"
                   >
                     {portalLoading ? (
@@ -179,7 +179,11 @@ export default function Account() {
                     )}
                     Manage billing
                   </Button>
-                  <p className="text-xs text-muted-foreground">Update payment method, view invoices, or cancel</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasPaidSubscription
+                      ? "Update payment method, view invoices, or cancel"
+                      : "Available after upgrading to a paid plan"}
+                  </p>
                 </div>
               </div>
             </CardContent>
