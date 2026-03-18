@@ -700,18 +700,15 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   return { score, notes };
 }
 
-// ── Scoring: Rewrite Quality (server-side verification) ──
-interface RewriteQualityResult {
+// ── Scoring: Output Quality (server-side verification) ──
+interface OutputQualityResult {
   score: number | null;
   notes: string[];
-  // Legacy fields kept for DB compatibility
-  admission_risk_score: number;
-  escalation_safety_score: number;
-  actionability_score: number;
-  focus_discipline_score: number;
-  court_safe_phrasing_score: number;
   quality_score_status: "excellent" | "acceptable" | "weak" | "reject" | null;
 }
+
+// Keep the old interface name as an alias for compatibility within this file
+type RewriteQualityResult = OutputQualityResult;
 
 const OVERLY_FORMAL_PATTERNS = [
   /\bhereby\b/i, /\bwherein\b/i, /\bnotwithstanding\b/i,
@@ -740,10 +737,10 @@ const VAGUE_REWRITE_PATTERNS = [
   /\bi guess\b/i, /\bprobably\b/i, /\bi suppose\b/i,
 ];
 
-function scoreRewriteQuality(
+function scoreOutputQuality(
   result: Record<string, unknown>,
   mode: "respond" | "rewrite",
-): RewriteQualityResult {
+): OutputQualityResult {
   const notes: string[] = [];
   let deductions = 0;
 
@@ -754,29 +751,23 @@ function scoreRewriteQuality(
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
     }
+    // Also score three_alternatives if present (respond mode only)
+    if (Array.isArray(result.three_alternatives)) {
+      for (const alt of result.three_alternatives) {
+        if (typeof alt === "string") textFields.push(alt);
+      }
+    }
   } else {
     if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
     if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
     if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
   }
 
-  // Also score three_alternatives if present
-  if (Array.isArray(result.three_alternatives)) {
-    for (const alt of result.three_alternatives) {
-      if (typeof alt === "string") textFields.push(alt);
-    }
-  }
-
   const allText = textFields.join(" ");
   if (!allText.trim()) {
-    return {
-      score: null, notes: ["empty_output"],
-      admission_risk_score: 0, escalation_safety_score: 0, actionability_score: 0,
-      focus_discipline_score: 0, court_safe_phrasing_score: 0, quality_score_status: null,
-    };
+    return { score: null, notes: ["empty_output"], quality_score_status: null };
   }
 
-  let admissionScore = 2, escalationScore = 2, actionabilityScore = 2, focusScore = 2, courtSafeScore = 2;
   let issueCategories = 0;
 
   // 1. Emotional language (-2)
@@ -791,12 +782,12 @@ function scoreRewriteQuality(
   ];
   let emotionalHits = 0;
   for (const p of emotionalPatterns) { if (p.test(allText)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
-  if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language in output"); courtSafeScore = Math.min(courtSafeScore, 1); }
+  if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language in output"); }
 
   // 2. Vague phrasing (-2)
   let vagueHits = 0;
   for (const p of VAGUE_REWRITE_PATTERNS) { if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
-  if (vagueHits > 0) { deductions += 2; issueCategories++; notes.push("-2: vague phrasing in output"); actionabilityScore = Math.min(actionabilityScore, 1); }
+  if (vagueHits > 0) { deductions += 2; issueCategories++; notes.push("-2: vague phrasing in output"); }
 
   // 3. Defensive tone (-2)
   const defensivePatterns = [
@@ -808,7 +799,7 @@ function scoreRewriteQuality(
   ];
   let defensiveHits = 0;
   for (const p of defensivePatterns) { if (p.test(allText)) { defensiveHits++; notes.push(`defensive: ${p.source}`); } }
-  if (defensiveHits > 0) { deductions += 2; issueCategories++; notes.push("-2: defensive/justification in output"); admissionScore = Math.min(admissionScore, defensiveHits >= 2 ? 0 : 1); }
+  if (defensiveHits > 0) { deductions += 2; issueCategories++; notes.push("-2: defensive/justification in output"); }
 
   // 4. Accusatory language (-3)
   const accusatoryPatterns = [
@@ -818,7 +809,7 @@ function scoreRewriteQuality(
   ];
   let accusatoryHits = 0;
   for (const p of accusatoryPatterns) { if (p.test(allText)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); } }
-  if (accusatoryHits > 0) { deductions += 3; issueCategories++; notes.push("-3: accusatory language in output"); escalationScore = accusatoryHits >= 2 ? 0 : 1; }
+  if (accusatoryHits > 0) { deductions += 3; issueCategories++; notes.push("-3: accusatory language in output"); }
 
   // 5. Admission of fault (-3)
   const faultPatterns = [
@@ -828,12 +819,12 @@ function scoreRewriteQuality(
   ];
   let faultHits = 0;
   for (const p of faultPatterns) { if (p.test(allText)) { faultHits++; notes.push(`fault: ${p.source}`); } }
-  if (faultHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission of fault in output"); admissionScore = 0; }
+  if (faultHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission of fault in output"); }
 
   // 6. Overly formal (-2)
   let formalHits = 0;
   for (const p of OVERLY_FORMAL_PATTERNS) { if (p.test(allText)) { formalHits++; notes.push(`formal: ${p.source}`); } }
-  if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); courtSafeScore = Math.min(courtSafeScore, 1); }
+  if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); }
 
   // 7. Verbosity (-2)
   const primaryText = (result.primary_rewrite as string ?? "");
@@ -841,13 +832,12 @@ function scoreRewriteQuality(
   if (sentenceCount > 3 || primaryText.length > 400) {
     deductions += 2; issueCategories++;
     notes.push(`-2: verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
-    actionabilityScore = Math.min(actionabilityScore, 1);
   }
 
   // 8. Too passive/weak (-2)
   let weakHits = 0;
   for (const p of PASSIVE_WEAK_PATTERNS) { if (p.test(allText)) { weakHits++; notes.push(`weak: ${p.source}`); } }
-  if (weakHits > 0) { deductions += 2; issueCategories++; notes.push("-2: too passive/weak"); focusScore = Math.min(focusScore, 1); }
+  if (weakHits > 0) { deductions += 2; issueCategories++; notes.push("-2: too passive/weak"); }
 
   // 9. Indirect intent (-1)
   const indirectPatterns = [
@@ -856,12 +846,12 @@ function scoreRewriteQuality(
   ];
   let indirectHits = 0;
   for (const p of indirectPatterns) { if (p.test(allText)) { indirectHits++; notes.push(`indirect: ${p.source}`); } }
-  if (indirectHits > 0) { deductions += 1; issueCategories++; notes.push("-1: indirect intent"); focusScore = Math.min(focusScore, 1); }
+  if (indirectHits > 0) { deductions += 1; issueCategories++; notes.push("-1: indirect intent"); }
 
   // 10. Placeholder brackets
   if (PLACEHOLDER_PATTERN.test(allText)) {
     deductions += 3; issueCategories++;
-    notes.push("-3: placeholder brackets"); courtSafeScore = 0;
+    notes.push("-3: placeholder brackets");
   }
 
   // 11. Controlling / patronizing tone (-1)
@@ -885,7 +875,7 @@ function scoreRewriteQuality(
   for (const p of genericPatterns) { if (p.test(allText)) { genericHits++; notes.push(`generic: ${p.source}`); } }
   if (genericHits > 0) { deductions += 1; issueCategories++; notes.push("-1: generic/bland wording"); }
 
-  // 13. Unnecessary formalization — penalize if rewrite is longer than needed
+  // 13. Unnecessary formalization
   const wordCount = allText.split(/\s+/).length;
   if (wordCount > 60) { deductions += 1; issueCategories++; notes.push(`-1: high word count (${wordCount})`); }
 
@@ -896,8 +886,7 @@ function scoreRewriteQuality(
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  // Default cap: most rewrites should not be 10 unless truly flawless
-  // If server found zero issues but AI gave 10, still cap at 9 unless text is very short and clean
+  // Incorporate AI self-score (take minimum)
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
@@ -913,7 +902,7 @@ function scoreRewriteQuality(
     total = serverScore;
   }
 
-  // Final 10 gate: only allow 10 if server found literally zero issues AND text is concise
+  // Final 10 gate
   if (total >= 10 && (issueCategories > 0 || sentenceCount > 2 || primaryText.length > 200)) {
     total = 9;
     notes.push("cap: 10 requires zero issues + concise output");
@@ -921,19 +910,17 @@ function scoreRewriteQuality(
 
   total = Math.max(1, Math.min(10, total));
 
-  let status: RewriteQualityResult["quality_score_status"];
+  let status: OutputQualityResult["quality_score_status"];
   if (total >= 9) status = "excellent";
   else if (total >= 7) status = "acceptable";
   else if (total >= 5) status = "weak";
   else status = "reject";
 
-  return {
-    score: total, notes,
-    admission_risk_score: admissionScore, escalation_safety_score: escalationScore,
-    actionability_score: actionabilityScore, focus_discipline_score: focusScore,
-    court_safe_phrasing_score: courtSafeScore, quality_score_status: status,
-  };
+  return { score: total, notes, quality_score_status: status };
 }
+
+// Keep old function name as alias for callers
+const scoreRewriteQuality = scoreOutputQuality;
 
 function validateThreeAlternatives(r: Record<string, unknown>): string | null {
   if (!Array.isArray(r.three_alternatives)) return "missing three_alternatives";
@@ -1058,12 +1045,12 @@ function normalizeRiskFlags(flags: string[] | undefined): string[] {
   return flags;
 }
 
-// ── Build DB insert row — canonical fields only (legacy fields deprecated) ──
+// ── Build DB insert row — mode-aware scoring ──
 function buildInsertRow(
   userId: string, message: string, mode: "respond" | "rewrite",
   result: Record<string, unknown>,
   originalScore: { score: number; notes: string[] },
-  rewriteScore: RewriteQualityResult,
+  outputScore: RewriteQualityResult,
 ) {
   const row = {
     user_id: userId,
@@ -1077,12 +1064,13 @@ function buildInsertRow(
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
     risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    // ── Canonical scoring fields ──
+    // ── Scoring: always write original_score ──
     original_score: originalScore.score,
     original_score_notes: JSON.parse(JSON.stringify(originalScore.notes)),
-    rewrite_quality_score: rewriteScore.score,
-    rewrite_quality_notes: JSON.parse(JSON.stringify(rewriteScore.notes)),
-    // ── Legacy fields deprecated — set to null ──
+    // ── Rewrite scoring: only for rewrite mode ──
+    rewrite_quality_score: mode === "rewrite" ? outputScore.score : null as number | null,
+    rewrite_quality_notes: mode === "rewrite" ? JSON.parse(JSON.stringify(outputScore.notes)) : null,
+    // ── Legacy granular fields — leave null (not actively calculated) ──
     quality_score_total: null as number | null,
     admission_risk_score: null as number | null,
     escalation_safety_score: null as number | null,
@@ -1092,7 +1080,7 @@ function buildInsertRow(
     quality_score_status: null as string | null,
     quality_score_notes: null as Record<string, unknown> | null,
   };
-  console.log(`[${FN}] buildInsertRow | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score} | original_score_notes_len=${(row.original_score_notes as string[]).length} | rewrite_quality_notes_len=${(row.rewrite_quality_notes as string[]).length}`);
+  console.log(`[${FN}] buildInsertRow | mode=${mode} | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score}`);
   return row;
 }
 
@@ -1258,18 +1246,16 @@ You MUST call the provided tool with your structured output.`;
     if (!aiResult) {
       console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode}`);
       const fallback = buildDeterministicFallback(mode, communication_context);
-      const fallbackRewriteScore: RewriteQualityResult = {
-        score: 7, notes: ["deterministic_fallback"],
-        admission_risk_score: 2, escalation_safety_score: 2, actionability_score: 1,
-        focus_discipline_score: 2, court_safe_phrasing_score: 2, quality_score_status: "acceptable",
+      const fallbackScore: RewriteQualityResult = {
+        score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
       };
 
       const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
-        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackRewriteScore)
+        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackScore)
       );
       if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=${mode} | original_score=${originalScoreResult.score}` });
       return jsonResponse(fallback);
     }
 
@@ -1299,8 +1285,10 @@ You MUST call the provided tool with your structured output.`;
       mode,
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
       original_score: originalScoreResult.score,
-      rewrite_quality_score: rewriteScore!.score,
     };
+    if (mode === "rewrite") {
+      responsePayload.rewrite_quality_score = rewriteScore!.score;
+    }
     if (mode === "respond") {
       responsePayload.primary_response = aiResult.primary_rewrite;
       responsePayload.three_alternatives = Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [];
