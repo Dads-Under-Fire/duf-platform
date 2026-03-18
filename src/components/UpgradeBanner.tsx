@@ -32,26 +32,9 @@ export function UpgradeBanner() {
     : limits.evidence_analyses;
   const evidenceUnitLabel = limits.evidence_uses_words ? "evidence word" : "evidence analysis";
 
-  let message: string;
-  let ctaLabel: string;
-
-  if (anyExhausted && intendedPlan) {
-    message = `Your free credits are used up. Continue to the ${formatPlanLabel(intendedPlan)} plan to unlock more.`;
-    ctaLabel = "Continue to Checkout";
-  } else if (anyExhausted) {
-    message = "Your free credits are used up. Upgrade to keep using all features.";
-    ctaLabel = "Upgrade Now";
-  } else if (intendedPlan) {
-    message = `You're on the Free plan. Complete your ${formatPlanLabel(intendedPlan)} plan upgrade to unlock full access.`;
-    ctaLabel = "Continue to Checkout";
-  } else {
-    const remaining = evidenceLimit - evidenceUsed;
-    const evidenceText = limits.evidence_uses_words
-      ? `${remaining.toLocaleString()} evidence words`
-      : `${remaining} evidence analys${remaining === 1 ? "is" : "es"}`;
-    message = `You have ${limits.message_rewrites - rewritesUsed} rewrite${limits.message_rewrites - rewritesUsed === 1 ? "" : "s"} and ${evidenceText} left.`;
-    ctaLabel = "Upgrade Now";
-  }
+  const displayPlan = intendedPlan || "core";
+  const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
+  const ctaLabel = "Upgrade Now";
 
   return (
     <>
