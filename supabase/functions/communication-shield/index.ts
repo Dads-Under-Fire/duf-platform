@@ -791,7 +791,7 @@ function scoreRewriteQuality(
   if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); courtSafeScore = Math.min(courtSafeScore, 1); }
 
   // 7. Verbosity (-2)
-  const primaryText = mode === "respond" ? (result.primary_response as string ?? "") : (result.primary_rewrite as string ?? "");
+  const primaryText = (result.primary_rewrite as string ?? "");
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
   if (sentenceCount > 3 || primaryText.length > 400) {
     deductions += 2; issueCategories++;
