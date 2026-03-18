@@ -1246,10 +1246,8 @@ You MUST call the provided tool with your structured output.`;
     if (!aiResult) {
       console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode}`);
       const fallback = buildDeterministicFallback(mode, communication_context);
-      const fallbackRewriteScore: RewriteQualityResult = {
-        score: 7, notes: ["deterministic_fallback"],
-        admission_risk_score: 2, escalation_safety_score: 2, actionability_score: 1,
-        focus_discipline_score: 2, court_safe_phrasing_score: 2, quality_score_status: "acceptable",
+      const fallbackScore: RewriteQualityResult = {
+        score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
       };
 
       const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
