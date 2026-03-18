@@ -10,27 +10,18 @@ function formatPlanLabel(plan: string): string {
 }
 
 export function UpgradeBanner() {
-  const { plan, intendedPlan, usage, limits, rewritesExhausted, evidenceExhausted } = useProfile();
+  const { plan, intendedPlan, rewritesExhausted, evidenceExhausted } = useProfile();
   const [showModal, setShowModal] = useState(false);
 
   // Don't show banner for paid users
   if (plan !== "free") return null;
 
-  // Don't show if no intended plan and credits aren't close to exhaustion
-  const rewritesUsed = usage?.message_rewrites_used ?? 0;
-  const rewritesNearing = rewritesUsed >= Math.max(limits.message_rewrites - 1, 0);
   const anyExhausted = rewritesExhausted || evidenceExhausted;
-  const shouldShow = !!intendedPlan || anyExhausted || rewritesNearing;
+  const shouldShow = !!intendedPlan || anyExhausted;
 
   if (!shouldShow) return null;
 
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceUnitLabel = limits.evidence_uses_words ? "evidence word" : "evidence analysis";
+  const displayPlan = intendedPlan || "core";
 
   const displayPlan = intendedPlan || "core";
   const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
