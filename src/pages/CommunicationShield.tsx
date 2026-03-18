@@ -252,7 +252,7 @@ export default function CommunicationShield() {
               <>
                 <div>
                   <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.primary_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
                 </div>
 
                 <div className="h-px bg-border" />
