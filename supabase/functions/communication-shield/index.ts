@@ -257,6 +257,12 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version for respond";
     if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
     if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
+
+    // Hard legal-safety check: block apology/admission/backward-looking language
+    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
+      const unsafeMatch = containsUnsafeLanguage(r[field]);
+      if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
+    }
   }
 
   for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
