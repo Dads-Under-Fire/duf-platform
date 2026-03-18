@@ -790,6 +790,17 @@ function ResponseSection({ label, content }: { label: string; content: string })
   );
 }
 
+function DoNotRespondLayout({ result }: { result: AIResult }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="font-semibold text-foreground mb-1">Why You Shouldn't Respond</p>
+        <p className="text-foreground text-sm whitespace-pre-wrap">{result.why_this_is_safer}</p>
+      </div>
+    </div>
+  );
+}
+
 function PlaceholderSection({ label, placeholder }: { label: string; placeholder: string }) {
   return (
     <div>
