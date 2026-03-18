@@ -109,7 +109,7 @@ export function UpgradeModal({ open, onOpenChange, lockedFeature }: UpgradeModal
                 Redirecting...
               </>
             ) : (
-              "Continue to Checkout"
+              "Continue to checkout"
             )}
           </Button>
 
