@@ -162,14 +162,14 @@ export default function CommunicationShield() {
         },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       const aiResult: AIResult = data;
       setResult(aiResult);
-
-      // Server handles saving + quota increment
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+      setStep("select-intent");
     } finally {
       setLoading(false);
     }
