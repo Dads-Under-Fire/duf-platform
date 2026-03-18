@@ -270,11 +270,6 @@ You MUST call the provided tool with your structured output.`;
       if (response?.status === 429) {
         logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries" });
         console.warn(`[${FN}] OpenAI still rate-limited after retries`);
-        const fallback = buildRateLimitedFallback(mode);
-        if (fallback) {
-          return jsonResponse(fallback);
-        }
-        // Rewrite mode: return an error so frontend shows a proper error state
         return jsonResponse({ error: "The service is temporarily busy. Please try again in a moment." }, 503);
       }
       const t = response ? await response.text() : "no response";
