@@ -1158,12 +1158,13 @@ serve(async (req) => {
       : "";
 
     const modeIntro = mode === "respond" ? RESPOND_INTRO(original_context) : REWRITE_INTRO;
+    const modeExtras = mode === "respond" ? `\n\n${ALTERNATIVES_INSTRUCTIONS}` : "";
 
     const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
 ${modeIntro}
 
-${BASE_INSTRUCTIONS}
+${BASE_INSTRUCTIONS}${modeExtras}
 ${contextInstruction}${addendum}
 
 You MUST call the provided tool with your structured output.`;
