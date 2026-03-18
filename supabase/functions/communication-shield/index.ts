@@ -310,6 +310,7 @@ You MUST call the provided tool with your structured output.`;
       response = await callOpenAI(OPENAI_API_KEY, MODEL_PRIMARY, requestBody);
 
       if (response.status !== 429) break;
+      if (attempt === MAX_RETRIES) break;
 
       const retryAfter = response.headers.get("Retry-After");
       const waitMs = getRetryDelayMs(retryAfter, attempt);
