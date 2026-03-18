@@ -772,14 +772,14 @@ function normalizeRiskFlags(flags: string[] | undefined): string[] {
   return flags;
 }
 
-// ── Build DB insert row with dual scoring ──
+// ── Build DB insert row — canonical fields only (legacy fields deprecated) ──
 function buildInsertRow(
   userId: string, message: string, mode: "respond" | "rewrite",
   result: Record<string, unknown>,
   originalScore: { score: number; notes: string[] },
   rewriteScore: RewriteQualityResult,
 ) {
-  return {
+  const row = {
     user_id: userId,
     original_message: message,
     mode,
@@ -791,21 +791,23 @@ function buildInsertRow(
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
     risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    // New dual scores (primary)
+    // ── Canonical scoring fields ──
     original_score: originalScore.score,
-    original_score_notes: originalScore.notes,
+    original_score_notes: JSON.parse(JSON.stringify(originalScore.notes)),
     rewrite_quality_score: rewriteScore.score,
-    rewrite_quality_notes: rewriteScore.notes,
-    // Legacy fields (kept for compatibility)
-    quality_score_total: rewriteScore.score,
-    admission_risk_score: rewriteScore.admission_risk_score,
-    escalation_safety_score: rewriteScore.escalation_safety_score,
-    actionability_score: rewriteScore.actionability_score,
-    focus_discipline_score: rewriteScore.focus_discipline_score,
-    court_safe_phrasing_score: rewriteScore.court_safe_phrasing_score,
-    quality_score_status: rewriteScore.quality_score_status,
-    quality_score_notes: { triggered_rules: rewriteScore.notes },
+    rewrite_quality_notes: JSON.parse(JSON.stringify(rewriteScore.notes)),
+    // ── Legacy fields deprecated — set to null ──
+    quality_score_total: null as number | null,
+    admission_risk_score: null as number | null,
+    escalation_safety_score: null as number | null,
+    actionability_score: null as number | null,
+    focus_discipline_score: null as number | null,
+    court_safe_phrasing_score: null as number | null,
+    quality_score_status: null as string | null,
+    quality_score_notes: null as Record<string, unknown> | null,
   };
+  console.log(`[${FN}] buildInsertRow | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score} | original_score_notes_len=${(row.original_score_notes as string[]).length} | rewrite_quality_notes_len=${(row.rewrite_quality_notes as string[]).length}`);
+  return row;
 }
 
 serve(async (req) => {
@@ -975,11 +977,12 @@ You MUST call the provided tool with your structured output.`;
         focus_discipline_score: 2, court_safe_phrasing_score: 2, quality_score_status: "acceptable",
       };
 
-      await serviceClient.from("communication_shield_history").insert(
+      const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
         buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackRewriteScore)
       );
+      if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
       return jsonResponse(fallback);
     }
 
@@ -994,9 +997,9 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
-    await serviceClient.from("communication_shield_history").insert(
-      buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!)
-    );
+    const insertPayload = buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!);
+    const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(insertPayload);
+    if (insertErr) console.error(`[${FN}] insert error:`, JSON.stringify(insertErr));
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
