@@ -181,6 +181,41 @@ RISK FLAGS RULES:
   - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" and score 3-5
   - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
 
+const PERSPECTIVE_RULES = `PERSPECTIVE PRESERVATION — ABSOLUTE RULES:
+- NEVER change the speaker's perspective. If the user wrote "I will pick up", do NOT rewrite as "You will pick up" or "The children will be picked up."
+- NEVER assume commitments or actions on behalf of either party that were not in the original message.
+- The rewritten message MUST preserve who is making the request, who is performing the action, and who is being addressed.
+- If the original says "I" → the rewrite says "I". If it says "you" → handle carefully to avoid accusatory tone, but do NOT flip perspective.
+
+TONE CONTROL — FIRM, NOT SUBMISSIVE:
+- NEVER use passive or weak phrasing. Specifically BANNED phrases:
+  • "I would appreciate" / "I would appreciate it if"
+  • "I feel" / "I feel like" / "I feel that"
+  • "I was hoping" / "I was wondering"
+  • "If that's okay" / "If you don't mind"
+  • "Perhaps we could" / "Maybe we should"
+  • "Would it be possible" / "Could you possibly"
+  • "I just wanted to" / "I just think"
+  • "It seems like" / "It appears that"
+- Tone must be FIRM, NEUTRAL, and PROFESSIONAL — never submissive, pleading, or apologetic.
+- Use direct statements: "I will", "Please confirm", "The schedule is", "Drop-off is at 5pm."
+
+CLARITY AND SPECIFICITY:
+- Where possible, add clarity by specifying time, date, location, or required action.
+- Outputs must be direct and actionable, not vague.
+- Prefer "Drop-off is at 5pm today at [location]" over "We should coordinate drop-off."
+- If the original message contains specific details, preserve AND clarify them.
+- If the original is vague, make the rewrite MORE specific where context allows.`;
+
+const ALTERNATIVES_INSTRUCTIONS = `THREE ALTERNATIVES REQUIREMENT:
+You MUST provide exactly 3 alternative versions in "three_alternatives" (array of 3 strings):
+1. MORE DIRECT version — shorter, more assertive, cuts to the point
+2. SLIGHTLY SOFTER version — still neutral and firm, but slightly warmer without being weak or submissive
+3. HIGHLY STRUCTURED/FORMAL version — professional, documentation-ready, suitable for legal review
+
+All three alternatives MUST follow the same legal safety rules as the primary rewrite/response.
+None may contain admissions, emotional language, threats, or perspective errors.`;
+
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
 - Be neutral and factual
@@ -205,11 +240,18 @@ Instead prefer responses that:
 - Set clear boundaries without aggression
 - Close the conversation loop rather than opening it
 
+${PERSPECTIVE_RULES}
+
 ${LEGAL_SAFETY_RULES}
 
 ${QUALITY_RULES}
 
-${SCORING_INSTRUCTIONS}`;
+${ALTERNATIVES_INSTRUCTIONS}
+
+${SCORING_INSTRUCTIONS}
+
+JSON VALIDATION RULE:
+Your output MUST be valid JSON via the provided tool call. If any field is missing or malformed, regenerate the entire output. Every field must be populated with real content — never null, empty, or placeholder.`;
 
 const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
@@ -219,7 +261,7 @@ Before drafting a response, FIRST evaluate whether responding is actually the sa
 
 Analyze the incoming message carefully. Set "recommendation_type" to one of:
 
-- "respond" — The message contains ANY actionable logistics, scheduling, custody coordination, pickup/drop-off times, agreements, arrangements, or threats related to arrangements (e.g. keeping a child longer, changing plans unilaterally). Even if the tone is hostile, insulting, or emotionally charged — if there is ANY logistical or custody-relevant content, you MUST respond to the actionable portion and ignore the emotional bait. Provide full response variants (primary_response, shorter_version, firmer_version).
+- "respond" — The message contains ANY actionable logistics, scheduling, custody coordination, pickup/drop-off times, agreements, arrangements, or threats related to arrangements (e.g. keeping a child longer, changing plans unilaterally). Even if the tone is hostile, insulting, or emotionally charged — if there is ANY logistical or custody-relevant content, you MUST respond to the actionable portion and ignore the emotional bait. Provide full response variants (primary_rewrite, shorter_version, firmer_version).
 
 - "do_not_respond" — The safest action is NOT to reply. Choose this ONLY when the incoming message:
   • Is PURELY insulting, baiting, or emotionally provocative with ZERO logistical content
@@ -230,11 +272,11 @@ Analyze the incoming message carefully. Set "recommendation_type" to one of:
   Examples that qualify for do_not_respond: "You're a terrible father." / "No one wants you around." / "You disgust me."
   IMPORTANT: Do NOT select do_not_respond if the message mentions ANY of: times, dates, pickup, drop-off, schedule, custody, keeping the child, arrangements, school, health, or agreements — even buried in hostility.
   When choosing do_not_respond:
-  • Set "primary_response" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
+  • Set "primary_rewrite" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
   • Set "shorter_version" and "firmer_version" to empty strings ""
   • Optionally set "fallback_response" to a very short neutral message ONLY if the user feels they absolutely must reply (e.g. "Received.")
 
-- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_rewrite" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
 
 CRITICAL DECISION RULES:
 - Never recommend "do_not_respond" for technical or system reasons.
@@ -337,19 +379,20 @@ const RESPOND_TOOL = {
         enum: ["respond", "do_not_respond", "brief_boundary_response"],
         description: "Whether the user should respond, not respond, or send only a brief boundary statement",
       },
-      primary_response: { type: "string", description: "The court-safe response, or explanation of why not to respond" },
+      primary_rewrite: { type: "string", description: "The court-safe response, or explanation of why not to respond" },
       shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
       firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
       fallback_response: { type: "string", description: "Optional very short fallback if user must reply despite do_not_respond recommendation" },
       tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
       risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this recommendation is safer" },
+      three_alternatives: { type: "array", items: { type: "string" }, description: "Exactly 3 alternatives: [more direct, slightly softer, highly structured/formal]" },
       original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
       original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−3: accusatory language'. Use ['none'] if clean." },
       self_score: { type: "integer", description: "Quality score of YOUR generated output only (1=poor, 10=excellent)" },
       self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your output quality, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
+    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
     additionalProperties: false,
   },
   strict: true,
@@ -358,22 +401,23 @@ const RESPOND_TOOL = {
 const REWRITE_TOOL = {
   type: "function" as const,
   name: "format_rewrite",
-  description: "Return the structured court-safe rewrite with three variants",
+  description: "Return the structured court-safe rewrite with three variants and three alternatives",
   parameters: {
     type: "object",
     properties: {
-      primary_rewrite: { type: "string", description: "The best court-safe rewrite of the user's message" },
+      primary_rewrite: { type: "string", description: "The best court-safe rewrite of the user's message — neutral, clear, firm, legally safe, actionable" },
       shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
       firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
       tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
       risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
+      three_alternatives: { type: "array", items: { type: "string" }, description: "Exactly 3 alternatives: [more direct, slightly softer, highly structured/formal]" },
       original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
       original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−2: emotional language'. Use ['none'] if clean." },
       self_score: { type: "integer", description: "Quality score of YOUR rewritten output only (1=poor, 10=excellent)" },
       self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your rewrite quality, e.g. '−1: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
+    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
     additionalProperties: false,
   },
   strict: true,
@@ -640,6 +684,9 @@ const PASSIVE_WEAK_PATTERNS = [
   /\bi was wondering if\b/i, /\bif that's okay with you\b/i,
   /\bwould it be possible\b/i, /\bif you don't mind\b/i,
   /\bi just wanted to\b/i, /\bi was hoping\b/i,
+  /\bi would appreciate\b/i, /\bi feel\b/i, /\bi feel like\b/i,
+  /\bi feel that\b/i, /\bcould you possibly\b/i,
+  /\bi just think\b/i, /\bit seems like\b/i, /\bit appears that\b/i,
 ];
 
 const VAGUE_REWRITE_PATTERNS = [
@@ -660,7 +707,7 @@ function scoreRewriteQuality(
 
   const textFields: string[] = [];
   if (mode === "respond") {
-    if (typeof result.primary_response === "string") textFields.push(result.primary_response);
+    if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
     if (result.recommendation_type !== "do_not_respond") {
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
@@ -669,6 +716,13 @@ function scoreRewriteQuality(
     if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
     if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
     if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
+  }
+
+  // Also score three_alternatives if present
+  if (Array.isArray(result.three_alternatives)) {
+    for (const alt of result.three_alternatives) {
+      if (typeof alt === "string") textFields.push(alt);
+    }
   }
 
   const allText = textFields.join(" ");
@@ -740,7 +794,7 @@ function scoreRewriteQuality(
   if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); courtSafeScore = Math.min(courtSafeScore, 1); }
 
   // 7. Verbosity (-2)
-  const primaryText = mode === "respond" ? (result.primary_response as string ?? "") : (result.primary_rewrite as string ?? "");
+  const primaryText = (result.primary_rewrite as string ?? "");
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
   if (sentenceCount > 3 || primaryText.length > 400) {
     deductions += 2; issueCategories++;
@@ -839,10 +893,22 @@ function scoreRewriteQuality(
   };
 }
 
+function validateThreeAlternatives(r: Record<string, unknown>): string | null {
+  if (!Array.isArray(r.three_alternatives)) return "missing three_alternatives";
+  if (r.three_alternatives.length !== 3) return `three_alternatives must have exactly 3 items, got ${r.three_alternatives.length}`;
+  for (let i = 0; i < 3; i++) {
+    if (!isNonEmptyString(r.three_alternatives[i])) return `three_alternatives[${i}] is empty`;
+    if (containsPlaceholder(r.three_alternatives[i])) return `three_alternatives[${i}] contains placeholder`;
+    const unsafeMatch = containsUnsafeLanguage(r.three_alternatives[i]);
+    if (unsafeMatch) return `three_alternatives[${i}] contains unsafe language (${unsafeMatch})`;
+  }
+  return null;
+}
+
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
-  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder text";
+  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
 
   if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
     if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version for respond";
@@ -850,7 +916,7 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
     if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
 
-    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
+    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
       const unsafeMatch = containsUnsafeLanguage(r[field]);
       if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
     }
@@ -861,6 +927,8 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  const altError = validateThreeAlternatives(r);
+  if (altError) return altError;
   return null;
 }
 
@@ -878,6 +946,8 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
     if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  const altError = validateThreeAlternatives(r);
+  if (altError) return altError;
   return null;
 }
 
@@ -911,9 +981,10 @@ function matchIntent(context: string | undefined): string {
 
 function buildDeterministicFallback(mode: "respond" | "rewrite", communicationContext?: string) {
   if (mode === "rewrite") {
-    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK };
+    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
   }
-  return { mode, is_fallback: true, recommendation_type: "respond", primary_response: matchIntent(communicationContext) };
+  const fallbackText = matchIntent(communicationContext);
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: fallbackText, primary_response: fallbackText, three_alternatives: [] };
 }
 
 // ── OpenAI call helper ──
@@ -958,8 +1029,8 @@ function buildInsertRow(
     user_id: userId,
     original_message: message,
     mode,
-    primary_response: mode === "respond" ? (result.primary_response as string ?? null) : null,
-    primary_rewrite: mode === "rewrite" ? (result.primary_rewrite as string ?? null) : null,
+    primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
+    primary_rewrite: (result.primary_rewrite as string ?? null),
     recommendation_type: (result.recommendation_type as string) ?? null,
     shorter_version: (result.shorter_version as string) ?? null,
     firmer_version: (result.firmer_version as string) ?? null,
@@ -1181,13 +1252,19 @@ You MUST call the provided tool with your structured output.`;
     console.log(`[${FN}] success | mode=${mode} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    return jsonResponse({
+    // For respond mode, also populate primary_response for backward compatibility
+    const responsePayload: Record<string, unknown> = {
       ...aiResult,
       mode,
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
       original_score: originalScoreResult.score,
       rewrite_quality_score: rewriteScore!.score,
-    });
+      three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
+    };
+    if (mode === "respond") {
+      responsePayload.primary_response = aiResult.primary_rewrite;
+    }
+    return jsonResponse(responsePayload);
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
