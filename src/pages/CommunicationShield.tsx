@@ -247,14 +247,14 @@ export default function CommunicationShield() {
 
                 <div>
                   <p className="text-muted-foreground text-sm font-medium mb-1">Shorter Version:</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_version}</p>
                 </div>
 
                 <div className="h-px bg-border" />
 
                 <div>
                   <p className="text-muted-foreground text-sm font-medium mb-1">Firmer Version:</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_version}</p>
                 </div>
 
                 <div className="h-px bg-border" />
