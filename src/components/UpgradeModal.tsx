@@ -34,7 +34,7 @@ export function UpgradeModal({ open, onOpenChange, lockedFeature }: UpgradeModal
   const { intendedPlan, plan } = useProfile();
   const [loading, setLoading] = useState(false);
 
-  const targetPlan = intendedPlan || "core";
+  const targetPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
   const features = PLAN_FEATURES[targetPlan] ?? PLAN_FEATURES.core;
 
   const handleCheckout = async () => {
