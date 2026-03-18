@@ -132,10 +132,36 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    Also provide "self_score_deductions" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
 
 RISK FLAGS RULES:
-- risk_flags MUST list every issue found in the ORIGINAL message (e.g. "Emotional language detected", "Accusatory tone", "Admission of fault")
+- risk_flags MUST list every issue found in the ORIGINAL message
+- Risk flags describe the ORIGINAL message only, NOT the rewrite quality
 - If the original input is already perfectly neutral with no issues, set risk_flags to ["No risk flags"]
 - NEVER return an empty array for risk_flags
-- Risk flags describe the ORIGINAL message only, NOT the rewrite quality`;
+- Use SPECIFIC, ACCURATE flag labels. Choose from this taxonomy:
+
+  SEVERE (threats/hostility):
+  - "Threat or intimidation" — only if message contains actual threats, ultimatums, or intimidating language
+  - "Hostile or aggressive tone" — only if message contains insults, name-calling, or overtly aggressive language
+  - "Controlling or coercive language" — only if message attempts to dictate, demand, or manipulate behavior
+  - "Direct confrontation" — only if message directly challenges, provokes, or picks a fight
+
+  MODERATE (emotional/accusatory):
+  - "Accusatory tone" — blaming, finger-pointing ("you always", "you never", "your fault")
+  - "Emotional language detected" — frustration, anger, hurt expressed openly
+  - "Passive-aggressive tone" — indirect hostility, sarcasm, backhanded comments
+  - "Defensive tone" — justifying, explaining away, protecting oneself
+  - "Admission of fault" — apologies, self-blame, accepting responsibility in a legally risky way
+
+  MINOR (style/clarity):
+  - "Over-explaining or justification" — providing unnecessary reasons, backstory, or explanations (e.g. "I was late because traffic was bad")
+  - "Uncertainty in commitment" — hedging, vague promises ("maybe", "I'll try", "hopefully")
+  - "Vague or imprecise language" — unclear references, ambiguous phrasing
+  - "Unnecessarily verbose" — message is longer than needed for its content
+  - "Apology language" — sorry/apologize without full admission
+
+  DO NOT USE these overly broad labels:
+  - ❌ "Escalation risk" — this is too vague. Instead identify the SPECIFIC issue: is it a threat? hostility? accusation? over-explaining?
+  - ❌ "Potentially problematic" — always specify what the problem is
+  - ❌ "Could be misinterpreted" — name the actual issue instead`;
 
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
