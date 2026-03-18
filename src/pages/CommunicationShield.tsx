@@ -46,8 +46,15 @@ export default function CommunicationShield() {
     const msg = inputMessage.trim();
     if (!msg || !user) return;
 
-    if (!limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites) {
-      toast({ title: "Limit reached", description: "You've used all your message rewrites.", variant: "destructive" });
+    if (rewritesExhausted) {
+      const planLabel = intendedPlan === "case_builder" ? "Case Builder" : intendedPlan ? intendedPlan.charAt(0).toUpperCase() + intendedPlan.slice(1) : "a paid";
+      toast({
+        title: "Free credits used up",
+        description: intendedPlan
+          ? `Upgrade to the ${planLabel} plan to continue using Communication Shield.`
+          : "Upgrade your plan to continue using Communication Shield.",
+        variant: "destructive",
+      });
       return;
     }
 

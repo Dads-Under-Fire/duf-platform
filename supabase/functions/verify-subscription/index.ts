@@ -92,6 +92,12 @@ serve(async (req) => {
       })
       .eq("user_id", user.id);
 
+    // Clear intended_plan from profile since payment succeeded
+    await serviceClient
+      .from("profiles")
+      .update({ intended_plan: null })
+      .eq("user_id", user.id);
+
     return new Response(
       JSON.stringify({ activated: true, plan, period_start: periodStart, period_end: periodEnd }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
