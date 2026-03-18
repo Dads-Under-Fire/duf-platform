@@ -261,7 +261,7 @@ Before drafting a response, FIRST evaluate whether responding is actually the sa
 
 Analyze the incoming message carefully. Set "recommendation_type" to one of:
 
-- "respond" — The message contains ANY actionable logistics, scheduling, custody coordination, pickup/drop-off times, agreements, arrangements, or threats related to arrangements (e.g. keeping a child longer, changing plans unilaterally). Even if the tone is hostile, insulting, or emotionally charged — if there is ANY logistical or custody-relevant content, you MUST respond to the actionable portion and ignore the emotional bait. Provide full response variants (primary_response, shorter_version, firmer_version).
+- "respond" — The message contains ANY actionable logistics, scheduling, custody coordination, pickup/drop-off times, agreements, arrangements, or threats related to arrangements (e.g. keeping a child longer, changing plans unilaterally). Even if the tone is hostile, insulting, or emotionally charged — if there is ANY logistical or custody-relevant content, you MUST respond to the actionable portion and ignore the emotional bait. Provide full response variants (primary_rewrite, shorter_version, firmer_version).
 
 - "do_not_respond" — The safest action is NOT to reply. Choose this ONLY when the incoming message:
   • Is PURELY insulting, baiting, or emotionally provocative with ZERO logistical content
