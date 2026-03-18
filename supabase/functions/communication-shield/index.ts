@@ -308,29 +308,54 @@ function isNonEmptyString(val: unknown): val is string {
   return typeof val === "string" && val.trim().length > 0;
 }
 
-// ── Quality Scoring System ──
+// ── Quality Scoring System (Deduction-Based) ──
 interface QualityScore {
   admission_risk_score: number;
   escalation_safety_score: number;
   actionability_score: number;
   focus_discipline_score: number;
   court_safe_phrasing_score: number;
-  quality_score_total: number;
-  quality_score_status: "excellent" | "acceptable" | "weak" | "reject";
+  quality_score_total: number | null;
+  quality_score_status: "excellent" | "acceptable" | "weak" | "reject" | null;
   quality_score_notes: { triggered_rules: string[] };
 }
+
+// Patterns for detecting overly formal / unnatural phrasing
+const OVERLY_FORMAL_PATTERNS = [
+  /\bhereby\b/i, /\bwherein\b/i, /\bnotwithstanding\b/i,
+  /\bpursuant to\b/i, /\bin accordance with\b/i,
+  /\bthe aforementioned\b/i, /\bthe undersigned\b/i,
+  /\bit is imperative\b/i, /\bi wish to inform you\b/i,
+  /\bplease be advised\b/i, /\bkindly be informed\b/i,
+];
+
+// Patterns for detecting weak/passive language
+const PASSIVE_WEAK_PATTERNS = [
+  /\bperhaps we could\b/i, /\bmaybe we should\b/i,
+  /\bi was wondering if\b/i, /\bif that's okay with you\b/i,
+  /\bwould it be possible\b/i, /\bif you don't mind\b/i,
+  /\bi just wanted to\b/i, /\bi was hoping\b/i,
+];
+
+// Patterns for vague wording
+const VAGUE_PATTERNS = [
+  /\bsometime soon\b/i, /\bat some point\b/i,
+  /\bwhen you get a chance\b/i, /\bwhenever works\b/i,
+  /\bin the near future\b/i, /\bas needed\b/i,
+  /\bthe appropriate\b/i, /\bvarious\b/i,
+];
 
 function scoreOutput(
   result: Record<string, unknown>,
   mode: "respond" | "rewrite",
 ): QualityScore {
   const notes: string[] = [];
+  let deductions = 0;
 
   // Gather the text fields to analyze
   const textFields: string[] = [];
   if (mode === "respond") {
     if (typeof result.primary_response === "string") textFields.push(result.primary_response);
-    // Only score response variants if recommendation is to respond
     if (result.recommendation_type !== "do_not_respond") {
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
@@ -342,88 +367,153 @@ function scoreOutput(
   }
 
   const allText = textFields.join(" ");
-
-  // ── 1. Admission Risk Score ──
-  let admissionScore = 2;
-  let hasApology = false;
-  let hasAdmission = false;
-
-  for (const p of APOLOGY_PATTERNS) {
-    if (p.test(allText)) { hasApology = true; notes.push(`apology: ${p.source}`); }
+  if (!allText.trim()) {
+    return {
+      admission_risk_score: 0, escalation_safety_score: 0, actionability_score: 0,
+      focus_discipline_score: 0, court_safe_phrasing_score: 0,
+      quality_score_total: null, quality_score_status: null,
+      quality_score_notes: { triggered_rules: ["empty_output"] },
+    };
   }
+
+  // ── Category scores (still tracked for DB columns, 0-2 scale) ──
+  let admissionScore = 2;
+  let escalationScore = 2;
+  let actionabilityScore = 2;
+  let focusScore = 2;
+  let courtSafeScore = 2;
+
+  // ── 1. Emotional tone remaining (-3) ──
+  const emotionalPatterns = [
+    ...APOLOGY_PATTERNS,
+    /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
+    /\bi('m| am) frustrated\b/i, /\bi('m| am) hurt\b/i,
+    /\byou make me\b/i, /\bthis is your fault\b/i,
+    /\bi('m| am) disappointed\b/i, /\bi('m| am) angry\b/i,
+    /\bi can't believe\b/i, /\bthis is so unfair\b/i,
+    /\bhow could you\b/i, /\byou('re| are) being selfish\b/i,
+  ];
+  let emotionalHits = 0;
+  for (const p of emotionalPatterns) {
+    if (p.test(allText)) { emotionalHits++; notes.push(`emotional_tone: ${p.source}`); }
+  }
+  if (emotionalHits > 0) {
+    deductions += 3;
+    notes.push("-3: emotional tone remains");
+    courtSafeScore = Math.min(courtSafeScore, emotionalHits >= 2 ? 0 : 1);
+  }
+
+  // ── 2. Admission / backward-looking language (-3) ──
+  let hasAdmission = false;
   for (const p of ADMISSION_PATTERNS) {
     if (p.test(allText)) { hasAdmission = true; notes.push(`admission: ${p.source}`); }
   }
-  if (PLACEHOLDER_PATTERN.test(allText)) {
-    notes.push("placeholder_brackets_detected");
-  }
-
-  if (hasApology || hasAdmission) {
+  if (hasAdmission) {
+    deductions += 3;
+    notes.push("-3: introduces explanations/admissions");
     admissionScore = 0;
   } else {
-    // Check for borderline backward-looking language
     const borderline = [/\bbecause\b/i, /\bdue to\b/i, /\bthe situation\b/i];
     for (const p of borderline) {
-      if (p.test(allText)) { admissionScore = 1; notes.push(`borderline_admission: ${p.source}`); break; }
+      if (p.test(allText)) {
+        deductions += 1;
+        admissionScore = 1;
+        notes.push(`-1: borderline backward-looking (${p.source})`);
+        break;
+      }
     }
   }
 
-  // ── 2. Escalation Safety Score ──
-  let escalationScore = 2;
+  // ── 3. Escalation risk remains (-3) ──
   let escalationHits = 0;
   for (const p of ESCALATION_PATTERNS) {
     if (p.test(allText)) { escalationHits++; notes.push(`escalation: ${p.source}`); }
   }
-  if (escalationHits >= 2) escalationScore = 0;
-  else if (escalationHits === 1) escalationScore = 1;
-
-  // ── 3. Actionability Score ──
-  let actionabilityScore = 2;
-  const totalLen = allText.length;
-  if (totalLen < 10) {
-    actionabilityScore = 0;
-    notes.push("too_short");
-  } else if (totalLen > 1500) {
-    actionabilityScore = 1;
-    notes.push("overly_long");
-  }
-  // Check for vague/empty content
-  if (/^(ok|okay|sure|fine|noted|received)\.?$/i.test(allText.trim()) && mode === "rewrite") {
-    actionabilityScore = 1;
-    notes.push("vague_rewrite");
-  }
-
-  // ── 4. Focus Discipline Score ──
-  let focusScore = 2;
   let insultEngagement = 0;
   for (const p of INSULT_ENGAGEMENT_PATTERNS) {
     if (p.test(allText)) { insultEngagement++; notes.push(`insult_engagement: ${p.source}`); }
   }
-  if (insultEngagement >= 2) focusScore = 0;
-  else if (insultEngagement === 1) focusScore = 1;
-
-  // ── 5. Court-Safe Phrasing Score ──
-  let courtSafeScore = 2;
-  // Check for risky emotional language in outputs
-  const riskyEmotional = [
-    /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
-    /\bi('m| am) frustrated\b/i, /\bi('m| am) hurt\b/i,
-    /\byou make me\b/i, /\bthis is your fault\b/i,
-  ];
-  let riskyHits = 0;
-  for (const p of riskyEmotional) {
-    if (p.test(allText)) { riskyHits++; notes.push(`risky_phrasing: ${p.source}`); }
+  if (escalationHits > 0 || insultEngagement > 0) {
+    deductions += 3;
+    notes.push("-3: escalation risk remains");
+    escalationScore = escalationHits >= 2 ? 0 : 1;
+    focusScore = insultEngagement >= 2 ? 0 : (insultEngagement === 1 ? 1 : focusScore);
   }
-  if (riskyHits >= 2) courtSafeScore = 0;
-  else if (riskyHits === 1) courtSafeScore = 1;
 
-  // Placeholder brackets are always risky
+  // ── 4. Vague or unclear wording (-2) ──
+  let vagueHits = 0;
+  for (const p of VAGUE_PATTERNS) {
+    if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); }
+  }
+  if (vagueHits > 0 || (/^(ok|okay|sure|fine|noted|received)\.?$/i.test(allText.trim()) && mode === "rewrite")) {
+    deductions += 2;
+    notes.push("-2: wording is vague or unclear");
+    actionabilityScore = Math.min(actionabilityScore, 1);
+  }
+
+  // ── 5. Unnecessarily verbose (-2) ──
+  // Count sentences across all text fields
+  const primaryText = mode === "respond"
+    ? (result.primary_response as string ?? "")
+    : (result.primary_rewrite as string ?? "");
+  const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+  if (sentenceCount > 4 || primaryText.length > 600) {
+    deductions += 2;
+    notes.push(`-2: unnecessarily verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
+    actionabilityScore = Math.min(actionabilityScore, 1);
+  }
+
+  // ── 6. Unnatural or overly formal phrasing (-2) ──
+  let formalHits = 0;
+  for (const p of OVERLY_FORMAL_PATTERNS) {
+    if (p.test(allText)) { formalHits++; notes.push(`overly_formal: ${p.source}`); }
+  }
+  if (formalHits > 0) {
+    deductions += 2;
+    notes.push("-2: phrasing is unnatural or overly formal");
+    courtSafeScore = Math.min(courtSafeScore, 1);
+  }
+
+  // ── 7. Too passive / weaker than needed (-2) ──
+  let passiveHits = 0;
+  for (const p of PASSIVE_WEAK_PATTERNS) {
+    if (p.test(allText)) { passiveHits++; notes.push(`passive: ${p.source}`); }
+  }
+  if (passiveHits > 0) {
+    deductions += 2;
+    notes.push("-2: rewrite is too passive/weak");
+    focusScore = Math.min(focusScore, 1);
+  }
+
+  // ── 8. Placeholder brackets detected ──
   if (PLACEHOLDER_PATTERN.test(allText)) {
-    courtSafeScore = Math.min(courtSafeScore, 0);
+    deductions += 3;
+    notes.push("-3: placeholder brackets detected");
+    courtSafeScore = 0;
   }
 
-  // ── Total & Status ──
-  const total = admissionScore + escalationScore + actionabilityScore + focusScore + courtSafeScore;
+  // ── Calculate server-side score ──
+  const serverScore = Math.max(1, 10 - deductions);
+
+  // ── Incorporate AI self-score (take the minimum for safety) ──
+  const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
+  if (aiSelfScore !== null) {
+    notes.push(`ai_self_score: ${aiSelfScore}`);
+    if (Array.isArray(result.self_score_deductions)) {
+      notes.push(`ai_deductions: ${(result.self_score_deductions as string[]).join("; ")}`);
+    }
+  }
+
+  // Final score: minimum of server and AI self-score, clamped 1-10
+  let total: number;
+  if (aiSelfScore !== null && aiSelfScore >= 1 && aiSelfScore <= 10) {
+    total = Math.min(serverScore, aiSelfScore);
+  } else {
+    total = serverScore;
+  }
+  total = Math.max(1, Math.min(10, total));
+
+  // ── Status thresholds ──
   let status: QualityScore["quality_score_status"];
   if (total >= 9) status = "excellent";
   else if (total >= 7) status = "acceptable";
@@ -442,16 +532,16 @@ function scoreOutput(
   };
 }
 
-function scoreFallback(mode: "respond" | "rewrite"): QualityScore {
-  // Deterministic fallbacks are safe but not highly actionable
+function scoreFallback(_mode: "respond" | "rewrite"): QualityScore {
+  // Deterministic fallbacks get a moderate score, never 10
   return {
     admission_risk_score: 2,
     escalation_safety_score: 2,
     actionability_score: 1,
     focus_discipline_score: 2,
     court_safe_phrasing_score: 2,
-    quality_score_total: 9,
-    quality_score_status: "excellent",
+    quality_score_total: 7,
+    quality_score_status: "acceptable",
     quality_score_notes: { triggered_rules: ["deterministic_fallback"] },
   };
 }
