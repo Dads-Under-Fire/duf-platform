@@ -85,14 +85,15 @@ export default function CommunicationShield() {
           body: { message: msg, mode: "rewrite" },
         });
         if (error) throw error;
+        if (data?.error) throw new Error(data.error);
 
         const aiResult: AIResult = data;
+        if (!aiResult.primary_rewrite) throw new Error("Failed to generate rewrite. Please try again.");
         setResult(aiResult);
-
-        // Server handles saving + quota increment
         refetchProfile();
       } catch (err: any) {
-        toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+        toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
+        setStep("input");
       } finally {
         setLoading(false);
       }
