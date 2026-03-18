@@ -42,13 +42,14 @@ If the incoming message attempts to force an admission, reinterpret the past, pi
 - DO NOT confirm or deny specific allegations
 - DO NOT provide details that could be used against the user
 - DO NOT clarify misunderstandings by narrating past events
-- Redirect to neutral, forward-looking language
+- Redirect to neutral, forward-looking language that preserves any specific logistics from the incoming message
 - Reference agreed schedules, plans, or policies when possible
 - Keep the response minimal, controlled, and non-emotional
-- Preferred safe patterns:
-  • "I will follow the agreed schedule moving forward."
-  • "I do not agree with that characterization. I will follow the agreed schedule moving forward."
-  • "Please refer to the agreed parenting plan. I will continue to follow it moving forward."
+- PRESERVE specific details from the incoming message (times, dates, pickup/drop-off, locations) — do not replace them with generic phrases
+- Preferred safe patterns (use specific details when available):
+  • "I will be at the scheduled pickup location today." (when message mentions pickup today)
+  • "Drop-off will be at 5pm per the agreement." (when message mentions 5pm drop-off)
+  • "I will follow the agreed schedule moving forward." (ONLY when no specific logistics are mentioned)
 
 Prefer:
 - Neutral, factual wording
@@ -112,10 +113,11 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
    - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
    - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
-   - -2 if adds meaning, context, or framing not clearly present in original message
-   - -1 if generic or bland wording when a more specific/clear phrasing was possible
-   - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
-   - -1 if slightly controlling or patronizing tone
+    - -2 if adds meaning, context, or framing not clearly present in original message
+    - -2 if the original contained specific logistics (times, dates, actions) but the rewrite replaced them with generic phrases like "the agreed schedule" or "moving forward"
+    - -1 if generic or bland wording when a more specific/clear phrasing was possible
+    - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
+    - -1 if slightly controlling or patronizing tone
    - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
    
    HARD RULES for self_score:
@@ -209,11 +211,12 @@ RESPONSE STYLE FOR ACCUSATIONS AND LEGAL TRAPS:
   • "I apologize for the confusion" → WRONG
   • "I'm sorry about the miscommunication" → WRONG
   • "I regret that this happened" → WRONG
-- Good examples (use these patterns):
-  • "I will follow the agreed schedule moving forward."
-  • "I do not agree with that characterization. I will follow the agreed schedule moving forward."
-  • "Please refer to the agreed parenting plan."
-  • "Pickup will be at [time] per the agreement."
+- Good examples (use these patterns, preserving specific context when available):
+  • "I will be at the scheduled pickup location today." (context-specific)
+  • "Drop-off will be at 5pm per the agreement." (context-specific)
+  • "I will follow the agreed schedule moving forward." (only when no specific logistics in original)
+  • "I do not agree with that characterization." (for accusations without logistics)
+  • "Please refer to the agreed parenting plan." (for general disputes)
 
 Always prioritize protecting the user from unnecessary engagement and legal risk.`;
 
@@ -222,9 +225,22 @@ const REWRITE_INTRO = `The user wants to REWRITE their own draft message so it i
 Your job:
 - Rewrite the user's message into neutral, court-safe language
 - Remove emotional, accusatory, inflammatory, sarcastic, or reactive phrasing
-- Preserve the core logistical intent of what the user is trying to communicate
+- PRESERVE SPECIFIC LOGISTICAL DETAILS from the original message: times, dates, locations, actions (pickup, drop-off), references to "today", "tomorrow", specific days, named events, or any concrete detail the user included
 - Keep the rewrite concise, calm, and documentation-friendly
 - Do not overexplain or add unnecessary context the user did not include
+- Do NOT strip away specifics and replace them with vague generic phrasing
+
+CONTEXT PRESERVATION RULES (CRITICAL):
+- If the original says "today" → the rewrite MUST say "today"
+- If the original mentions "pickup" → the rewrite MUST mention "pickup"
+- If the original mentions a specific time like "3pm" → the rewrite MUST include "3pm"
+- If the original references a specific action → the rewrite MUST reference that action
+- NEVER replace specific details with generic phrases like "the agreed schedule" or "moving forward" when the original contained concrete information
+- "I will follow the agreed schedule" is only acceptable when the original message itself was vague and contained no specific logistics
+- Example: "Are you going to show up on time for pickup today or not?" → GOOD: "I will be at the scheduled pickup location today." BAD: "I will follow the agreed schedule."
+- Example: "You better not be late dropping off the kids at 5pm" → GOOD: "I will have the children ready for the 5pm drop-off." BAD: "I will follow the agreed schedule moving forward."
+
+ALL THREE VARIANTS (primary_rewrite, shorter_version, firmer_version) must preserve the same specific context from the original. They should differ in tone/length but NOT in specificity.
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
