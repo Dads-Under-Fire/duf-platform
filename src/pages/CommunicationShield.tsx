@@ -680,18 +680,8 @@ export default function CommunicationShield() {
                   <p className="text-muted-foreground text-sm">Generating response...</p>
                 </div>
               ) : (
-                <div className="text-muted-foreground text-sm space-y-4">
-                  <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
-                  <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
-                  <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
-                  <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />
-                  <div>
-                    <p>Risk Flags</p>
-                    <div className="h-px bg-border my-1" />
-                    <p>• Removed accusatory language</p>
-                    <p>• Avoided escalation triggers</p>
-                  </div>
-                  <PlaceholderSection label="Why This Is Safer" placeholder="[ explanation ]" />
+                <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-6 text-center">
+                  <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
                 </div>
               )}
             </div>
