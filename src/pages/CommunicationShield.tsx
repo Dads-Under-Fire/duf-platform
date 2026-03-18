@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X } from "lucide-react";
+import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -7,10 +7,16 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
+type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
+
 interface AIResult {
-  // respond mode returns primary_response; rewrite mode returns primary_rewrite
+  // respond mode
+  recommendation_type?: RecommendationType;
   primary_response?: string;
+  fallback_response?: string;
+  // rewrite mode
   primary_rewrite?: string;
+  // shared
   shorter_version: string;
   firmer_version: string;
   tone_assessment: string;
@@ -251,8 +257,12 @@ export default function CommunicationShield() {
               </div>
             ) : result ? (
               <>
+                {result.mode === "respond" && result.recommendation_type && (
+                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                )}
+
                 <div>
-                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
+                  <p className="font-semibold text-foreground mb-1">{mode === "rewrite" ? "Primary Rewrite:" : result.recommendation_type === "do_not_respond" ? "Why You Shouldn't Respond:" : "Court-Safe Response:"}</p>
                   <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
                 </div>
 
@@ -653,7 +663,10 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
+                {result.mode === "respond" && result.recommendation_type && (
+                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                )}
+                <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : result.recommendation_type === "do_not_respond" ? "Why You Shouldn't Respond" : "Primary Response"} content={getPrimaryText(result)} />
                 <ResponseSection label="Shorter Version" content={result.shorter_version} />
                 <ResponseSection label="Firmer Version" content={result.firmer_version} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
@@ -770,6 +783,47 @@ function PlaceholderSection({ label, placeholder }: { label: string; placeholder
       <p>{label}</p>
       <div className="h-px bg-border my-1" />
       <p>{placeholder}</p>
+    </div>
+  );
+}
+
+const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldCheck; label: string; className: string; description: string }> = {
+  respond: {
+    icon: ShieldCheck,
+    label: "Respond",
+    className: "bg-primary/10 border-primary/30 text-primary",
+    description: "A response is appropriate. Use the court-safe version below.",
+  },
+  do_not_respond: {
+    icon: ShieldOff,
+    label: "Do Not Respond",
+    className: "bg-destructive/10 border-destructive/30 text-destructive",
+    description: "The safest action is to not respond. See the explanation below.",
+  },
+  brief_boundary_response: {
+    icon: ShieldAlert,
+    label: "Brief Boundary Response",
+    className: "bg-accent/30 border-accent text-accent-foreground",
+    description: "Only a brief boundary statement is needed. Keep it minimal.",
+  },
+};
+
+function RecommendationBanner({ type, fallback }: { type: RecommendationType; fallback?: string }) {
+  const config = RECOMMENDATION_CONFIG[type];
+  const Icon = config.icon;
+  return (
+    <div className={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${config.className}`}>
+      <div className="flex items-center gap-2 font-semibold text-sm">
+        <Icon className="h-4 w-4 shrink-0" />
+        Recommendation: {config.label}
+      </div>
+      <p className="text-sm opacity-90">{config.description}</p>
+      {type === "do_not_respond" && fallback && (
+        <div className="mt-1 pt-2 border-t border-current/20">
+          <p className="text-xs font-medium opacity-70 mb-1">If you must reply:</p>
+          <p className="text-sm italic">{fallback}</p>
+        </div>
+      )}
     </div>
   );
 }
