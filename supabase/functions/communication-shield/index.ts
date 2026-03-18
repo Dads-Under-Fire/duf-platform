@@ -977,11 +977,12 @@ You MUST call the provided tool with your structured output.`;
         focus_discipline_score: 2, court_safe_phrasing_score: 2, quality_score_status: "acceptable",
       };
 
-      await serviceClient.from("communication_shield_history").insert(
+      const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
         buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackRewriteScore)
       );
+      if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "fallback", detail: `tier3 | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
       return jsonResponse(fallback);
     }
 
