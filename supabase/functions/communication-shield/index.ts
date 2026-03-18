@@ -351,11 +351,9 @@ You MUST call the provided tool with your structured output.`;
         const tier2Response = await callOpenAI(OPENAI_API_KEY, MODEL_FALLBACK, requestBody);
         if (tier2Response.ok) {
           const aiData = await tier2Response.json();
-          const functionCall = aiData.output?.find(
-            (item: any) => item.type === "function_call" && item.name === toolName
-          );
-          if (functionCall) {
-            const parsed = JSON.parse(functionCall.arguments);
+          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+          if (toolCall?.function?.arguments) {
+            const parsed = JSON.parse(toolCall.function.arguments);
             const validationError = mode === "respond"
               ? validateRespondResult(parsed)
               : validateRewriteResult(parsed);
