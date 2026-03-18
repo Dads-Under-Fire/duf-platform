@@ -12,7 +12,7 @@ const FN = "communication-shield";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 const MODEL_PRIMARY = "gpt-4o-mini";
-const MODEL_FALLBACK = "gpt-4o-mini"; // same model for retry; swap to a different model if desired
+const MODEL_FALLBACK = "gpt-4o";
 
 // ── Prompts (server-side only) ──
 const BASE_INSTRUCTIONS = `All responses must:
