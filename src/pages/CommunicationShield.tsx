@@ -802,6 +802,26 @@ function ResponseSection({ label, content }: { label: string; content: string })
   );
 }
 
+function FallbackResultLayout({ result }: { result: AIResult }) {
+  const text = getPrimaryText(result);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-muted bg-muted/30 px-4 py-3 flex items-start gap-2">
+        <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-sm text-muted-foreground">
+          Using backup safe {result.mode === "rewrite" ? "rewrite" : "response"} template. You can regenerate for a full AI result.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold text-foreground mb-1">
+          {result.mode === "rewrite" ? "Safe Rewrite:" : "Safe Response:"}
+        </p>
+        <p className="text-foreground text-sm whitespace-pre-wrap">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 function DoNotRespondLayout({ result }: { result: AIResult }) {
   return (
     <div className="space-y-4">
