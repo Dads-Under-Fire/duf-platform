@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff } from "lucide-react";
+import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -10,24 +10,19 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
 
 interface AIResult {
-  // respond mode
   recommendation_type?: RecommendationType;
   primary_response?: string;
   fallback_response?: string;
-  // rewrite mode
   primary_rewrite?: string;
-  // shared (optional because fallback results omit these)
   shorter_version?: string;
   firmer_version?: string;
   tone_assessment?: string;
   risk_flags?: string[];
   why_this_is_safer?: string;
   mode: "respond" | "rewrite";
-  // fallback flag
   is_fallback?: boolean;
 }
 
-/** Helper: get the primary text from result based on mode */
 function getPrimaryText(result: AIResult): string {
   return result.mode === "rewrite"
     ? (result.primary_rewrite ?? "")
@@ -42,6 +37,35 @@ const FALLBACK_INTENTS = [
   "Acknowledge without engaging",
   "General neutral response",
 ];
+
+/** Small copy button with micro-feedback */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors text-xs shrink-0"
+      title="Copy"
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-primary" />
+          <span className="text-primary">Copied ✓</span>
+        </>
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+}
 
 export default function CommunicationShield() {
   const { user } = useAuth();
@@ -78,7 +102,6 @@ export default function CommunicationShield() {
     setShowOtherInput(false);
     setOtherText("");
 
-    // In rewrite mode, skip intent selection and go directly to rewrite
     if (mode === "rewrite") {
       setStep("result");
       setLoading(true);
@@ -88,9 +111,7 @@ export default function CommunicationShield() {
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-
-        const aiResult: AIResult = data;
-        setResult(aiResult);
+        setResult(data as AIResult);
         refetchProfile();
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
@@ -101,40 +122,32 @@ export default function CommunicationShield() {
       return;
     }
 
-    // Respond mode: show intent selection
     setStep("select-intent");
 
     if (isMobile) {
       setIntentOptions(FALLBACK_INTENTS);
       setLoadingIntents(false);
-
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
-
         const { data, error } = await supabase.functions.invoke("suggest-intents", {
           body: { message: msg, mode },
         });
         clearTimeout(timeout);
-
         if (!error) {
           const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
           if (options.length >= 2) setIntentOptions(options);
         }
-      } catch {
-        // Keep fallback intents already shown
-      }
+      } catch {}
     } else {
       setLoadingIntents(true);
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-
         const { data, error } = await supabase.functions.invoke("suggest-intents", {
           body: { message: msg, mode },
         });
         clearTimeout(timeout);
-
         if (error) throw error;
         const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
         setIntentOptions(options.length >= 2 ? options : FALLBACK_INTENTS);
@@ -164,9 +177,7 @@ export default function CommunicationShield() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
-      const aiResult: AIResult = data;
-      setResult(aiResult);
+      setResult(data as AIResult);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
@@ -182,18 +193,21 @@ export default function CommunicationShield() {
   };
 
   const handleRegenerate = () => {
-    if (communicationContext && submittedMessage) {
+    if (mode === "rewrite" && submittedMessage) {
+      setResult(null);
+      setLoading(true);
+      supabase.functions.invoke("communication-shield", {
+        body: { message: submittedMessage, mode: "rewrite" },
+      }).then(({ data, error }) => {
+        if (error || data?.error) {
+          toast({ title: "Error", description: "Failed to regenerate.", variant: "destructive" });
+        } else {
+          setResult(data as AIResult);
+          refetchProfile();
+        }
+      }).finally(() => setLoading(false));
+    } else if (communicationContext && submittedMessage) {
       handleSelectIntent(communicationContext);
-    }
-  };
-
-  const copyResult = () => {
-    if (result) {
-      const text = getPrimaryText(result);
-      if (text) {
-        navigator.clipboard.writeText(text);
-        toast({ title: "Copied", description: mode === "rewrite" ? "Rewrite copied to clipboard." : "Response copied to clipboard." });
-      }
     }
   };
 
@@ -216,15 +230,14 @@ export default function CommunicationShield() {
 
   const hasResult = !!result;
 
-  // ─── MOBILE: Two-screen sequential flow ───
+  // ─── MOBILE ───
   if (isMobile) {
     const showResultScreen = step === "result";
 
     if (showResultScreen) {
-      // ── Mobile Screen 2: Court-Safe Response ──
       return (
-        <div className="flex flex-col h-full">
-          {/* Fixed header with back button */}
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Fixed header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
             <button
               onClick={handleBackToCompose}
@@ -235,9 +248,8 @@ export default function CommunicationShield() {
             <h1 className="text-lg font-semibold text-foreground">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h1>
           </div>
 
-          {/* Scrollable content area */}
+          {/* Scrollable content */}
           <div className="flex-1 overflow-auto px-4 py-4 space-y-5">
-            {/* Original message + intent */}
             <div>
               <p className="text-muted-foreground text-sm font-medium mb-1">Original Message:</p>
               <p className="text-foreground text-sm whitespace-pre-wrap">{submittedMessage}</p>
@@ -271,29 +283,13 @@ export default function CommunicationShield() {
                       <DoNotRespondLayout result={result} />
                     ) : (
                       <>
-                        <div>
-                          <p className="font-semibold text-foreground mb-1">{result.mode === "rewrite" ? "Primary Rewrite:" : "Court-Safe Response:"}</p>
-                          <p className="text-foreground text-sm whitespace-pre-wrap">{getPrimaryText(result)}</p>
-                        </div>
-
+                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                         <div className="h-px bg-border" />
-                        <div>
-                          <p className="text-muted-foreground text-sm font-medium mb-1">Shorter Version:</p>
-                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_version}</p>
-                        </div>
-
+                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                         <div className="h-px bg-border" />
-                        <div>
-                          <p className="text-muted-foreground text-sm font-medium mb-1">Firmer Version:</p>
-                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_version}</p>
-                        </div>
-
+                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
                         <div className="h-px bg-border" />
-                        <div>
-                          <p className="text-muted-foreground text-sm font-medium mb-1">Tone Assessment:</p>
-                          <p className="text-foreground text-sm">{result.tone_assessment}</p>
-                        </div>
-
+                        <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
                         <div>
                           <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
                           <ul className="space-y-1">
@@ -302,11 +298,7 @@ export default function CommunicationShield() {
                             ))}
                           </ul>
                         </div>
-
-                        <div>
-                          <p className="text-muted-foreground text-sm font-medium mb-1">Why This Is Safer:</p>
-                          <p className="text-foreground text-sm whitespace-pre-wrap">{result.why_this_is_safer}</p>
-                        </div>
+                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
                       </>
                     )}
                   </>
@@ -318,43 +310,33 @@ export default function CommunicationShield() {
           {/* Fixed bottom action bar */}
           <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
             <button
+              onClick={handleStartOver}
+              disabled={loading}
+              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Start Over
+            </button>
+            <button
               onClick={handleRegenerate}
               disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-primary text-sm hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RefreshCw className="h-4 w-4" />
               Generate again
-            </button>
-            <button
-              onClick={copyResult}
-              disabled={!hasResult}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Copy className="h-4 w-4" />
-              Copy Response
             </button>
           </div>
         </div>
       );
     }
 
-    // ── Mobile Screen 1: Compose ──
+    // Mobile Screen 1: Compose
     return (
       <div className="flex flex-col h-full overflow-hidden">
-
-        {/* Fixed: Response Mode bar with help icon */}
+        {/* Fixed mode bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-xs">{mode === "respond" ? "Response Mode" : "Rewrite Mode"}</span>
-            {step !== "input" && (
-              <button
-                onClick={handleStartOver}
-                className="flex items-center gap-1 text-primary text-xs hover:underline ml-2"
-              >
-                <RefreshCw className="h-3 w-3" />
-                Start Over
-              </button>
-            )}
           </div>
           <button
             onClick={() => setShowDirections((v) => !v)}
@@ -364,7 +346,6 @@ export default function CommunicationShield() {
           </button>
         </div>
 
-        {/* Directions popup */}
         {showDirections && (
           <div className="mx-4 mt-2 p-3 rounded-md bg-card border border-border flex items-start gap-2 shrink-0">
             <div className="flex-1 text-xs text-muted-foreground space-y-0.5">
@@ -377,9 +358,8 @@ export default function CommunicationShield() {
           </div>
         )}
 
-        {/* Scrollable: Original Message + intent options */}
+        {/* Scrollable content */}
         <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
-          {/* Original Message panel */}
           <div>
             <h2 className="text-lg font-semibold text-foreground mb-1">Original Message</h2>
             <div className="h-px bg-border mb-3" />
@@ -415,7 +395,6 @@ export default function CommunicationShield() {
             )}
           </div>
 
-          {/* Intent options - after message submitted */}
           {step === "select-intent" && mode === "respond" && (
             <div>
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
@@ -476,9 +455,8 @@ export default function CommunicationShield() {
           )}
         </div>
 
-        {/* Fixed bottom: Mode toggle + Input + Submit */}
+        {/* Fixed bottom: Mode toggle + Input */}
         <div className="border-t border-border bg-background px-4 py-3 space-y-3 shrink-0">
-          {/* Mode toggle */}
           <div className="flex items-center gap-4">
             <button onClick={() => setMode("respond")} className="flex items-center gap-2">
               <div className={`h-4 w-4 rounded-full border-2 ${mode === "respond" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
@@ -490,7 +468,6 @@ export default function CommunicationShield() {
             </button>
           </div>
 
-          {/* Input bar */}
           <div className="flex gap-2">
             <input
               type="text"
@@ -516,11 +493,11 @@ export default function CommunicationShield() {
     );
   }
 
-  // ─── DESKTOP: Side-by-side layout (unchanged) ───
+  // ─── DESKTOP ───
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Mode label + directions strip */}
-      <div className="border-b border-border">
+      <div className="border-b border-border shrink-0">
         <div className="text-center py-2 text-muted-foreground text-sm">
           {mode === "respond" ? "Response Mode" : "Rewrite Mode"}
         </div>
@@ -533,64 +510,56 @@ export default function CommunicationShield() {
             <span className="text-primary">→</span>
             <span>Copy the court-safe reply</span>
           </div>
-          {step !== "input" && (
-            <button
-              onClick={handleStartOver}
-              className="flex items-center gap-1.5 text-primary hover:underline text-xs"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Start Over
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-row gap-0 overflow-auto">
+      {/* Main content — two panels, each scrolls internally */}
+      <div className="flex-1 flex flex-row gap-0 overflow-hidden min-h-0">
         {/* Left panel */}
-        <div className="flex-1 p-6 flex flex-col border-r border-border gap-4">
-          {/* Original Message */}
-          <div className="bg-card rounded-lg border border-border flex-1 flex flex-col p-5">
-            <h2 className="text-lg font-semibold text-foreground mb-1">Original Message</h2>
-            <div className="h-px bg-border mb-3" />
+        <div className="flex-1 p-6 flex flex-col border-r border-border overflow-hidden">
+          <div className="bg-card rounded-lg border border-border flex-1 flex flex-col p-5 overflow-hidden">
+            <h2 className="text-lg font-semibold text-foreground mb-1 shrink-0">Original Message</h2>
+            <div className="h-px bg-border mb-3 shrink-0" />
 
-            {submittedMessage ? (
-              <div className="flex-1 space-y-4">
-                <div>
-                  <p className="text-muted-foreground text-xs mb-1">Message:</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{submittedMessage}</p>
-                </div>
-                {communicationContext && (
+            <div className="flex-1 overflow-auto min-h-0">
+              {submittedMessage ? (
+                <div className="space-y-4">
                   <div>
-                    <p className="text-muted-foreground text-xs mb-1">Response Intent</p>
-                    <p className="text-foreground text-sm">
-                      {intentOptions.includes(communicationContext)
-                        ? communicationContext
-                        : `Custom: "${communicationContext}"`}
-                    </p>
+                    <p className="text-muted-foreground text-xs mb-1">Message:</p>
+                    <p className="text-foreground text-sm whitespace-pre-wrap">{submittedMessage}</p>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1 text-muted-foreground text-sm space-y-1">
-                {mode === "respond" ? (
-                  <>
-                    <p>Paste the message you received below.</p>
-                    <p>DUF will generate a neutral, court-safe response.</p>
-                  </>
-                ) : (
-                  <>
-                    <p>Paste the message you plan to send below.</p>
-                    <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
-                  </>
-                )}
-              </div>
-            )}
+                  {communicationContext && (
+                    <div>
+                      <p className="text-muted-foreground text-xs mb-1">Response Intent</p>
+                      <p className="text-foreground text-sm">
+                        {intentOptions.includes(communicationContext)
+                          ? communicationContext
+                          : `Custom: "${communicationContext}"`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-muted-foreground text-sm space-y-1">
+                  {mode === "respond" ? (
+                    <>
+                      <p>Paste the message you received below.</p>
+                      <p>DUF will generate a neutral, court-safe response.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Paste the message you plan to send below.</p>
+                      <p>DUF will rewrite your message to be neutral, clear, and court-safe.</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Communication Context - only after message submitted */}
+          {/* Intent options below the card */}
           {step !== "input" && mode === "respond" && (
-            <div>
+            <div className="mt-4 shrink-0">
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
                 <div className="flex items-center gap-2 px-4 py-3 bg-card rounded-md text-sm text-muted-foreground">
@@ -662,94 +631,98 @@ export default function CommunicationShield() {
         </div>
 
         {/* Arrow separator */}
-        <div className="flex items-center -mx-3 z-10">
+        <div className="flex items-center -mx-3 z-10 shrink-0">
           <div className="text-muted-foreground">→</div>
         </div>
 
-        {/* Right panel - Court-Safe Response */}
-        <div className="flex-1 p-6 flex flex-col">
-          <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5">
-            <h2 className="text-lg font-semibold text-primary mb-1">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
-            <div className="h-px bg-border mb-3" />
+        {/* Right panel — Court-Safe Response */}
+        <div className="flex-1 p-6 flex flex-col overflow-hidden">
+          <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5 overflow-hidden">
+            <h2 className="text-lg font-semibold text-primary mb-1 shrink-0">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
+            <div className="h-px bg-border mb-3 shrink-0" />
 
-            {result ? (
-              <div className="flex-1 space-y-4 text-sm overflow-auto">
-                {result.is_fallback ? (
-                  <FallbackResultLayout result={result} />
-                ) : (
-                  <>
-                    {result.mode === "respond" && result.recommendation_type && (
-                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                    )}
+            <div className="flex-1 overflow-auto min-h-0">
+              {result ? (
+                <div className="space-y-4 text-sm">
+                  {result.is_fallback ? (
+                    <FallbackResultLayout result={result} />
+                  ) : (
+                    <>
+                      {result.mode === "respond" && result.recommendation_type && (
+                        <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                      )}
 
-                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                      <DoNotRespondLayout result={result} />
-                    ) : (
-                      <>
-                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
-                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} />
-                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} />
-                        <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
-                        <div>
-                          <p className="text-muted-foreground mb-1">Risk Flags</p>
-                          <div className="h-px bg-border mb-2" />
-                          <ul className="space-y-1">
-                            {(result.risk_flags ?? []).map((flag, i) => (
-                              <li key={i} className="text-foreground">• {flag}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : loading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-muted-foreground text-sm">Generating response...</p>
-              </div>
-            ) : (
-              <div className="flex-1 text-muted-foreground text-sm space-y-4">
-                <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
-                <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
-                <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
-                <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />
-                <div>
-                  <p>Risk Flags</p>
-                  <div className="h-px bg-border my-1" />
-                  <p>• Removed accusatory language</p>
-                  <p>• Avoided escalation triggers</p>
+                      {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+                        <DoNotRespondLayout result={result} />
+                      ) : (
+                        <>
+                          <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
+                          <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
+                          <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
+                          <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          <div>
+                            <p className="text-muted-foreground mb-1">Risk Flags</p>
+                            <div className="h-px bg-border mb-2" />
+                            <ul className="space-y-1">
+                              {(result.risk_flags ?? []).map((flag, i) => (
+                                <li key={i} className="text-foreground">• {flag}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
-                <PlaceholderSection label="Why This Is Safer" placeholder="[ explanation ]" />
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-              <button
-                onClick={handleRegenerate}
-                disabled={!hasResult || loading}
-                className="flex items-center gap-2 text-primary text-sm hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Generate again
-              </button>
-              <button
-                onClick={copyResult}
-                disabled={!hasResult}
-                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Copy className="h-4 w-4" />
-                Copy Response
-              </button>
+              ) : loading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-muted-foreground text-sm">Generating response...</p>
+                </div>
+              ) : (
+                <div className="text-muted-foreground text-sm space-y-4">
+                  <PlaceholderSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} placeholder={mode === "rewrite" ? "[ rewritten version ]" : "[ primary response ]"} />
+                  <PlaceholderSection label="Shorter Version" placeholder="[ shorter version ]" />
+                  <PlaceholderSection label="Firmer Version" placeholder="[ firmer version ]" />
+                  <PlaceholderSection label="Tone Assessment" placeholder="Neutral / De-escalated" />
+                  <div>
+                    <p>Risk Flags</p>
+                    <div className="h-px bg-border my-1" />
+                    <p>• Removed accusatory language</p>
+                    <p>• Avoided escalation triggers</p>
+                  </div>
+                  <PlaceholderSection label="Why This Is Safer" placeholder="[ explanation ]" />
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom controls */}
-      <div className="border-t border-border px-6 py-4 space-y-3">
+      {/* Fixed bottom bar: actions + input */}
+      <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
+        {/* Action buttons — always visible */}
+        {step === "result" && (
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleStartOver}
+              disabled={loading}
+              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Start Over
+            </button>
+            <button
+              onClick={handleRegenerate}
+              disabled={!hasResult || loading}
+              className="flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Generate again
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-4">
           <button onClick={() => setMode("respond")} className="flex items-center gap-2">
             <div className={`h-4 w-4 rounded-full border-2 ${mode === "respond" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
@@ -791,10 +764,13 @@ export default function CommunicationShield() {
   );
 }
 
-function ResponseSection({ label, content }: { label: string; content: string }) {
+function ResponseSection({ label, content, showCopy }: { label: string; content: string; showCopy?: boolean }) {
   return (
     <div>
-      <p className="text-muted-foreground mb-1">{label}</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-muted-foreground">{label}</p>
+        {showCopy && content && <CopyButton text={content} />}
+      </div>
       <div className="h-px bg-border mb-2" />
       <p className="text-foreground whitespace-pre-wrap">{content}</p>
     </div>
@@ -812,9 +788,12 @@ function FallbackResultLayout({ result }: { result: AIResult }) {
         </p>
       </div>
       <div>
-        <p className="font-semibold text-foreground mb-1">
-          {result.mode === "rewrite" ? "Safe Rewrite:" : "Safe Response:"}
-        </p>
+        <div className="flex items-center justify-between mb-1">
+          <p className="font-semibold text-foreground">
+            {result.mode === "rewrite" ? "Safe Rewrite:" : "Safe Response:"}
+          </p>
+          {text && <CopyButton text={text} />}
+        </div>
         <p className="text-foreground text-sm whitespace-pre-wrap">{text}</p>
       </div>
     </div>
