@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN intended_plan text DEFAULT NULL;

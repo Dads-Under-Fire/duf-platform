@@ -6,6 +6,7 @@ export interface Profile {
   id: string;
   user_id: string;
   display_name: string | null;
+  intended_plan: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,13 +34,10 @@ export interface PlanLimits {
   message_rewrites: number;
   evidence_analyses: number;
   evidence_words: number;
-  /** True when rewrites are "unlimited" (fair use) */
   unlimited_rewrites: boolean;
-  /** True when evidence is tracked by words (paid) vs count (free) */
   evidence_uses_words: boolean;
 }
 
-// Must match get_plan_limits DB function
 const PLAN_LIMITS: Record<string, PlanLimits> = {
   free: {
     message_rewrites: 2,
@@ -120,6 +118,13 @@ export function useProfile() {
 
   const plan = subscription?.plan ?? "free";
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
+  const intendedPlan = profile?.intended_plan as string | null;
+
+  // Check if free credits are exhausted
+  const rewritesExhausted = !limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites;
+  const evidenceExhausted = limits.evidence_uses_words
+    ? (usage?.evidence_words_used ?? 0) >= limits.evidence_words
+    : (usage?.evidence_analyses_used ?? 0) >= limits.evidence_analyses;
 
   const refetch = () => {
     refetchProfile();
@@ -133,6 +138,9 @@ export function useProfile() {
     usage: usage ?? null,
     limits,
     plan,
+    intendedPlan,
+    rewritesExhausted,
+    evidenceExhausted,
     refetch,
   };
 }
