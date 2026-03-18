@@ -946,7 +946,7 @@ You MUST call the provided tool with your structured output.`;
     console.log(`[${FN}] success | user=${userId} | mode=${mode} | recommendation=${aiResult.recommendation_type ?? "n/a"} | tone=${aiResult.tone_assessment} | score=${score!.quality_score_total}/10 (${score!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    return jsonResponse({ ...aiResult, mode });
+    return jsonResponse({ ...aiResult, mode, risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined) });
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
