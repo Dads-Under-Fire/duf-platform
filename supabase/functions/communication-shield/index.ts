@@ -142,25 +142,8 @@ function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
   return Math.pow(2, attempt) * 1000 + Math.random() * 500;
 }
 
-function buildRateLimitedFallback(mode: "respond" | "rewrite") {
-  if (mode === "rewrite") {
-    // Rewrite mode: never return fake content — signal an error so frontend shows a toast
-    return null;
-  }
-
-  // Respond mode: return a legitimate do-not-respond recommendation with communication reasoning
-  return {
-    mode,
-    recommendation_type: "do_not_respond",
-    primary_response: "No immediate response is needed. Taking a pause before replying helps ensure your message is deliberate, neutral, and court-safe rather than reactive.",
-    shorter_version: "",
-    firmer_version: "",
-    fallback_response: "Received. I will follow up regarding the schedule.",
-    tone_assessment: "",
-    risk_flags: [],
-    why_this_is_safer: "Pausing before responding reduces the risk of reactive or emotionally charged language. A brief delay protects your position and keeps communication court-appropriate.",
-  };
-}
+// No fallback function — system failures always return errors, never fake AI recommendations.
+// do-not-respond is ONLY valid from a successful AI result in respond mode.
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -287,11 +270,6 @@ You MUST call the provided tool with your structured output.`;
       if (response?.status === 429) {
         logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries" });
         console.warn(`[${FN}] OpenAI still rate-limited after retries`);
-        const fallback = buildRateLimitedFallback(mode);
-        if (fallback) {
-          return jsonResponse(fallback);
-        }
-        // Rewrite mode: return an error so frontend shows a proper error state
         return jsonResponse({ error: "The service is temporarily busy. Please try again in a moment." }, 503);
       }
       const t = response ? await response.text() : "no response";
