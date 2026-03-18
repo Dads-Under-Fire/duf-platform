@@ -192,7 +192,7 @@ async function callOpenAI(
   model: string,
   requestBody: string,
 ): Promise<Response> {
-  return fetch("https://api.openai.com/v1/responses", {
+  return fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -292,12 +292,12 @@ You MUST call the provided tool with your structured output.`;
     // ── 6. Three-tier OpenAI call ──
     const requestBody = JSON.stringify({
       model: MODEL_PRIMARY,
-      input: [
-        { role: "developer", content: systemPrompt },
+      messages: [
+        { role: "system", content: systemPrompt },
         { role: "user", content: message },
       ],
-      tools: [tool],
-      tool_choice: "required",
+      tools: [{ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.parameters, strict: tool.strict } }],
+      tool_choice: { type: "function", function: { name: tool.name } },
     });
 
     let aiResult: Record<string, unknown> | null = null;
@@ -322,11 +322,9 @@ You MUST call the provided tool with your structured output.`;
     if (response && response.ok) {
       try {
         const aiData = await response.json();
-        const functionCall = aiData.output?.find(
-          (item: any) => item.type === "function_call" && item.name === toolName
-        );
-        if (functionCall) {
-          const parsed = JSON.parse(functionCall.arguments);
+        const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          const parsed = JSON.parse(toolCall.function.arguments);
           const validationError = mode === "respond"
             ? validateRespondResult(parsed)
             : validateRewriteResult(parsed);
@@ -353,11 +351,9 @@ You MUST call the provided tool with your structured output.`;
         const tier2Response = await callOpenAI(OPENAI_API_KEY, MODEL_FALLBACK, requestBody);
         if (tier2Response.ok) {
           const aiData = await tier2Response.json();
-          const functionCall = aiData.output?.find(
-            (item: any) => item.type === "function_call" && item.name === toolName
-          );
-          if (functionCall) {
-            const parsed = JSON.parse(functionCall.arguments);
+          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+          if (toolCall?.function?.arguments) {
+            const parsed = JSON.parse(toolCall.function.arguments);
             const validationError = mode === "respond"
               ? validateRespondResult(parsed)
               : validateRewriteResult(parsed);
