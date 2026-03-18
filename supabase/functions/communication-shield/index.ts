@@ -997,9 +997,9 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
-    await serviceClient.from("communication_shield_history").insert(
-      buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!)
-    );
+    const insertPayload = buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!);
+    const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(insertPayload);
+    if (insertErr) console.error(`[${FN}] insert error:`, JSON.stringify(insertErr));
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
