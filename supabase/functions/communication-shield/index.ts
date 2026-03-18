@@ -181,6 +181,41 @@ RISK FLAGS RULES:
   - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" and score 3-5
   - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
 
+const PERSPECTIVE_RULES = `PERSPECTIVE PRESERVATION — ABSOLUTE RULES:
+- NEVER change the speaker's perspective. If the user wrote "I will pick up", do NOT rewrite as "You will pick up" or "The children will be picked up."
+- NEVER assume commitments or actions on behalf of either party that were not in the original message.
+- The rewritten message MUST preserve who is making the request, who is performing the action, and who is being addressed.
+- If the original says "I" → the rewrite says "I". If it says "you" → handle carefully to avoid accusatory tone, but do NOT flip perspective.
+
+TONE CONTROL — FIRM, NOT SUBMISSIVE:
+- NEVER use passive or weak phrasing. Specifically BANNED phrases:
+  • "I would appreciate" / "I would appreciate it if"
+  • "I feel" / "I feel like" / "I feel that"
+  • "I was hoping" / "I was wondering"
+  • "If that's okay" / "If you don't mind"
+  • "Perhaps we could" / "Maybe we should"
+  • "Would it be possible" / "Could you possibly"
+  • "I just wanted to" / "I just think"
+  • "It seems like" / "It appears that"
+- Tone must be FIRM, NEUTRAL, and PROFESSIONAL — never submissive, pleading, or apologetic.
+- Use direct statements: "I will", "Please confirm", "The schedule is", "Drop-off is at 5pm."
+
+CLARITY AND SPECIFICITY:
+- Where possible, add clarity by specifying time, date, location, or required action.
+- Outputs must be direct and actionable, not vague.
+- Prefer "Drop-off is at 5pm today at [location]" over "We should coordinate drop-off."
+- If the original message contains specific details, preserve AND clarify them.
+- If the original is vague, make the rewrite MORE specific where context allows.`;
+
+const ALTERNATIVES_INSTRUCTIONS = `THREE ALTERNATIVES REQUIREMENT:
+You MUST provide exactly 3 alternative versions in "three_alternatives" (array of 3 strings):
+1. MORE DIRECT version — shorter, more assertive, cuts to the point
+2. SLIGHTLY SOFTER version — still neutral and firm, but slightly warmer without being weak or submissive
+3. HIGHLY STRUCTURED/FORMAL version — professional, documentation-ready, suitable for legal review
+
+All three alternatives MUST follow the same legal safety rules as the primary rewrite/response.
+None may contain admissions, emotional language, threats, or perspective errors.`;
+
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
 - Be neutral and factual
@@ -205,11 +240,18 @@ Instead prefer responses that:
 - Set clear boundaries without aggression
 - Close the conversation loop rather than opening it
 
+${PERSPECTIVE_RULES}
+
 ${LEGAL_SAFETY_RULES}
 
 ${QUALITY_RULES}
 
-${SCORING_INSTRUCTIONS}`;
+${ALTERNATIVES_INSTRUCTIONS}
+
+${SCORING_INSTRUCTIONS}
+
+JSON VALIDATION RULE:
+Your output MUST be valid JSON via the provided tool call. If any field is missing or malformed, regenerate the entire output. Every field must be populated with real content — never null, empty, or placeholder.`;
 
 const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
