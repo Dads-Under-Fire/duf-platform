@@ -634,6 +634,31 @@ function scoreRewriteQuality(
     notes.push("-3: placeholder brackets"); courtSafeScore = 0;
   }
 
+  // 11. Controlling / patronizing tone (-1)
+  const controllingPatterns = [
+    /\byou need to\b/i, /\byou must\b/i, /\byou should\b/i,
+    /\bi expect you to\b/i, /\bi need you to\b/i,
+    /\bgoing forward,? you will\b/i, /\bi trust that you\b/i,
+  ];
+  let controlHits = 0;
+  for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; notes.push(`controlling: ${p.source}`); } }
+  if (controlHits > 0) { deductions += 1; issueCategories++; notes.push("-1: controlling/patronizing tone"); }
+
+  // 12. Generic/bland wording (-1)
+  const genericPatterns = [
+    /\bi appreciate your (cooperation|understanding|patience)\b/i,
+    /\bthank you for your (cooperation|understanding|patience)\b/i,
+    /\bi look forward to\b/i, /\bmoving forward together\b/i,
+    /\bin the best interest of\b/i,
+  ];
+  let genericHits = 0;
+  for (const p of genericPatterns) { if (p.test(allText)) { genericHits++; notes.push(`generic: ${p.source}`); } }
+  if (genericHits > 0) { deductions += 1; issueCategories++; notes.push("-1: generic/bland wording"); }
+
+  // 13. Unnecessary formalization — penalize if rewrite is longer than needed
+  const wordCount = allText.split(/\s+/).length;
+  if (wordCount > 60) { deductions += 1; issueCategories++; notes.push(`-1: high word count (${wordCount})`); }
+
   let serverScore = Math.max(1, 10 - deductions);
 
   // Hard caps
@@ -641,7 +666,8 @@ function scoreRewriteQuality(
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  // Incorporate AI self-score
+  // Default cap: most rewrites should not be 10 unless truly flawless
+  // If server found zero issues but AI gave 10, still cap at 9 unless text is very short and clean
   const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
@@ -656,6 +682,13 @@ function scoreRewriteQuality(
   } else {
     total = serverScore;
   }
+
+  // Final 10 gate: only allow 10 if server found literally zero issues AND text is concise
+  if (total >= 10 && (issueCategories > 0 || sentenceCount > 2 || primaryText.length > 200)) {
+    total = 9;
+    notes.push("cap: 10 requires zero issues + concise output");
+  }
+
   total = Math.max(1, Math.min(10, total));
 
   let status: RewriteQualityResult["quality_score_status"];
