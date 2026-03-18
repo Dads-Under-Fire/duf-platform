@@ -39,7 +39,15 @@ Instead prefer responses that:
 - Close the conversation loop rather than opening it`;
 
 const RESPOND_INTRO = (originalContext?: string) =>
-  `The user received a message from the other parent. Generate a neutral, factual, court-safe RESPONSE to that message.${originalContext ? ` The original message received was: "${originalContext}"` : ""}`;
+  `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
+
+IMPORTANT — RECOMMENDATION LAYER:
+Before drafting a response, evaluate whether responding is actually the safest choice. Set "recommendation_type" to one of:
+- "respond" — The message requires or benefits from a reply. Provide full response variants.
+- "do_not_respond" — The safest action is NOT to reply (e.g. bait, provocation, no actionable content, emotional venting). In this case, set "primary_response" to a clear explanation of why no response is recommended. "shorter_version" and "firmer_version" should also reflect the do-not-respond advice. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
+- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+
+Always prioritize protecting the user from unnecessary engagement.`;
 
 const REWRITE_INTRO =
   "The user wants to REWRITE their own message so it is calmer, neutral, and court-safe.";
