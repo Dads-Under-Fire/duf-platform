@@ -16,13 +16,15 @@ interface AIResult {
   fallback_response?: string;
   // rewrite mode
   primary_rewrite?: string;
-  // shared
-  shorter_version: string;
-  firmer_version: string;
-  tone_assessment: string;
-  risk_flags: string[];
-  why_this_is_safer: string;
+  // shared (optional because fallback results omit these)
+  shorter_version?: string;
+  firmer_version?: string;
+  tone_assessment?: string;
+  risk_flags?: string[];
+  why_this_is_safer?: string;
   mode: "respond" | "rewrite";
+  // fallback flag
+  is_fallback?: boolean;
 }
 
 /** Helper: get the primary text from result based on mode */
