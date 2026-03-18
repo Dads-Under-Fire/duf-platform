@@ -72,7 +72,7 @@ serve(async (req) => {
       return jsonResponse({ error: msg }, 429);
     }
 
-    // ── 5. OpenAI call ──
+    // ── 5. OpenAI Responses API call ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -88,16 +88,9 @@ serve(async (req) => {
 
 ${typeInstructions[type]}
 
-You MUST respond by calling the provided tool with your structured output. Provide:
-- summary: A 2-3 sentence executive summary of the evidence
-- tone_analysis: Assessment of the overall tone (e.g. "Hostile / Accusatory", "Neutral / Factual", "Manipulative / Gaslighting")
-- key_findings: Array of important findings, each with a "finding" (string) and "severity" ("low" | "medium" | "high" | "critical")
-- red_flags: Array of concerning patterns or statements that could be relevant in court
-- recommended_actions: Array of suggested next steps based on the evidence
-- legal_relevance: Brief assessment of how this evidence might be viewed in a legal context
-- word_count: The number of words analyzed`;
+You MUST call the provided tool with your structured output.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -105,54 +98,53 @@ You MUST respond by calling the provided tool with your structured output. Provi
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
+        input: [
+          { role: "developer", content: systemPrompt },
           { role: "user", content: content },
         ],
         tools: [
           {
             type: "function",
-            function: {
-              name: "analyze_evidence",
-              description: "Return structured evidence analysis results",
-              parameters: {
-                type: "object",
-                properties: {
-                  summary: { type: "string", description: "2-3 sentence executive summary" },
-                  tone_analysis: { type: "string", description: "Overall tone assessment" },
-                  key_findings: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        finding: { type: "string" },
-                        severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
-                      },
-                      required: ["finding", "severity"],
-                      additionalProperties: false,
+            name: "analyze_evidence",
+            description: "Return structured evidence analysis results",
+            parameters: {
+              type: "object",
+              properties: {
+                summary: { type: "string", description: "2-3 sentence executive summary" },
+                tone_analysis: { type: "string", description: "Overall tone assessment" },
+                key_findings: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      finding: { type: "string" },
+                      severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
                     },
-                    description: "Important findings with severity levels",
+                    required: ["finding", "severity"],
+                    additionalProperties: false,
                   },
-                  red_flags: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Concerning patterns or statements",
-                  },
-                  recommended_actions: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Suggested next steps",
-                  },
-                  legal_relevance: { type: "string", description: "Legal context assessment" },
-                  word_count: { type: "number", description: "Words analyzed" },
+                  description: "Important findings with severity levels",
                 },
-                required: ["summary", "tone_analysis", "key_findings", "red_flags", "recommended_actions", "legal_relevance", "word_count"],
-                additionalProperties: false,
+                red_flags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Concerning patterns or statements",
+                },
+                recommended_actions: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Suggested next steps",
+                },
+                legal_relevance: { type: "string", description: "Legal context assessment" },
+                word_count: { type: "number", description: "Words analyzed" },
               },
+              required: ["summary", "tone_analysis", "key_findings", "red_flags", "recommended_actions", "legal_relevance", "word_count"],
+              additionalProperties: false,
             },
+            strict: true,
           },
         ],
-        tool_choice: { type: "function", function: { name: "analyze_evidence" } },
+        tool_choice: "required",
       }),
     });
 
@@ -167,10 +159,12 @@ You MUST respond by calling the provided tool with your structured output. Provi
     }
 
     const aiData = await response.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in AI response");
 
-    const result = JSON.parse(toolCall.function.arguments);
+    // Responses API returns output array with function_call items
+    const functionCall = aiData.output?.find((item: any) => item.type === "function_call");
+    if (!functionCall) throw new Error("No function call in AI response");
+
+    const result = JSON.parse(functionCall.arguments);
 
     // ── 6. Persist & increment ──
     await serviceClient.from("evidence_analyses").insert({

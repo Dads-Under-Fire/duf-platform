@@ -71,7 +71,7 @@ serve(async (req) => {
       return jsonResponse({ error: "You've used all your message rewrites." }, 429);
     }
 
-    // ── 5. OpenAI call ──
+    // ── 5. OpenAI Responses API call ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -111,15 +111,9 @@ Instead prefer responses that:
 - Close the conversation loop rather than opening it
 ${contextInstruction}
 
-You MUST respond by calling the provided tool with your structured output. Provide:
-- primary_response: The best default court-safe response, concise and focused on logistics
-- shorter_version: The shortest neutral version (1 sentence) that communicates the same point
-- firmer_version: Still neutral and court-safe, but more boundaried and direct — sets a clear limit
-- tone_assessment: A brief label like "Neutral / De-escalated" or "Professional / Factual"
-- risk_flags: An array of bullet points describing what was removed, changed, or improved
-- why_this_is_safer: 1-2 short sentences explaining why this response is safer than an emotional reaction`;
+You MUST call the provided tool with your structured output.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -127,33 +121,32 @@ You MUST respond by calling the provided tool with your structured output. Provi
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
+        input: [
+          { role: "developer", content: systemPrompt },
           { role: "user", content: message },
         ],
         tools: [
           {
             type: "function",
-            function: {
-              name: "format_response",
-              description: "Return the structured court-safe response with three variants",
-              parameters: {
-                type: "object",
-                properties: {
-                  primary_response: { type: "string", description: "The best default court-safe response" },
-                  shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
-                  firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
-                  tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-                  risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
-                  why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
-                },
-                required: ["primary_response", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
-                additionalProperties: false,
+            name: "format_response",
+            description: "Return the structured court-safe response with three variants",
+            parameters: {
+              type: "object",
+              properties: {
+                primary_response: { type: "string", description: "The best default court-safe response" },
+                shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
+                firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
+                tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
+                risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
+                why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
               },
+              required: ["primary_response", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
+              additionalProperties: false,
             },
+            strict: true,
           },
         ],
-        tool_choice: { type: "function", function: { name: "format_response" } },
+        tool_choice: "required",
       }),
     });
 
@@ -168,10 +161,12 @@ You MUST respond by calling the provided tool with your structured output. Provi
     }
 
     const aiData = await response.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in AI response");
 
-    const result = JSON.parse(toolCall.function.arguments);
+    // Responses API returns output array with function_call items
+    const functionCall = aiData.output?.find((item: any) => item.type === "function_call");
+    if (!functionCall) throw new Error("No function call in AI response");
+
+    const result = JSON.parse(functionCall.arguments);
 
     // ── 6. Persist & increment ──
     await serviceClient.from("message_rewrites").insert({
