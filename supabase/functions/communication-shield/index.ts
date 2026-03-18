@@ -1300,10 +1300,10 @@ You MUST call the provided tool with your structured output.`;
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
       original_score: originalScoreResult.score,
       rewrite_quality_score: rewriteScore!.score,
-      three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
     };
     if (mode === "respond") {
       responsePayload.primary_response = aiResult.primary_rewrite;
+      responsePayload.three_alternatives = Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [];
     }
     return jsonResponse(responsePayload);
   } catch (e) {
