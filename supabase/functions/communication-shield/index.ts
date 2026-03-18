@@ -213,31 +213,48 @@ You MUST call the provided tool with your structured output.`;
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
 
-    // ── 6. OpenAI Responses API call ──
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        input: [
-          { role: "developer", content: systemPrompt },
-          { role: "user", content: message },
-        ],
-        tools: [tool],
-        tool_choice: "required",
-      }),
+    // ── 6. OpenAI Responses API call (with retry on 429) ──
+    const requestBody = JSON.stringify({
+      model: MODEL,
+      input: [
+        { role: "developer", content: systemPrompt },
+        { role: "user", content: message },
+      ],
+      tools: [tool],
+      tool_choice: "required",
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429" });
-        return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
+    let response: Response | null = null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (response.status !== 429) break;
+
+      // Retry with exponential backoff + jitter
+      const retryAfter = response.headers.get("Retry-After");
+      const waitMs = retryAfter
+        ? parseInt(retryAfter, 10) * 1000
+        : Math.pow(2, attempt) * 1000 + Math.random() * 500;
+      console.log(`[${FN}] OpenAI 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
+      await response.text(); // consume body
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+
+    if (!response || !response.ok) {
+      if (response?.status === 429) {
+        logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429 after retries" });
+        return jsonResponse({ error: "The service is temporarily busy. Please try again in a moment." }, 429);
       }
-      const t = await response.text();
-      console.error("OpenAI error:", response.status, t);
+      const t = response ? await response.text() : "no response";
+      console.error("OpenAI error:", response?.status, t);
       throw new Error("OpenAI API error");
     }
 
