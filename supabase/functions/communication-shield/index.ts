@@ -42,10 +42,12 @@ const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
 
 IMPORTANT — RECOMMENDATION LAYER:
-Before drafting a response, evaluate whether responding is actually the safest choice. Set "recommendation_type" to one of:
+Before drafting a response, evaluate whether responding is actually the safest choice based on communication strategy and legal positioning — NOT based on system availability or technical issues. Set "recommendation_type" to one of:
 - "respond" — The message requires or benefits from a reply. Provide full response variants.
-- "do_not_respond" — The safest action is NOT to reply (e.g. bait, provocation, no actionable content, emotional venting). In this case, set "primary_response" to a clear explanation of why no response is recommended. "shorter_version" and "firmer_version" should also reflect the do-not-respond advice. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
+- "do_not_respond" — The safest action is NOT to reply based on real communication reasons such as: the message is bait or provocation, contains no actionable logistics, is emotional venting, or responding would escalate conflict. In this case, set "primary_response" to a clear explanation of why no response is recommended from a communication/legal strategy perspective. "shorter_version" and "firmer_version" should be empty strings. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
 - "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+
+NEVER recommend "do_not_respond" for technical or system reasons. Only recommend it when silence or delay is the strategically safer communication choice.
 
 Always prioritize protecting the user from unnecessary engagement.`;
 
