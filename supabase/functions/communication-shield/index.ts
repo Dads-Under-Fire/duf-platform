@@ -15,6 +15,28 @@ const MODEL_PRIMARY = "gpt-4o-mini";
 const MODEL_FALLBACK = "gpt-4o";
 
 // ── Prompts (server-side only) ──
+const LEGAL_SAFETY_RULES = `LEGAL SAFETY — ABSOLUTE RULES:
+Never:
+- Admit fault, guilt, abuse, wrongdoing, or liability
+- Apologize in a way that implies legal responsibility (e.g. "I'm sorry I did that")
+- Speculate about facts, motives, or the other parent's mental state
+- Argue back, mirror insults, or use retaliatory language
+- Use emotional, sarcastic, passive-aggressive, or defensive language
+- Reference system issues, retries, model failures, or service unavailability
+
+Prefer:
+- Neutral, factual wording
+- Brief boundary-setting without aggression
+- Logistics-focused language (schedules, health, school, transportation)
+- Child-centered framing when relevant
+- Documentation-safe language appropriate for review by a judge or custody evaluator`;
+
+const QUALITY_RULES = `OUTPUT QUALITY — ABSOLUTE RULES:
+- Every output field must contain real, complete text — never placeholder brackets like [primary response], [shorter version], [explanation], etc.
+- If you are uncertain, produce a safe, neutral, complete output anyway. Never leave fields empty or use filler text.
+- Do not output system-level language such as "retry shortly", "guidance unavailable", "service error", or "temporarily unable".
+- All text must read as something a real person would actually send or read.`;
+
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
 - Be neutral and factual
@@ -37,23 +59,55 @@ Instead prefer responses that:
 - Confirm logistics with finality
 - State facts without inviting debate
 - Set clear boundaries without aggression
-- Close the conversation loop rather than opening it`;
+- Close the conversation loop rather than opening it
+
+${LEGAL_SAFETY_RULES}
+
+${QUALITY_RULES}`;
 
 const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
 
 IMPORTANT — RECOMMENDATION LAYER:
-Before drafting a response, evaluate whether responding is actually the safest choice based on communication strategy and legal positioning — NOT based on system availability or technical issues. Set "recommendation_type" to one of:
-- "respond" — The message requires or benefits from a reply. Provide full response variants.
-- "do_not_respond" — The safest action is NOT to reply based on real communication reasons such as: the message is bait or provocation, contains no actionable logistics, is emotional venting, or responding would escalate conflict. In this case, set "primary_response" to a clear explanation of why no response is recommended from a communication/legal strategy perspective. "shorter_version" and "firmer_version" should be empty strings. Optionally include a very short fallback message in "fallback_response" ONLY if the user may feel they absolutely must reply.
-- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+Before drafting a response, FIRST evaluate whether responding is actually the safest choice. This evaluation must be based on communication strategy and legal positioning — NOT on system availability or technical issues.
 
-NEVER recommend "do_not_respond" for technical or system reasons. Only recommend it when silence or delay is the strategically safer communication choice.
+Analyze the incoming message carefully. Set "recommendation_type" to one of:
 
-Always prioritize protecting the user from unnecessary engagement.`;
+- "respond" — The message contains actionable logistics, a genuine co-parenting question, or a scheduling matter that requires or benefits from a reply. Provide full response variants (primary_response, shorter_version, firmer_version).
 
-const REWRITE_INTRO =
-  "The user wants to REWRITE their own message so it is calmer, neutral, and court-safe.";
+- "do_not_respond" — The safest action is NOT to reply. Choose this when the incoming message:
+  • Is purely insulting, baiting, or emotionally provocative with no logistical content
+  • Contains only character attacks, mockery, or emotional venting
+  • Has no actionable co-parenting issue that requires a response
+  • Would likely escalate conflict if engaged with
+  • Is designed to provoke a reaction rather than coordinate parenting
+  Examples: "Wow. Just wow. This is exactly why no one trusts you." / "You're a terrible father." / "No one wants you around." / "You disgust me."
+  When choosing do_not_respond:
+  • Set "primary_response" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
+  • Set "shorter_version" and "firmer_version" to empty strings ""
+  • Optionally set "fallback_response" to a very short neutral message ONLY if the user feels they absolutely must reply (e.g. "Received.")
+
+- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_response" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
+
+CRITICAL: Never recommend "do_not_respond" for technical or system reasons. Only recommend it when silence is the strategically safer communication choice.
+
+Always prioritize protecting the user from unnecessary engagement and legal risk.`;
+
+const REWRITE_INTRO = `The user wants to REWRITE their own draft message so it is calmer, neutral, and court-safe.
+
+Your job:
+- Rewrite the user's message into neutral, court-safe language
+- Remove emotional, accusatory, inflammatory, sarcastic, or reactive phrasing
+- Preserve the core logistical intent of what the user is trying to communicate
+- Keep the rewrite concise, calm, and documentation-friendly
+- Do not overexplain or add unnecessary context the user did not include
+
+REWRITE MODE RULES:
+- Never recommend "do not respond" — rewrite mode always produces a rewritten message
+- Never return system/failure-style language like "retry shortly" or "guidance unavailable"
+- Never return placeholder text — always produce a real, complete rewrite
+- The output must read as something the user could copy-paste and send immediately`;
+
 
 // ── Mode-specific tool schemas ──
 const RESPOND_TOOL = {
@@ -103,28 +157,46 @@ const REWRITE_TOOL = {
 };
 
 // ── Validation helpers ──
-const SHARED_REQUIRED = ["shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"] as const;
-
 const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
+const PLACEHOLDER_PATTERN = /\[.*?\]/;
+
+function containsPlaceholder(val: unknown): boolean {
+  return typeof val === "string" && PLACEHOLDER_PATTERN.test(val);
+}
+
+function isNonEmptyString(val: unknown): val is string {
+  return typeof val === "string" && val.trim().length > 0;
+}
 
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (typeof r.primary_response !== "string" || !r.primary_response) return "missing primary_response";
-  for (const k of SHARED_REQUIRED) {
-    if (k === "risk_flags") {
-      if (!Array.isArray(r[k])) return `missing ${k}`;
-    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
+  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder text";
+
+  if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
+    if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version for respond";
+    if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version for respond";
+    if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
+    if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
   }
+
+  for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
+    if (!isNonEmptyString(r[k])) return `missing ${k}`;
+    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
+  }
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
   return null;
 }
 
 function validateRewriteResult(r: Record<string, unknown>): string | null {
-  if (typeof r.primary_rewrite !== "string" || !r.primary_rewrite) return "missing primary_rewrite";
-  for (const k of SHARED_REQUIRED) {
-    if (k === "risk_flags") {
-      if (!Array.isArray(r[k])) return `missing ${k}`;
-    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
+
+  for (const k of ["shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"] as const) {
+    if (!isNonEmptyString(r[k])) return `missing ${k}`;
+    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
   return null;
 }
 
