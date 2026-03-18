@@ -108,10 +108,8 @@ export function UpgradeModal({ open, onOpenChange, lockedFeature }: UpgradeModal
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Redirecting...
               </>
-            ) : intendedPlan ? (
-              `Continue to ${formatPlanLabel(intendedPlan)} Checkout`
             ) : (
-              `Upgrade to ${formatPlanLabel(targetPlan)}`
+              "Continue to Checkout"
             )}
           </Button>
 
