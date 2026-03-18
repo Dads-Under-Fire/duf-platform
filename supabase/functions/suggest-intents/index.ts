@@ -90,7 +90,8 @@ serve(async (req) => {
     if (!response.ok) {
       if (response.status === 429) {
         logRequest({ userId, functionName: FN, status: "rate_limited", detail: "OpenAI 429" });
-        return jsonResponse({ error: "Rate limit exceeded. Please try again in a moment." }, 429);
+        // Non-critical function: return fallback intents instead of propagating 429
+        return jsonResponse(FALLBACK);
       }
       if (response.status === 402) {
         logRequest({ userId, functionName: FN, status: "error", detail: "OpenAI 402" });
