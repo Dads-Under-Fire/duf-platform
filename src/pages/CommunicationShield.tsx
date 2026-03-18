@@ -675,28 +675,34 @@ export default function CommunicationShield() {
 
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
-                {result.mode === "respond" && result.recommendation_type && (
-                  <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                )}
-
-                {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                  <DoNotRespondLayout result={result} />
+                {result.is_fallback ? (
+                  <FallbackResultLayout result={result} />
                 ) : (
                   <>
-                    <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
-                    <ResponseSection label="Shorter Version" content={result.shorter_version} />
-                    <ResponseSection label="Firmer Version" content={result.firmer_version} />
-                    <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
-                    <div>
-                      <p className="text-muted-foreground mb-1">Risk Flags</p>
-                      <div className="h-px bg-border mb-2" />
-                      <ul className="space-y-1">
-                        {result.risk_flags.map((flag, i) => (
-                          <li key={i} className="text-foreground">• {flag}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer} />
+                    {result.mode === "respond" && result.recommendation_type && (
+                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+                    )}
+
+                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+                      <DoNotRespondLayout result={result} />
+                    ) : (
+                      <>
+                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} />
+                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} />
+                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} />
+                        <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                        <div>
+                          <p className="text-muted-foreground mb-1">Risk Flags</p>
+                          <div className="h-px bg-border mb-2" />
+                          <ul className="space-y-1">
+                            {(result.risk_flags ?? []).map((flag, i) => (
+                              <li key={i} className="text-foreground">• {flag}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
+                      </>
+                    )}
                   </>
                 )}
               </div>
