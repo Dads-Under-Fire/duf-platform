@@ -136,6 +136,8 @@ RISK FLAGS RULES:
 - Risk flags describe the ORIGINAL message only, NOT the rewrite quality
 - If the original input is already perfectly neutral with no issues, set risk_flags to ["No risk flags"]
 - NEVER return an empty array for risk_flags
+- NEVER return "No risk flags" if the message contains ANY emotional, reactive, accusatory, or manipulative language — even in a single word
+- SHORT MESSAGES: A message being short does NOT make it neutral. Single words like "Unbelievable", "Seriously?", "Whatever", "Fine." are emotional and MUST be flagged.
 - Use SPECIFIC, ACCURATE flag labels. Choose from this taxonomy:
 
   SEVERE (threats/hostility):
@@ -144,12 +146,13 @@ RISK FLAGS RULES:
   - "Controlling or coercive language" — only if message attempts to dictate, demand, or manipulate behavior
   - "Direct confrontation" — only if message directly challenges, provokes, or picks a fight
 
-  MODERATE (emotional/accusatory):
+  MODERATE (emotional/accusatory/manipulative):
   - "Accusatory tone" — blaming, finger-pointing ("you always", "you never", "your fault")
-  - "Emotional language detected" — frustration, anger, hurt expressed openly
+  - "Emotional language detected" — frustration, anger, hurt, exasperation, disbelief expressed openly — INCLUDING short reactive messages like "Unbelievable", "Seriously?", "Ridiculous", "Wow"
   - "Passive-aggressive tone" — indirect hostility, sarcasm, backhanded comments
   - "Defensive tone" — justifying, explaining away, protecting oneself
   - "Admission of fault" — apologies, self-blame, accepting responsibility in a legally risky way
+  - "Admission trap" — when the message tries to force agreement, confirmation, or admission of past conduct (e.g. "So you agree that...", "You admit that...", "So basically you're saying...", "Then you acknowledge...")
 
   MINOR (style/clarity):
   - "Over-explaining or justification" — providing unnecessary reasons, backstory, or explanations (e.g. "I was late because traffic was bad")
@@ -159,9 +162,15 @@ RISK FLAGS RULES:
   - "Apology language" — sorry/apologize without full admission
 
   DO NOT USE these overly broad labels:
-  - ❌ "Escalation risk" — this is too vague. Instead identify the SPECIFIC issue: is it a threat? hostility? accusation? over-explaining?
-  - ❌ "Potentially problematic" — always specify what the problem is
-  - ❌ "Could be misinterpreted" — name the actual issue instead`;
+  - ❌ "Escalation risk" — too vague
+  - ❌ "Potentially problematic" — always specify the problem
+  - ❌ "Could be misinterpreted" — name the actual issue
+  - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
+
+  EDGE CASE RULES:
+  - Single-word or very short emotional messages (e.g. "Unbelievable", "Seriously?", "Ridiculous") → MUST flag as "Emotional language detected" and score 5-6
+  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" and score 3-5
+  - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
 
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
