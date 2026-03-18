@@ -16,13 +16,21 @@ export type Database = {
     Tables: {
       communication_shield_history: {
         Row: {
+          actionability_score: number | null
+          admission_risk_score: number | null
+          court_safe_phrasing_score: number | null
           created_at: string
+          escalation_safety_score: number | null
           firmer_version: string | null
+          focus_discipline_score: number | null
           id: string
           mode: string
           original_message: string
           primary_response: string | null
           primary_rewrite: string | null
+          quality_score_notes: Json | null
+          quality_score_status: string | null
+          quality_score_total: number | null
           recommendation_type: string | null
           risk_flags: Json | null
           shorter_version: string | null
@@ -31,13 +39,21 @@ export type Database = {
           why_this_is_safer: string | null
         }
         Insert: {
+          actionability_score?: number | null
+          admission_risk_score?: number | null
+          court_safe_phrasing_score?: number | null
           created_at?: string
+          escalation_safety_score?: number | null
           firmer_version?: string | null
+          focus_discipline_score?: number | null
           id?: string
           mode?: string
           original_message: string
           primary_response?: string | null
           primary_rewrite?: string | null
+          quality_score_notes?: Json | null
+          quality_score_status?: string | null
+          quality_score_total?: number | null
           recommendation_type?: string | null
           risk_flags?: Json | null
           shorter_version?: string | null
@@ -46,13 +62,21 @@ export type Database = {
           why_this_is_safer?: string | null
         }
         Update: {
+          actionability_score?: number | null
+          admission_risk_score?: number | null
+          court_safe_phrasing_score?: number | null
           created_at?: string
+          escalation_safety_score?: number | null
           firmer_version?: string | null
+          focus_discipline_score?: number | null
           id?: string
           mode?: string
           original_message?: string
           primary_response?: string | null
           primary_rewrite?: string | null
+          quality_score_notes?: Json | null
+          quality_score_status?: string | null
+          quality_score_total?: number | null
           recommendation_type?: string | null
           risk_flags?: Json | null
           shorter_version?: string | null
