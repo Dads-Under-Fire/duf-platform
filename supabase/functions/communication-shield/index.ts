@@ -64,6 +64,30 @@ const QUALITY_RULES = `OUTPUT QUALITY — ABSOLUTE RULES:
 - Do not output system-level language such as "retry shortly", "guidance unavailable", "service error", or "temporarily unable".
 - All text must read as something a real person would actually send or read.`;
 
+const SCORING_INSTRUCTIONS = `STRICT SELF-SCORING — You MUST score your own output honestly using "self_score" (integer 1-10).
+Start at 10 and subtract points based on these rules:
+- -3 if your rewrite/response introduces new meaning NOT present in the original message
+- -3 if emotional tone remains in the output (frustration, anger, hurt, passive-aggression)
+- -2 if wording is vague or unclear
+- -2 if the output is unnecessarily verbose (more than 3 sentences when fewer would suffice)
+- -2 if phrasing is unnatural or overly formal (sounds like a lawyer wrote it, not a real person)
+- -2 if the rewrite is weaker than the original (too passive, loses the user's intent)
+- -3 if escalation risk remains (accusatory, retaliatory, or inflammatory language)
+
+A score of 10 is ONLY appropriate when:
+- Fully neutral tone with no emotional language
+- Clear, concise, and natural phrasing
+- No added meaning beyond the original
+- Realistic phrasing a real person would send
+
+Typical outputs should score between 5-9. A perfect 10 should be rare.
+Also provide "self_score_deductions" — an array of strings describing each deduction you applied (e.g. "−2: slightly verbose"). If no deductions, use ["none"].
+
+RISK FLAGS RULES:
+- risk_flags MUST list every issue found in the original message (e.g. "Removed accusatory language", "De-escalated hostile tone", "Removed emotional bait")
+- If the original input is already perfectly neutral with no issues, set risk_flags to ["No risk flags"]
+- NEVER return an empty array for risk_flags`;
+
 const BASE_INSTRUCTIONS = `All responses must:
 - Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
 - Be neutral and factual
