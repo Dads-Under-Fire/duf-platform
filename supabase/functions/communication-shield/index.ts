@@ -332,9 +332,13 @@ You MUST call the provided tool with your structured output.`;
       user_id: userId,
       original_message: message,
       rewritten_message: primaryText,
+      mode,
+      recommendation_type: result.recommendation_type ?? null,
+      shorter_version: result.shorter_version,
+      firmer_version: result.firmer_version,
       tone_assessment: result.tone_assessment,
       risk_flags: result.risk_flags,
-      mode,
+      why_this_is_safer: result.why_this_is_safer,
     });
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
