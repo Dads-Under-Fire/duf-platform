@@ -186,6 +186,7 @@ export default function CommunicationShield() {
         navigator.clipboard.writeText(text);
         toast({ title: "Copied", description: mode === "rewrite" ? "Rewrite copied to clipboard." : "Response copied to clipboard." });
       }
+    }
   };
 
   const handleStartOver = () => {
