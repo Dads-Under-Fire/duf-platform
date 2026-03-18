@@ -8,12 +8,22 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface AIResult {
-  primary_response: string;
+  // respond mode returns primary_response; rewrite mode returns primary_rewrite
+  primary_response?: string;
+  primary_rewrite?: string;
   shorter_version: string;
   firmer_version: string;
   tone_assessment: string;
   risk_flags: string[];
   why_this_is_safer: string;
+  mode: "respond" | "rewrite";
+}
+
+/** Helper: get the primary text from result based on mode */
+function getPrimaryText(result: AIResult): string {
+  return result.mode === "rewrite"
+    ? (result.primary_rewrite ?? "")
+    : (result.primary_response ?? "");
 }
 
 type Step = "input" | "select-intent" | "result";

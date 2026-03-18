@@ -7,10 +7,106 @@ import {
   authenticateRequest,
 } from "../_shared/auth-rate-limit.ts";
 
+// ── Config ──
 const FN = "communication-shield";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 const MODEL = "gpt-5.4-mini";
+
+// ── Prompts (server-side only) ──
+const BASE_INSTRUCTIONS = `All responses must:
+- Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
+- Be neutral and factual
+- Avoid accusations, emotional language, sarcasm, and defensiveness
+- Focus on child logistics: schedules, health, school, or transportation
+- Ignore inflammatory language from the other parent
+- De-escalate conflict
+- Sound appropriate for review by a judge or custody evaluator
+- Reference the parenting plan or custody agreement when relevant
+- Acknowledge ONLY what is necessary — do not over-explain
+
+NEVER use open-ended phrasing such as:
+- "so we can discuss"
+- "let me know your thoughts"
+- "we can talk about this further"
+- "I'd like to discuss"
+- "perhaps we could"
+
+Instead prefer responses that:
+- Confirm logistics with finality
+- State facts without inviting debate
+- Set clear boundaries without aggression
+- Close the conversation loop rather than opening it`;
+
+const RESPOND_INTRO = (originalContext?: string) =>
+  `The user received a message from the other parent. Generate a neutral, factual, court-safe RESPONSE to that message.${originalContext ? ` The original message received was: "${originalContext}"` : ""}`;
+
+const REWRITE_INTRO =
+  "The user wants to REWRITE their own message so it is calmer, neutral, and court-safe.";
+
+// ── Mode-specific tool schemas ──
+const RESPOND_TOOL = {
+  type: "function" as const,
+  name: "format_response",
+  description: "Return the structured court-safe response with three variants",
+  parameters: {
+    type: "object",
+    properties: {
+      primary_response: { type: "string", description: "The best default court-safe response" },
+      shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
+      firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
+      tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
+      risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
+      why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
+    },
+    required: ["primary_response", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const REWRITE_TOOL = {
+  type: "function" as const,
+  name: "format_rewrite",
+  description: "Return the structured court-safe rewrite with three variants",
+  parameters: {
+    type: "object",
+    properties: {
+      primary_rewrite: { type: "string", description: "The best court-safe rewrite of the user's message" },
+      shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
+      firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
+      tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
+      risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
+      why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
+    },
+    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+// ── Validation helpers ──
+const SHARED_REQUIRED = ["shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"] as const;
+
+function validateRespondResult(r: Record<string, unknown>): string | null {
+  if (typeof r.primary_response !== "string" || !r.primary_response) return "missing primary_response";
+  for (const k of SHARED_REQUIRED) {
+    if (k === "risk_flags") {
+      if (!Array.isArray(r[k])) return `missing ${k}`;
+    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  }
+  return null;
+}
+
+function validateRewriteResult(r: Record<string, unknown>): string | null {
+  if (typeof r.primary_rewrite !== "string" || !r.primary_rewrite) return "missing primary_rewrite";
+  for (const k of SHARED_REQUIRED) {
+    if (k === "risk_flags") {
+      if (!Array.isArray(r[k])) return `missing ${k}`;
+    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  }
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -71,7 +167,7 @@ serve(async (req) => {
       return jsonResponse({ error: "You've used all your message rewrites." }, 429);
     }
 
-    // ── 5. OpenAI Responses API call ──
+    // ── 5. Build prompt & tool for this mode ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -79,40 +175,23 @@ serve(async (req) => {
       ? `\nThe user selected the following communication context: "${communication_context}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
       : "";
 
+    const modeIntro = mode === "respond"
+      ? RESPOND_INTRO(original_context)
+      : REWRITE_INTRO;
+
     const systemPrompt = `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
-${mode === "respond"
-  ? `The user received a message from the other parent. Generate a neutral, factual, court-safe RESPONSE to that message.${original_context ? ` The original message received was: "${original_context}"` : ""}`
-  : "The user wants to REWRITE their own message so it is calmer, neutral, and court-safe."
-}
+${modeIntro}
 
-All responses must:
-- Be SHORT, DIRECT, and CONCISE — prefer 1-3 sentences maximum
-- Be neutral and factual
-- Avoid accusations, emotional language, sarcasm, and defensiveness
-- Focus on child logistics: schedules, health, school, or transportation
-- Ignore inflammatory language from the other parent
-- De-escalate conflict
-- Sound appropriate for review by a judge or custody evaluator
-- Reference the parenting plan or custody agreement when relevant
-- Acknowledge ONLY what is necessary — do not over-explain
-
-NEVER use open-ended phrasing such as:
-- "so we can discuss"
-- "let me know your thoughts"
-- "we can talk about this further"
-- "I'd like to discuss"
-- "perhaps we could"
-
-Instead prefer responses that:
-- Confirm logistics with finality
-- State facts without inviting debate
-- Set clear boundaries without aggression
-- Close the conversation loop rather than opening it
+${BASE_INSTRUCTIONS}
 ${contextInstruction}
 
 You MUST call the provided tool with your structured output.`;
 
+    const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
+    const toolName = tool.name;
+
+    // ── 6. OpenAI Responses API call ──
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -125,27 +204,7 @@ You MUST call the provided tool with your structured output.`;
           { role: "developer", content: systemPrompt },
           { role: "user", content: message },
         ],
-        tools: [
-          {
-            type: "function",
-            name: "format_response",
-            description: "Return the structured court-safe response with three variants",
-            parameters: {
-              type: "object",
-              properties: {
-                primary_response: { type: "string", description: "The best default court-safe response" },
-                shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
-                firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
-                tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-                risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
-                why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
-              },
-              required: ["primary_response", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
-              additionalProperties: false,
-            },
-            strict: true,
-          },
-        ],
+        tools: [tool],
         tool_choice: "required",
       }),
     });
@@ -162,27 +221,43 @@ You MUST call the provided tool with your structured output.`;
 
     const aiData = await response.json();
 
-    // Responses API returns output array with function_call items
-    const functionCall = aiData.output?.find((item: any) => item.type === "function_call");
+    // Responses API: output[] → find function_call matching our tool
+    const functionCall = aiData.output?.find(
+      (item: any) => item.type === "function_call" && item.name === toolName
+    );
     if (!functionCall) throw new Error("No function call in AI response");
 
     const result = JSON.parse(functionCall.arguments);
 
-    // ── 6. Persist & increment ──
+    // ── 7. Validate structured output ──
+    const validationError = mode === "respond"
+      ? validateRespondResult(result)
+      : validateRewriteResult(result);
+
+    if (validationError) {
+      console.error("Validation failed:", validationError, result);
+      logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
+      return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
+    }
+
+    // ── 8. Persist & increment (only after success) ──
+    const primaryText = mode === "respond" ? result.primary_response : result.primary_rewrite;
+
     await serviceClient.from("message_rewrites").insert({
       user_id: userId,
       original_message: message,
-      rewritten_message: result.primary_response,
+      rewritten_message: primaryText,
       tone_assessment: result.tone_assessment,
       risk_flags: result.risk_flags,
-      mode: mode || "respond",
+      mode,
     });
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
-    return jsonResponse(result);
+    // Return result with mode field so frontend knows which key to read
+    return jsonResponse({ ...result, mode });
   } catch (e) {
     console.error("communication-shield error:", e);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
