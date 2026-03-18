@@ -192,7 +192,7 @@ async function callOpenAI(
   model: string,
   requestBody: string,
 ): Promise<Response> {
-  return fetch("https://api.openai.com/v1/responses", {
+  return fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
