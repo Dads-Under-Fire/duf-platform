@@ -684,6 +684,9 @@ const PASSIVE_WEAK_PATTERNS = [
   /\bi was wondering if\b/i, /\bif that's okay with you\b/i,
   /\bwould it be possible\b/i, /\bif you don't mind\b/i,
   /\bi just wanted to\b/i, /\bi was hoping\b/i,
+  /\bi would appreciate\b/i, /\bi feel\b/i, /\bi feel like\b/i,
+  /\bi feel that\b/i, /\bcould you possibly\b/i,
+  /\bi just think\b/i, /\bit seems like\b/i, /\bit appears that\b/i,
 ];
 
 const VAGUE_REWRITE_PATTERNS = [
