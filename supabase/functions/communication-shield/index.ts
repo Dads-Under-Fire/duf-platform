@@ -56,18 +56,24 @@ const REWRITE_INTRO =
 const RESPOND_TOOL = {
   type: "function" as const,
   name: "format_response",
-  description: "Return the structured court-safe response with three variants",
+  description: "Return the structured court-safe response with recommendation on whether to respond",
   parameters: {
     type: "object",
     properties: {
-      primary_response: { type: "string", description: "The best default court-safe response" },
+      recommendation_type: {
+        type: "string",
+        enum: ["respond", "do_not_respond", "brief_boundary_response"],
+        description: "Whether the user should respond, not respond, or send only a brief boundary statement",
+      },
+      primary_response: { type: "string", description: "The court-safe response, or explanation of why not to respond" },
       shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
       firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
+      fallback_response: { type: "string", description: "Optional very short fallback if user must reply despite do_not_respond recommendation" },
       tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
       risk_flags: { type: "array", items: { type: "string" }, description: "What was removed or improved" },
-      why_this_is_safer: { type: "string", description: "1-2 sentences on why this is safer" },
+      why_this_is_safer: { type: "string", description: "1-2 sentences on why this recommendation is safer" },
     },
-    required: ["primary_response", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"],
+    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer"],
     additionalProperties: false,
   },
   strict: true,
