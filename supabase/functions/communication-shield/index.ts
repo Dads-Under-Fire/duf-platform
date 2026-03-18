@@ -136,6 +136,8 @@ serve(async (req) => {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
       return jsonResponse({ error: "Invalid message" }, 400);
     }
+    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message?.length ?? 0} | has_context=${!!communication_context}`);
+
     if (mode !== "respond" && mode !== "rewrite") {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
       return jsonResponse({ error: "Invalid mode" }, 400);
