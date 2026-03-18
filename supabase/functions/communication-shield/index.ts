@@ -292,12 +292,12 @@ You MUST call the provided tool with your structured output.`;
     // ── 6. Three-tier OpenAI call ──
     const requestBody = JSON.stringify({
       model: MODEL_PRIMARY,
-      input: [
-        { role: "developer", content: systemPrompt },
+      messages: [
+        { role: "system", content: systemPrompt },
         { role: "user", content: message },
       ],
-      tools: [tool],
-      tool_choice: "required",
+      tools: [{ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.parameters, strict: tool.strict } }],
+      tool_choice: { type: "function", function: { name: tool.name } },
     });
 
     let aiResult: Record<string, unknown> | null = null;
