@@ -10,7 +10,7 @@ import {
 const FN = "suggest-intents";
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60_000;
-const MODEL = "gpt-5.4-mini";
+const MODEL = "gpt-4o-mini";
 const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
 
 serve(async (req) => {

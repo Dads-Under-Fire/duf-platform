@@ -11,7 +11,7 @@ import {
 const FN = "communication-shield";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
-const MODEL = "gpt-5.4-mini";
+const MODEL = "gpt-4o-mini";
 
 // ── Prompts (server-side only) ──
 const BASE_INSTRUCTIONS = `All responses must:
