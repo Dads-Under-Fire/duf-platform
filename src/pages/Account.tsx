@@ -56,11 +56,13 @@ export default function Account() {
         window.open(data.url, "_blank");
       }
     } catch (err: any) {
+      const errorBody = err?.context?.body ? await err.context.json?.().catch(() => null) : null;
+      const message = errorBody?.error || err?.message || "";
       console.error("Portal error:", err);
       toast({
         title: "Billing portal error",
-        description: err?.message?.includes("No Stripe customer")
-          ? "You need an active subscription first."
+        description: message.includes("No Stripe customer")
+          ? "You need an active paid subscription first. Please upgrade your plan."
           : "Could not open billing portal. Please try again.",
         variant: "destructive",
       });
@@ -68,6 +70,8 @@ export default function Account() {
       setPortalLoading(false);
     }
   };
+
+  const hasPaidSubscription = plan !== "free";
 
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
   const evidenceUsed = limits.evidence_uses_words
@@ -165,7 +169,7 @@ export default function Account() {
                   <Button
                     variant="outline"
                     onClick={handleManageBilling}
-                    disabled={portalLoading}
+                    disabled={portalLoading || !hasPaidSubscription}
                     className="gap-2"
                   >
                     {portalLoading ? (
@@ -175,7 +179,11 @@ export default function Account() {
                     )}
                     Manage billing
                   </Button>
-                  <p className="text-xs text-muted-foreground">Update payment method, view invoices, or cancel</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasPaidSubscription
+                      ? "Update payment method, view invoices, or cancel"
+                      : "Available after upgrading to a paid plan"}
+                  </p>
                 </div>
               </div>
             </CardContent>
