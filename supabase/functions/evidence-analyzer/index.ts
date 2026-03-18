@@ -225,7 +225,7 @@ ${SYSTEM_PROMPT_SUFFIX}`;
 
     return jsonResponse({ ...result, word_count: wordCount });
   } catch (e) {
-    console.error("evidence-analyzer error:", e);
+    console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
     return jsonResponse({ error: "An error occurred processing your request." }, 500);
   }
