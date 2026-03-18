@@ -704,7 +704,7 @@ function scoreRewriteQuality(
 
   const textFields: string[] = [];
   if (mode === "respond") {
-    if (typeof result.primary_response === "string") textFields.push(result.primary_response);
+    if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
     if (result.recommendation_type !== "do_not_respond") {
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
@@ -713,6 +713,13 @@ function scoreRewriteQuality(
     if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
     if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
     if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
+  }
+
+  // Also score three_alternatives if present
+  if (Array.isArray(result.three_alternatives)) {
+    for (const alt of result.three_alternatives) {
+      if (typeof alt === "string") textFields.push(alt);
+    }
   }
 
   const allText = textFields.join(" ");
