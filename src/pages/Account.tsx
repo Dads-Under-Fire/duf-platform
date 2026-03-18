@@ -137,24 +137,46 @@ export default function Account() {
 
               <Separator />
 
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button onClick={() => setShowUpgradeModal(true)} className="gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Upgrade plan
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleManageBilling}
-                  disabled={portalLoading}
-                  className="gap-2"
-                >
-                  {portalLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="h-4 w-4" />
-                  )}
-                  Manage billing
-                </Button>
+              <div className="flex flex-col gap-4">
+                {/* Upgrade */}
+                {plan !== "case_builder" ? (
+                  <div className="space-y-1">
+                    <Button onClick={() => setShowUpgradeModal(true)} className="gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      {plan === "pro"
+                        ? "Upgrade to Case builder"
+                        : plan === "core"
+                        ? "Upgrade to pro"
+                        : "Upgrade plan"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Unlock higher limits and advanced features</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Button variant="outline" onClick={() => setShowUpgradeModal(true)} className="gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      View plan
+                    </Button>
+                  </div>
+                )}
+
+                {/* Manage billing */}
+                <div className="space-y-1">
+                  <Button
+                    variant="outline"
+                    onClick={handleManageBilling}
+                    disabled={portalLoading}
+                    className="gap-2"
+                  >
+                    {portalLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4" />
+                    )}
+                    Manage billing
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Update payment method, view invoices, or cancel</p>
+                </div>
               </div>
             </CardContent>
           </Card>
