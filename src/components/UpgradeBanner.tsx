@@ -13,13 +13,9 @@ export function UpgradeBanner() {
   const { plan, intendedPlan, rewritesExhausted, evidenceExhausted } = useProfile();
   const [showModal, setShowModal] = useState(false);
 
-  // Don't show banner for paid users
-  if (plan !== "free") return null;
-
   const anyExhausted = rewritesExhausted || evidenceExhausted;
-  const shouldShow = !!intendedPlan || anyExhausted;
 
-  if (!shouldShow) return null;
+  if (!anyExhausted) return null;
 
   const displayPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
   const message = `Your free credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
