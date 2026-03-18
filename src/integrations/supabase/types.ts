@@ -26,12 +26,16 @@ export type Database = {
           id: string
           mode: string
           original_message: string
+          original_score: number | null
+          original_score_notes: Json | null
           primary_response: string | null
           primary_rewrite: string | null
           quality_score_notes: Json | null
           quality_score_status: string | null
           quality_score_total: number | null
           recommendation_type: string | null
+          rewrite_quality_notes: Json | null
+          rewrite_quality_score: number | null
           risk_flags: Json | null
           shorter_version: string | null
           tone_assessment: string | null
@@ -49,12 +53,16 @@ export type Database = {
           id?: string
           mode?: string
           original_message: string
+          original_score?: number | null
+          original_score_notes?: Json | null
           primary_response?: string | null
           primary_rewrite?: string | null
           quality_score_notes?: Json | null
           quality_score_status?: string | null
           quality_score_total?: number | null
           recommendation_type?: string | null
+          rewrite_quality_notes?: Json | null
+          rewrite_quality_score?: number | null
           risk_flags?: Json | null
           shorter_version?: string | null
           tone_assessment?: string | null
@@ -72,12 +80,16 @@ export type Database = {
           id?: string
           mode?: string
           original_message?: string
+          original_score?: number | null
+          original_score_notes?: Json | null
           primary_response?: string | null
           primary_rewrite?: string | null
           quality_score_notes?: Json | null
           quality_score_status?: string | null
           quality_score_total?: number | null
           recommendation_type?: string | null
+          rewrite_quality_notes?: Json | null
+          rewrite_quality_score?: number | null
           risk_flags?: Json | null
           shorter_version?: string | null
           tone_assessment?: string | null
