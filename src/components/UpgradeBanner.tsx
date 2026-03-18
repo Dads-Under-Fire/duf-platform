@@ -64,7 +64,7 @@ export function UpgradeBanner() {
           <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
             <span>Rewrites: {rewritesUsed}/{limits.message_rewrites}</span>
             <span className="text-border">•</span>
-            <span>Evidence: {evidenceUsed}/{evidenceLimit}</span>
+            <span>{limits.evidence_uses_words ? "Words" : "Analyses"}: {evidenceUsed.toLocaleString()}/{evidenceLimit.toLocaleString()}</span>
           </div>
           <Button
             size="sm"
