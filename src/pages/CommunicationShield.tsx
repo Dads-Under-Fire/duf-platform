@@ -9,8 +9,8 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 
 interface AIResult {
   primary_response: string;
-  shorter_response: string;
-  firmer_response: string;
+  shorter_version: string;
+  firmer_version: string;
   tone_assessment: string;
   risk_flags: string[];
   why_this_is_safer: string;
@@ -65,7 +65,7 @@ export default function CommunicationShield() {
       setStep("result");
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke("rewrite-message", {
+        const { data, error } = await supabase.functions.invoke("communication-shield", {
           body: { message: msg, mode: "rewrite" },
         });
         if (error) throw error;
@@ -136,7 +136,7 @@ export default function CommunicationShield() {
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("rewrite-message", {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
         body: {
           message: submittedMessage,
           mode,
@@ -247,14 +247,14 @@ export default function CommunicationShield() {
 
                 <div>
                   <p className="text-muted-foreground text-sm font-medium mb-1">Shorter Version:</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.shorter_version}</p>
                 </div>
 
                 <div className="h-px bg-border" />
 
                 <div>
                   <p className="text-muted-foreground text-sm font-medium mb-1">Firmer Version:</p>
-                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_response}</p>
+                  <p className="text-foreground text-sm whitespace-pre-wrap">{result.firmer_version}</p>
                 </div>
 
                 <div className="h-px bg-border" />
@@ -641,8 +641,8 @@ export default function CommunicationShield() {
             {result ? (
               <div className="flex-1 space-y-4 text-sm overflow-auto">
                 <ResponseSection label={mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={result.primary_response} />
-                <ResponseSection label="Shorter Version" content={result.shorter_response} />
-                <ResponseSection label="Firmer Version" content={result.firmer_response} />
+                <ResponseSection label="Shorter Version" content={result.shorter_version} />
+                <ResponseSection label="Firmer Version" content={result.firmer_version} />
                 <ResponseSection label="Tone Assessment" content={result.tone_assessment} />
                 <div>
                   <p className="text-muted-foreground mb-1">Risk Flags</p>
