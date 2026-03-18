@@ -113,10 +113,11 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
    - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
    - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
-   - -2 if adds meaning, context, or framing not clearly present in original message
-   - -1 if generic or bland wording when a more specific/clear phrasing was possible
-   - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
-   - -1 if slightly controlling or patronizing tone
+    - -2 if adds meaning, context, or framing not clearly present in original message
+    - -2 if the original contained specific logistics (times, dates, actions) but the rewrite replaced them with generic phrases like "the agreed schedule" or "moving forward"
+    - -1 if generic or bland wording when a more specific/clear phrasing was possible
+    - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
+    - -1 if slightly controlling or patronizing tone
    - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
    
    HARD RULES for self_score:
