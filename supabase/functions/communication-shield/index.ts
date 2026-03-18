@@ -157,28 +157,46 @@ const REWRITE_TOOL = {
 };
 
 // ── Validation helpers ──
-const SHARED_REQUIRED = ["shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer"] as const;
-
 const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
+const PLACEHOLDER_PATTERN = /\[.*?\]/;
+
+function containsPlaceholder(val: unknown): boolean {
+  return typeof val === "string" && PLACEHOLDER_PATTERN.test(val);
+}
+
+function isNonEmptyString(val: unknown): val is string {
+  return typeof val === "string" && val.trim().length > 0;
+}
 
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (typeof r.primary_response !== "string" || !r.primary_response) return "missing primary_response";
-  for (const k of SHARED_REQUIRED) {
-    if (k === "risk_flags") {
-      if (!Array.isArray(r[k])) return `missing ${k}`;
-    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
+  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder text";
+
+  if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
+    if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version for respond";
+    if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version for respond";
+    if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
+    if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
   }
+
+  for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
+    if (!isNonEmptyString(r[k])) return `missing ${k}`;
+    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
+  }
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
   return null;
 }
 
 function validateRewriteResult(r: Record<string, unknown>): string | null {
-  if (typeof r.primary_rewrite !== "string" || !r.primary_rewrite) return "missing primary_rewrite";
-  for (const k of SHARED_REQUIRED) {
-    if (k === "risk_flags") {
-      if (!Array.isArray(r[k])) return `missing ${k}`;
-    } else if (typeof r[k] !== "string" || !(r[k] as string)) return `missing ${k}`;
+  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
+
+  for (const k of ["shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"] as const) {
+    if (!isNonEmptyString(r[k])) return `missing ${k}`;
+    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
   return null;
 }
 
