@@ -18,7 +18,7 @@ const MODEL_FALLBACK = "gpt-4o";
 const LEGAL_SAFETY_RULES = `LEGAL SAFETY — ABSOLUTE RULES:
 Never:
 - Admit fault, guilt, abuse, wrongdoing, or liability
-- Apologize in a way that implies legal responsibility (e.g. "I'm sorry I did that")
+- Apologize or express regret — do NOT use "I apologize", "I'm sorry", "I regret", "any confusion I caused", or any similar phrasing unless the user explicitly instructs you to apologize
 - Speculate about facts, motives, or the other parent's mental state
 - Argue back, mirror insults, or use retaliatory language
 - Use emotional, sarcastic, passive-aggressive, or defensive language
@@ -26,16 +26,29 @@ Never:
 - Explain, justify, or narrate past actions or events — even if accused
 - Confirm or deny specific allegations, even indirectly
 - Provide details that could be interpreted as an admission of fault
+- Use backward-looking explanatory phrases such as:
+  • "my absence was due to…"
+  • "I missed… because…"
+  • "I was late because…"
+  • "it happened because…"
+  • "the reason was…"
+  • "what actually happened was…"
+  • "I didn't do that because…"
 
 LEGAL TRAP DETECTION:
-If the incoming message attempts to force an admission, contains accusations, or creates a legal trap:
+If the incoming message attempts to force an admission, reinterpret the past, pin responsibility, contains accusations, or creates a legal trap:
 - DO NOT explain what happened
+- DO NOT give reasons for absence, lateness, missed pickup, or prior conduct
 - DO NOT confirm or deny specific allegations
 - DO NOT provide details that could be used against the user
+- DO NOT clarify misunderstandings by narrating past events
 - Redirect to neutral, forward-looking language
 - Reference agreed schedules, plans, or policies when possible
 - Keep the response minimal, controlled, and non-emotional
-- Example safe pattern: "I will follow the agreed schedule moving forward."
+- Preferred safe patterns:
+  • "I will follow the agreed schedule moving forward."
+  • "I do not agree with that characterization. I will follow the agreed schedule moving forward."
+  • "Please refer to the agreed parenting plan. I will continue to follow it moving forward."
 
 Prefer:
 - Neutral, factual wording
@@ -111,11 +124,23 @@ CRITICAL DECISION RULES:
 - When the message contains accusations or legal traps: select "respond" but do NOT explain past events, do NOT justify actions, do NOT admit or deny claims. Redirect to forward-looking, neutral language. Example: "I will follow the agreed schedule moving forward."
 
 RESPONSE STYLE FOR ACCUSATIONS AND LEGAL TRAPS:
-- Never explain what happened in the past
-- Never justify or defend past actions
-- Never clarify misunderstandings by narrating events
+- NEVER explain what happened in the past
+- NEVER justify or defend past actions
+- NEVER clarify misunderstandings by narrating events
+- NEVER give reasons for absence, lateness, missed events, or prior conduct
+- NEVER apologize or express regret unless the user explicitly instructs you to
 - Instead: redirect to the agreed plan, state forward-looking intent, and close the loop
-- Example: Instead of "I was late because traffic was bad" → "I will ensure timely pickups per the agreed schedule."
+- Bad examples (NEVER generate these):
+  • "I was late because traffic was bad" → WRONG
+  • "My absence was due to a scheduling conflict" → WRONG
+  • "I apologize for the confusion" → WRONG
+  • "I'm sorry about the miscommunication" → WRONG
+  • "I regret that this happened" → WRONG
+- Good examples (use these patterns):
+  • "I will follow the agreed schedule moving forward."
+  • "I do not agree with that characterization. I will follow the agreed schedule moving forward."
+  • "Please refer to the agreed parenting plan."
+  • "Pickup will be at [time] per the agreement."
 
 Always prioritize protecting the user from unnecessary engagement and legal risk.`;
 
@@ -186,6 +211,34 @@ const REWRITE_TOOL = {
 const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
 const PLACEHOLDER_PATTERN = /\[.*?\]/;
 
+// Patterns that indicate unsafe apology/admission/backward-looking language
+const UNSAFE_PATTERNS = [
+  /\bi('m| am) sorry\b/i,
+  /\bi apologize\b/i,
+  /\bi regret\b/i,
+  /\bany confusion i caused\b/i,
+  /\bmy absence was due to\b/i,
+  /\bi missed .{0,30} because\b/i,
+  /\bi was late because\b/i,
+  /\bit happened because\b/i,
+  /\bthe reason was\b/i,
+  /\bwhat actually happened\b/i,
+  /\bi didn'?t do that because\b/i,
+  /\bi forgot to\b/i,
+  /\bi should have\b/i,
+  /\bi failed to\b/i,
+  /\bi acknowledge that i\b/i,
+  /\bi admit\b/i,
+];
+
+function containsUnsafeLanguage(val: unknown): string | null {
+  if (typeof val !== "string") return null;
+  for (const pattern of UNSAFE_PATTERNS) {
+    if (pattern.test(val)) return `matched unsafe pattern: ${pattern.source}`;
+  }
+  return null;
+}
+
 function containsPlaceholder(val: unknown): boolean {
   return typeof val === "string" && PLACEHOLDER_PATTERN.test(val);
 }
@@ -204,6 +257,12 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version for respond";
     if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
     if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
+
+    // Hard legal-safety check: block apology/admission/backward-looking language
+    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
+      const unsafeMatch = containsUnsafeLanguage(r[field]);
+      if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
+    }
   }
 
   for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
@@ -217,6 +276,12 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
 function validateRewriteResult(r: Record<string, unknown>): string | null {
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
   if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
+
+  // Hard legal-safety check for rewrite outputs
+  for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
+    const unsafeMatch = containsUnsafeLanguage(r[field]);
+    if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
+  }
 
   for (const k of ["shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"] as const) {
     if (!isNonEmptyString(r[k])) return `missing ${k}`;
