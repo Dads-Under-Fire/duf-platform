@@ -90,7 +90,6 @@ export default function CommunicationShield() {
         if (data?.error) throw new Error(data.error);
 
         const aiResult: AIResult = data;
-        if (!aiResult.primary_rewrite) throw new Error("Failed to generate rewrite. Please try again.");
         setResult(aiResult);
         refetchProfile();
       } catch (err: any) {
