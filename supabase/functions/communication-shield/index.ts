@@ -1251,11 +1251,11 @@ You MUST call the provided tool with your structured output.`;
       };
 
       const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
-        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackRewriteScore)
+        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackScore)
       );
       if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | original_score=${originalScoreResult.score} | rewrite_score=${fallbackRewriteScore.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=${mode} | original_score=${originalScoreResult.score}` });
       return jsonResponse(fallback);
     }
 
