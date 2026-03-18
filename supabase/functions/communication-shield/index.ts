@@ -122,6 +122,7 @@ serve(async (req) => {
     userId = auth.userId;
 
     // ── 2. Rate limit ──
+    // Note: plan info logged after quota check below
     if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
       logRequest({ userId, functionName: FN, status: "rate_limited" });
       return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
@@ -135,6 +136,8 @@ serve(async (req) => {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
       return jsonResponse({ error: "Invalid message" }, 400);
     }
+    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message?.length ?? 0} | has_context=${!!communication_context}`);
+
     if (mode !== "respond" && mode !== "rewrite") {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
       return jsonResponse({ error: "Invalid mode" }, 400);
@@ -161,6 +164,8 @@ serve(async (req) => {
       logRequest({ userId, functionName: FN, status: "error", detail: "quota check failed" });
       return jsonResponse({ error: "Could not verify quota" }, 500);
     }
+
+    console.log(`[${FN}] quota_check | user=${userId} | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
 
     if (!quotaRows[0].allowed) {
       logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
@@ -235,7 +240,7 @@ You MUST call the provided tool with your structured output.`;
       : validateRewriteResult(result);
 
     if (validationError) {
-      console.error("Validation failed:", validationError, result);
+      console.error(`[${FN}] validation_failed | user=${userId} | mode=${mode} | error=${validationError}`);
       logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
       return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
     }
@@ -254,12 +259,13 @@ You MUST call the provided tool with your structured output.`;
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
+    console.log(`[${FN}] success | user=${userId} | mode=${mode} | tone=${result.tone_assessment}`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
     // Return result with mode field so frontend knows which key to read
     return jsonResponse({ ...result, mode });
   } catch (e) {
-    console.error("communication-shield error:", e);
+    console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
     return jsonResponse({ error: "An error occurred processing your request." }, 500);
   }

@@ -124,8 +124,9 @@ serve(async (req) => {
     const validTypes = Object.keys(TYPE_INSTRUCTIONS);
     const type = validTypes.includes(analysis_type) ? analysis_type : "general";
 
-    // Count words before sending to OpenAI
     const wordCount = countWords(content);
+
+    console.log(`[${FN}] request_start | user=${userId} | type=${type} | word_count=${wordCount} | content_len=${content.length}`);
 
     // ── 4. Quota check (before AI call) ──
     const { serviceClient } = auth;
@@ -141,12 +142,14 @@ serve(async (req) => {
       return jsonResponse({ error: "Could not verify quota" }, 500);
     }
 
+    console.log(`[${FN}] quota_check | user=${userId} | used=${quotaRows[0].used}/${quotaRows[0].limit} | unit=${quotaRows[0].unit} | allowed=${quotaRows[0].allowed}`);
+
     if (!quotaRows[0].allowed) {
       const unit = quotaRows[0].unit;
       const msg = unit === "words"
         ? "You've reached your monthly evidence word limit."
         : "You've used all your free evidence analyses.";
-      logRequest({ userId, functionName: FN, status: "rate_limited", detail: "quota exhausted" });
+      logRequest({ userId, functionName: FN, status: "rate_limited", detail: `quota exhausted (${unit})` });
       return jsonResponse({ error: msg }, 429);
     }
 
@@ -199,7 +202,7 @@ ${SYSTEM_PROMPT_SUFFIX}`;
     // ── 6. Validate structured output ──
     const validationError = validateResult(result);
     if (validationError) {
-      console.error("Validation failed:", validationError, result);
+      console.error(`[${FN}] validation_failed | user=${userId} | type=${type} | error=${validationError}`);
       logRequest({ userId, functionName: FN, status: "error", detail: `validation: ${validationError}` });
       return jsonResponse({ error: "AI returned an incomplete response. Please try again." }, 502);
     }
@@ -217,11 +220,12 @@ ${SYSTEM_PROMPT_SUFFIX}`;
       p_word_count: wordCount,
     });
 
+    console.log(`[${FN}] success | user=${userId} | type=${type} | word_count=${wordCount} | findings=${result.key_findings?.length ?? 0} | red_flags=${result.red_flags?.length ?? 0}`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: wordCount });
 
     return jsonResponse({ ...result, word_count: wordCount });
   } catch (e) {
-    console.error("evidence-analyzer error:", e);
+    console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
     return jsonResponse({ error: "An error occurred processing your request." }, 500);
   }
