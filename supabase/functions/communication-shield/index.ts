@@ -122,6 +122,7 @@ serve(async (req) => {
     userId = auth.userId;
 
     // ── 2. Rate limit ──
+    // Note: plan info logged after quota check below
     if (!checkRateLimit(`${userId}:${FN}`, RATE_LIMIT, RATE_WINDOW_MS)) {
       logRequest({ userId, functionName: FN, status: "rate_limited" });
       return jsonResponse({ error: "Rate limit exceeded. Please wait a moment before trying again." }, 429);
