@@ -104,7 +104,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - 8-9 = strong rewrite with minor issues
    - 10 = near-perfect — NO meaningful improvement possible
    
-   Deduction rules for self_score (start at 10, apply ALL that match):
+   Deduction rules for rewrite_quality_score (start at 10, apply ALL that match):
     - -3 if accusatory language remains in output
     - -3 if admission of fault or apology language exists in output
     - -2 if emotional language remains
