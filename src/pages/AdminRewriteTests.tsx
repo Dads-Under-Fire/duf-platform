@@ -31,6 +31,22 @@ interface GoldCase {
   original_message: string;
   expected_behavior: string | null;
   must_not_do: string | null;
+  validator_rules: ValidatorRules | null;
+}
+
+interface ValidatorRules {
+  must_include_any?: string[];
+  must_not_include_any?: string[];
+  must_preserve_question?: boolean;
+  must_preserve_confirmation_language?: boolean;
+  must_preserve_pov?: boolean;
+  must_not_shift_to_response_mode?: boolean;
+  must_preserve_specific_terms?: string[];
+  must_not_introduce_we_language?: boolean;
+  must_not_introduce_i_will?: boolean;
+  max_word_count?: number;
+  must_flag_any?: string[];
+  must_not_flag_any?: string[];
 }
 
 interface RewriteResult {
