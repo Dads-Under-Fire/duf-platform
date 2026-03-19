@@ -1326,9 +1326,19 @@ async function attemptAICall(
   }
 }
 
-function normalizeRiskFlags(flags: string[] | undefined): string[] {
-  if (!flags || !Array.isArray(flags) || flags.length === 0) return ["No risk flags"];
-  return flags;
+function extractServerFlags(notes: string[]): string[] {
+  return notes
+    .filter(n => n.startsWith("flag: "))
+    .map(n => n.replace("flag: ", ""));
+}
+
+function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
+  const combined = [...(flags && Array.isArray(flags) ? flags : [])];
+  for (const sf of serverFlags) {
+    if (!combined.includes(sf)) combined.push(sf);
+  }
+  if (combined.length === 0) return ["No risk flags"];
+  return combined;
 }
 
 // ── Build DB insert row — mode-aware scoring ──
