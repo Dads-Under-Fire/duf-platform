@@ -1169,6 +1169,10 @@ CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Your previous output violated the
 3. NEVER soften the message with passive phrases like "I would appreciate", "perhaps we could", "if that's okay".
 4. NEVER add "I will" commitments unless the original explicitly contains them.
 5. firmer_version must be assertive but NEVER hostile, controlling, or patronizing (no "I expect you to", "you need to understand", "I demand").
+6. NEVER convert a confirmation request into a directive. If the original asks "Can you confirm...?" or "Will you...?", the rewrite MUST remain a request.
+7. NEVER add controlling or patronizing closers like "Please confirm you understand", "I expect you to", "Make sure you", "Ensure that you".
+8. NEVER harden assumptions into facts. If the original speculates about the other party's finances, motives, or intent, narrow or remove it — do not assert it as fact.
+9. If the original is primarily emotional with no logistical content, NARROW it to a brief logistics-focused message — do NOT polish the emotion.
 
 Regenerate ALL variants following these rules strictly.`;
 
