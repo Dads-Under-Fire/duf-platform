@@ -60,8 +60,8 @@ interface RewriteResult {
   original_score_notes: string[];
   rewrite_quality_notes: string[];
   why_this_is_safer: string;
-  _prompt_version?: string;
-  _prompt_source?: string;
+  prompt_version?: string;
+  prompt_source?: string;
 }
 
 interface CaseRunResult {
@@ -304,8 +304,8 @@ export default function AdminRewriteTests() {
           };
         } else {
           const result: RewriteResult = data;
-          const pv = (data as any)._prompt_version ?? "unknown";
-          const ps = (data as any)._prompt_source ?? "unknown";
+          const pv = (data as any).prompt_version ?? "unknown";
+          const ps = (data as any).prompt_source ?? "unknown";
           if (firstPromptVersion === "unknown" && pv !== "unknown") {
             firstPromptVersion = pv;
             firstPromptSource = ps;
@@ -775,8 +775,8 @@ export default function AdminRewriteTests() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm">Result</CardTitle>
                     <div className="text-xs text-muted-foreground">
-                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any)._prompt_version ?? "—"}</span>
-                      {" · "}Source: {(adHocResult as any)._prompt_source ?? "—"}
+                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any).prompt_version ?? "—"}</span>
+                      {" · "}Source: {(adHocResult as any).prompt_source ?? "—"}
                     </div>
                   </div>
                 </CardHeader>
