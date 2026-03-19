@@ -861,7 +861,8 @@ export default function AdminRewriteTests() {
                               </TableCell>
                               <TableCell className="text-xs">{r.prompt_version ?? "—"}</TableCell>
                             </TableRow>
-                          ))}
+                          );
+                          })}
                         </TableBody>
                       </Table>
                     </CardContent>
