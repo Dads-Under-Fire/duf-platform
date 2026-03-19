@@ -141,6 +141,15 @@ export default function AdminRewriteTests() {
   const [runHistory, setRunHistory] = useState<RunHistoryRow[]>([]);
   const [selectedRunResults, setSelectedRunResults] = useState<any[] | null>(null);
 
+  // Ad hoc test state
+  const [adHocMessage, setAdHocMessage] = useState("");
+  const [adHocCategory, setAdHocCategory] = useState("");
+  const [adHocNotes, setAdHocNotes] = useState("");
+  const [adHocRunning, setAdHocRunning] = useState(false);
+  const [adHocResult, setAdHocResult] = useState<RewriteResult | null>(null);
+  const [adHocError, setAdHocError] = useState<string | null>(null);
+  const [adHocSaving, setAdHocSaving] = useState(false);
+
   // Load active gold suite cases
   useEffect(() => {
     async function load() {
