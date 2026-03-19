@@ -174,11 +174,16 @@ RISK FLAGS RULES:
   - ❌ "Escalation risk" — too vague
   - ❌ "Potentially problematic" — always specify the problem
   - ❌ "Could be misinterpreted" — name the actual issue
-  - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
+   - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
+
+  REWRITE-MODE ADDITIONAL FLAGS (use these when mode is rewrite):
+  - "Past-fact confirmation risk" — when the original message tries to get the other party to agree with a disputed prior event, characterization, or version of what happened (e.g. "So you admit you were late", "You agree that you canceled", "Last time you said...")
+  - "Financial demand or assumption" — when the message relies on an asserted or assumed change in finances, money responsibility, expense expectations, or income (e.g. "You're making more money now", "You should be paying more", "Since your raise...", "You owe me for...")
+  - "Irrelevant or non-child-related topic" — when the message is primarily emotional, nostalgic, personal-property related, relationship-processing, or otherwise outside core co-parenting logistics or child-related communication (e.g. "I miss our family", "Remember when we used to...", "I want my couch back", "You hurt me deeply")
 
   EDGE CASE RULES:
   - Single-word or very short emotional messages (e.g. "Unbelievable", "Seriously?", "Ridiculous") → MUST flag as "Emotional language detected" and score 5-6
-  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" and score 3-5
+  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" AND "Past-fact confirmation risk" and score 3-5
   - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
 
 const PERSPECTIVE_RULES = `PERSPECTIVE PRESERVATION — ABSOLUTE RULES:
