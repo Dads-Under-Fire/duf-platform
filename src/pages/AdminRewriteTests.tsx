@@ -582,10 +582,11 @@ export default function AdminRewriteTests() {
     return <Navigate to="/" replace />;
   }
 
-  const passCount = latestResults.filter((r) => r.validatorPass).length;
-  const failCount = latestResults.filter((r) => !r.validatorPass).length;
+  const passCount = latestResults.filter((r) => r.validatorStatus === "pass").length;
+  const warnCount = latestResults.filter((r) => r.validatorStatus === "warn").length;
+  const failCount = latestResults.filter((r) => r.validatorStatus === "fail").length;
   const failedByCategory = latestResults
-    .filter((r) => !r.validatorPass)
+    .filter((r) => r.validatorStatus === "fail")
     .reduce<Record<string, number>>((acc, r) => {
       acc[r.category] = (acc[r.category] ?? 0) + 1;
       return acc;
