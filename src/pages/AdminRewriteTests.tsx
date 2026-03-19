@@ -47,12 +47,16 @@ interface ValidatorRules {
   max_word_count?: number;
   must_flag_any?: string[];
   must_not_flag_any?: string[];
-  // New validators
+  // Safety validators
   must_not_preserve_past_fact_validation?: boolean;
   must_not_preserve_leverage_language?: boolean;
   must_not_deepen_nonessential_content?: boolean;
   should_not_expand_unnecessarily?: boolean;
   must_not_preserve_financial_assumptions?: boolean;
+  // New validators
+  must_not_request_past_validation?: boolean;
+  must_not_expand_nonessential_content?: boolean;
+  must_not_introduce_we_for_financial?: boolean;
 }
 
 type CheckSeverity = "pass" | "warn" | "fail";
