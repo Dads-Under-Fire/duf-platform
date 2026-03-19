@@ -1414,9 +1414,15 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
-    // Tier 3: Deterministic fallback
+    // Tier 3: Rewrite mode → return error; Respond mode → deterministic fallback
     if (!aiResult) {
-      console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode}`);
+      if (mode === "rewrite") {
+        console.log(`[${FN}] Tier3 rewrite mode — returning error (no fallback)`);
+        logRequest({ userId, functionName: FN, status: "error", detail: `all_tiers_failed | mode=rewrite | original_score=${originalScoreResult.score}` });
+        return jsonResponse({ error: "Unable to generate rewrite. Please try again." }, 503);
+      }
+
+      console.log(`[${FN}] Tier3 deterministic fallback | mode=respond`);
       const fallback = buildDeterministicFallback(mode, communication_context);
       const fallbackScore: RewriteQualityResult = {
         score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
@@ -1427,7 +1433,7 @@ You MUST call the provided tool with your structured output.`;
       );
       if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=${mode} | original_score=${originalScoreResult.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=respond | original_score=${originalScoreResult.score}` });
       return jsonResponse(fallback);
     }
 
