@@ -1500,28 +1500,27 @@ serve(async (req) => {
     const originalScoreResult = scoreOriginalMessage(message);
     console.log(`[${FN}] original_score: ${originalScoreResult.score}/10 | notes=${JSON.stringify(originalScoreResult.notes)}`);
 
-    // Build prompt & tool
+    // ── Load prompt from database (with hardcoded fallback) ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+
+    const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", mode, original_context);
 
     const contextInstruction = communication_context
       ? `\nThe user selected the following communication context: "${communication_context}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
       : "";
 
-    const modeIntro = mode === "respond" ? RESPOND_INTRO(original_context) : REWRITE_INTRO;
-    const modeExtras = mode === "respond" ? `\n\n${ALTERNATIVES_INSTRUCTIONS}` : "";
-
     const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
-${modeIntro}
-
-${BASE_INSTRUCTIONS}${modeExtras}
+${loadedPrompt.promptText}
 ${contextInstruction}${addendum}
 
 You MUST call the provided tool with your structured output.`;
 
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
+
+    console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
 
     const buildRequestBody = (addendum = "") => JSON.stringify({
       model: MODEL_PRIMARY,
