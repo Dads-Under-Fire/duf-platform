@@ -92,7 +92,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - If emotional or vague language exists → must not exceed 7-8
    - Only score 9-10 if message is already fully neutral and concise
 
-   Also provide "original_score_deductions" — array of strings describing each issue found.
+   Also provide "original_score_notes" — array of strings describing each issue found.
 
 2. "self_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
    A score of 10 should be EXCEPTIONALLY RARE — reserved only for rewrites that require zero improvement.
