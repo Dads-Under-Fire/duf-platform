@@ -1385,6 +1385,7 @@ interface LoadedPrompt {
   promptText: string;
   versionLabel: string;
   source: "database" | "hardcoded_fallback";
+  fallbackReason?: string;
 }
 
 function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
@@ -1411,12 +1412,14 @@ async function loadActivePrompt(
       .single();
 
     if (error || !data) {
-      console.error(`[${FN}] prompt_load | ERROR: No active prompt found for ${featureKey}/${mode} | error=${JSON.stringify(error)}`);
-      console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+      const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+      console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
       return {
         promptText: assembleHardcodedPrompt(mode, originalContext),
         versionLabel: "hardcoded",
         source: "hardcoded_fallback",
+        fallbackReason: reason,
       };
     }
 
@@ -1437,12 +1440,14 @@ async function loadActivePrompt(
       source: "database",
     };
   } catch (err) {
-    console.error(`[${FN}] prompt_load | EXCEPTION loading prompt: ${err}`);
-    console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+    const reason = `exception: ${String(err)}`;
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+    console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
     return {
       promptText: assembleHardcodedPrompt(mode, originalContext),
       versionLabel: "hardcoded",
       source: "hardcoded_fallback",
+      fallbackReason: reason,
     };
   }
 }
@@ -1520,7 +1525,11 @@ You MUST call the provided tool with your structured output.`;
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
 
-    console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
+    if (loadedPrompt.source === "hardcoded_fallback") {
+      console.warn(`[${FN}] ⚠️ USING HARDCODED FALLBACK | version=${loadedPrompt.versionLabel} | reason=${loadedPrompt.fallbackReason}`);
+    } else {
+      console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
+    }
 
     const buildRequestBody = (addendum = "") => JSON.stringify({
       model: MODEL_PRIMARY,
@@ -1693,6 +1702,7 @@ You MUST call the provided tool with your structured output.`;
       original_score: originalScoreResult.score,
       prompt_version: loadedPrompt.versionLabel,
       prompt_source: loadedPrompt.source,
+      ...(loadedPrompt.fallbackReason ? { prompt_fallback_reason: loadedPrompt.fallbackReason } : {}),
     };
     if (mode === "rewrite") {
       responsePayload.rewrite_quality_score = rewriteScore!.score;
