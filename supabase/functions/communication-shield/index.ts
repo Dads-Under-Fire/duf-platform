@@ -975,12 +975,10 @@ const NEW_COMMITMENT_PATTERNS = [
 ];
 
 const HOSTILE_FIRMNESS_PATTERNS = [
-  /\byou need to understand\b/i, /\bi expect you to\b/i,
-  /\bi need you to\b/i, /\byou will\b/i,
-  /\byou are required\b/i, /\bi demand\b/i,
-  /\byou have been\b/i, /\byou('re| are) expected to\b/i,
-  /\bgoing forward,? you will\b/i, /\bi insist\b/i,
-  /\bi trust that you\b/i, /\byou('re| are) not allowed\b/i,
+  /\byou need to understand\b/i, /\bi demand\b/i,
+  /\bi insist\b/i, /\byou('re| are) not allowed\b/i,
+  /\byou have no right\b/i, /\bdo as i say\b/i,
+  /\byou('re| are) forbidden\b/i, /\bi('m| am) warning you\b/i,
 ];
 
 interface SemanticIssue {
@@ -1021,11 +1019,16 @@ function validateRewriteSemantics(
     if (typeof text !== "string" || !text.trim()) continue;
 
     // 1. Perspective flip: original is a request → output says "I will"
-    if (originalIsRequest && !originalHasCommitment) {
+    // Skip for firmer_version — it's designed to be more assertive
+    if (key !== "firmer_version" && originalIsRequest && !originalHasCommitment) {
       for (const p of NEW_COMMITMENT_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
-          break;
+          // Allow safe forward-looking "I will" statements
+          const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
+          if (!isSafeCommitment) {
+            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
+            break;
+          }
         }
       }
     }
@@ -1048,12 +1051,11 @@ function validateRewriteSemantics(
       }
     }
 
-    // 4. New commitments not in original
-    if (!originalHasCommitment) {
+    // 4. New commitments not in original — skip for firmer_version
+    if (key !== "firmer_version" && !originalHasCommitment) {
       if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
-        const isAdmissionTrapRedirect = /\bi will (follow|adhere to|comply with) the agreed/i.test(text)
-          || /\bi will be at the scheduled/i.test(text);
-        if (!isAdmissionTrapRedirect) {
+        const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
+        if (!isSafeCommitment) {
           issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original` });
         }
       }
