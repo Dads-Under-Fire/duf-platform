@@ -1380,6 +1380,73 @@ function buildInsertRow(
   return row;
 }
 
+// ── Prompt loading from database ──
+interface LoadedPrompt {
+  promptText: string;
+  versionLabel: string;
+  source: "database" | "hardcoded_fallback";
+}
+
+function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
+  if (mode === "rewrite") {
+    return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
+  }
+  return `${RESPOND_INTRO(originalContext)}\n\n${BASE_INSTRUCTIONS}\n\n${ALTERNATIVES_INSTRUCTIONS}`;
+}
+
+async function loadActivePrompt(
+  serviceClient: any,
+  featureKey: string,
+  mode: "respond" | "rewrite",
+  originalContext?: string,
+): Promise<LoadedPrompt> {
+  try {
+    const { data, error } = await serviceClient
+      .from("ai_system_prompts")
+      .select("prompt_text, version_label")
+      .eq("feature_key", featureKey)
+      .eq("mode", mode)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.error(`[${FN}] prompt_load | ERROR: No active prompt found for ${featureKey}/${mode} | error=${JSON.stringify(error)}`);
+      console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+      return {
+        promptText: assembleHardcodedPrompt(mode, originalContext),
+        versionLabel: "hardcoded",
+        source: "hardcoded_fallback",
+      };
+    }
+
+    let promptText = data.prompt_text as string;
+
+    // Replace respond mode placeholder with actual context
+    if (mode === "respond") {
+      const contextSentence = originalContext
+        ? ` The original message received was: "${originalContext}"`
+        : "";
+      promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", contextSentence);
+    }
+
+    console.log(`[${FN}] prompt_load | source=database | feature=${featureKey} | mode=${mode} | version=${data.version_label} | length=${promptText.length}`);
+    return {
+      promptText,
+      versionLabel: data.version_label as string,
+      source: "database",
+    };
+  } catch (err) {
+    console.error(`[${FN}] prompt_load | EXCEPTION loading prompt: ${err}`);
+    console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+    return {
+      promptText: assembleHardcodedPrompt(mode, originalContext),
+      versionLabel: "hardcoded",
+      source: "hardcoded_fallback",
+    };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1433,28 +1500,27 @@ serve(async (req) => {
     const originalScoreResult = scoreOriginalMessage(message);
     console.log(`[${FN}] original_score: ${originalScoreResult.score}/10 | notes=${JSON.stringify(originalScoreResult.notes)}`);
 
-    // Build prompt & tool
+    // ── Load prompt from database (with hardcoded fallback) ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+
+    const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", mode, original_context);
 
     const contextInstruction = communication_context
       ? `\nThe user selected the following communication context: "${communication_context}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
       : "";
 
-    const modeIntro = mode === "respond" ? RESPOND_INTRO(original_context) : REWRITE_INTRO;
-    const modeExtras = mode === "respond" ? `\n\n${ALTERNATIVES_INSTRUCTIONS}` : "";
-
     const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
-${modeIntro}
-
-${BASE_INSTRUCTIONS}${modeExtras}
+${loadedPrompt.promptText}
 ${contextInstruction}${addendum}
 
 You MUST call the provided tool with your structured output.`;
 
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
+
+    console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
 
     const buildRequestBody = (addendum = "") => JSON.stringify({
       model: MODEL_PRIMARY,
@@ -1616,7 +1682,7 @@ You MUST call the provided tool with your structured output.`;
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] success | mode=${mode} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
+    console.log(`[${FN}] success | mode=${mode} | prompt_version=${loadedPrompt.versionLabel} | prompt_source=${loadedPrompt.source} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
     // For respond mode, also populate primary_response for backward compatibility
@@ -1625,6 +1691,8 @@ You MUST call the provided tool with your structured output.`;
       mode,
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined, extractServerFlags(originalScoreResult.notes)),
       original_score: originalScoreResult.score,
+      prompt_version: loadedPrompt.versionLabel,
+      prompt_source: loadedPrompt.source,
     };
     if (mode === "rewrite") {
       responsePayload.rewrite_quality_score = rewriteScore!.score;
