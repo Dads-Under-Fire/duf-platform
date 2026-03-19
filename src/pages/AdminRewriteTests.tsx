@@ -386,7 +386,7 @@ export default function AdminRewriteTests() {
 
       try {
         const { data, error } = await supabase.functions.invoke("communication-shield", {
-          body: { message: tc.original_message, mode: "rewrite" },
+          body: { message: tc.original_message, mode: "rewrite", skip_quota: true },
         });
 
         if (error || !data) {
