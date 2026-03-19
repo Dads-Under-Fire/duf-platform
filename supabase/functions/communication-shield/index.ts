@@ -903,15 +903,23 @@ function scoreOutputQuality(
     notes.push("-3: placeholder brackets");
   }
 
-  // 11. Controlling / patronizing tone (-1)
+  // 11. Controlling / patronizing tone (-2 in rewrite, -1 in respond)
   const controllingPatterns = [
     /\byou need to\b/i, /\byou must\b/i, /\byou should\b/i,
     /\bi expect you to\b/i, /\bi need you to\b/i,
     /\bgoing forward,? you will\b/i, /\bi trust that you\b/i,
+    /\bplease confirm you understand\b/i, /\bi assume you will\b/i,
+    /\bmake sure you\b/i, /\bensure that you\b/i,
+    /\bsee to it that\b/i, /\bi trust you will\b/i,
   ];
   let controlHits = 0;
   for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; notes.push(`controlling: ${p.source}`); } }
-  if (controlHits > 0) { deductions += 1; issueCategories++; notes.push("-1: controlling/patronizing tone"); }
+  if (controlHits > 0) {
+    const controlDeduction = mode === "rewrite" ? 2 : 1;
+    deductions += controlDeduction;
+    issueCategories++;
+    notes.push(`-${controlDeduction}: controlling/patronizing tone`);
+  }
 
   // 12. Generic/bland wording (-1)
   const genericPatterns = [
