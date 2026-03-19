@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_gold_suite_cases ADD COLUMN validator_rules jsonb DEFAULT NULL;

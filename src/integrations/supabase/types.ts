@@ -27,6 +27,7 @@ export type Database = {
           notes: string | null
           original_message: string
           test_id: string
+          validator_rules: Json | null
         }
         Insert: {
           category: string
@@ -40,6 +41,7 @@ export type Database = {
           notes?: string | null
           original_message: string
           test_id: string
+          validator_rules?: Json | null
         }
         Update: {
           category?: string
@@ -53,6 +55,7 @@ export type Database = {
           notes?: string | null
           original_message?: string
           test_id?: string
+          validator_rules?: Json | null
         }
         Relationships: []
       }
