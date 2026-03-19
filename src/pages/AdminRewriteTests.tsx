@@ -461,7 +461,7 @@ export default function AdminRewriteTests() {
                 <Badge variant="secondary" className="ml-2 text-xs">{runHistory.length}</Badge>
               )}
             </TabsTrigger>
-          </TabsList>
+            <TabsTrigger value="adhoc">Ad Hoc Test</TabsTrigger>
 
           <TabsContent value="results" className="space-y-3 mt-4">
             {latestResults.length === 0 && !running && (
