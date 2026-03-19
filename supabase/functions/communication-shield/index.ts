@@ -996,11 +996,11 @@ function scoreOutputQuality(
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
   // Incorporate AI self-score (take minimum)
-  const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
+  const aiSelfScore = typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
-    if (Array.isArray(result.self_score_deductions)) {
-      notes.push(`ai_deductions: ${(result.self_score_deductions as string[]).join("; ")}`);
+    if (Array.isArray(result.rewrite_quality_notes)) {
+      notes.push(`ai_deductions: ${(result.rewrite_quality_notes as string[]).join("; ")}`);
     }
   }
 
