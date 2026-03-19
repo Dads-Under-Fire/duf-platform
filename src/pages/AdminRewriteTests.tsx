@@ -60,8 +60,8 @@ interface RewriteResult {
   original_score_notes: string[];
   rewrite_quality_notes: string[];
   why_this_is_safer: string;
-  _prompt_version?: string;
-  _prompt_source?: string;
+  prompt_version?: string;
+  prompt_source?: string;
 }
 
 interface CaseRunResult {
