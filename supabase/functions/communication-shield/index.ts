@@ -975,12 +975,10 @@ const NEW_COMMITMENT_PATTERNS = [
 ];
 
 const HOSTILE_FIRMNESS_PATTERNS = [
-  /\byou need to understand\b/i, /\bi expect you to\b/i,
-  /\bi need you to\b/i, /\byou will\b/i,
-  /\byou are required\b/i, /\bi demand\b/i,
-  /\byou have been\b/i, /\byou('re| are) expected to\b/i,
-  /\bgoing forward,? you will\b/i, /\bi insist\b/i,
-  /\bi trust that you\b/i, /\byou('re| are) not allowed\b/i,
+  /\byou need to understand\b/i, /\bi demand\b/i,
+  /\bi insist\b/i, /\byou('re| are) not allowed\b/i,
+  /\byou have no right\b/i, /\bdo as i say\b/i,
+  /\byou('re| are) forbidden\b/i, /\bi('m| am) warning you\b/i,
 ];
 
 interface SemanticIssue {
