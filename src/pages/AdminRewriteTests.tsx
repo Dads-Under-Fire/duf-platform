@@ -737,10 +737,12 @@ export default function AdminRewriteTests() {
                         <p key={i} className="flex items-center gap-1.5">
                           {note.startsWith("✓") ? (
                             <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : note.startsWith("⚠") ? (
+                            <AlertTriangle className="h-3 w-3 text-yellow-500" />
                           ) : (
                             <XCircle className="h-3 w-3 text-destructive" />
                           )}
-                          {note.replace(/^[✓✗]\s*/, "")}
+                          {note.replace(/^[✓✗⚠]\s*/, "")}
                         </p>
                       ))}
                     </div>
