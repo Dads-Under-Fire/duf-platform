@@ -131,20 +131,29 @@ const RESPONSE_MODE_PHRASES = [
 ];
 
 const PAST_FACT_VALIDATION_PATTERNS = [
-  /\b(please |can you |could you |I would like you to )?(confirm|acknowledge|clarify|validate|admit)\b/i,
+  /\b(please |can you |could you |I would like you to )?(confirm|acknowledge|clarify|validate|admit|indicate)\b/i,
+];
+
+const PAST_FACT_CONDUCT_PATTERNS = [
+  /\b(confirm|clarify|acknowledge|indicate|validate|admit)\s+(whether|that|if)\s+.*\b(you |he |she )?(did|were|was|had|didn't|wasn't|weren't|failed|missed|neglected|changed|switched|moved)\b/i,
+  /\b(confirm|clarify|acknowledge|indicate)\s+.*\b(past |previous |last |prior |earlier )/i,
+  /\bprovide details\s+.*(about|regarding|on)\s+.*(what happened|the incident|last|previous|prior)\b/i,
+  /\b(confirm|clarify|indicate|acknowledge)\s+.*\b(noncompliance|violation|breach|failure)\b/i,
 ];
 
 const LEVERAGE_PHRASES = [
   /\brecurring (pattern|issue)\b/i,
-  /\bpattern\b/i,
-  /\baddress this matter\b/i,
-  /\bresolve this matter\b/i,
-  /\bmay require attention\b/i,
+  /\baddress this\b/i,
+  /\bresolve this\b/i,
+  /\b(requires|require|requiring) attention\b/i,
   /\bnecessary steps\b/i,
   /\bprepared to take action\b/i,
   /\bescalate\b/i,
   /\bif necessary\b/i,
   /\bdocumenting everything\b/i,
+  /\btake action\b/i,
+  /\baddress this matter\b/i,
+  /\bresolve this matter\b/i,
 ];
 
 const EMOTIONAL_DEEPENING_PATTERNS = [
@@ -157,6 +166,15 @@ const EMOTIONAL_DEEPENING_PATTERNS = [
   /\byour personality\b/i,
 ];
 
+const NONESSENTIAL_SOFTENING_PHRASES = [
+  /\bI would like to know\b/i,
+  /\bI wanted to ask\b/i,
+  /\bI was wondering\b/i,
+  /\bI hope you don'?t mind\b/i,
+  /\bif you don'?t mind me asking\b/i,
+  /\bI just wanted to check in\b/i,
+];
+
 const FINANCIAL_ASSUMPTION_PATTERNS = [
   /\b(making more money|income (has )?changed|earning more|afford|financial(ly)? (stable|secure|better|worse))\b/i,
   /\b(take on|cover(ing)?) (a )?(larger|bigger|more) share\b/i,
@@ -166,7 +184,30 @@ const FINANCIAL_ASSUMPTION_PATTERNS = [
 const WE_LANGUAGE_PATTERNS = [
   /\bwe\b/i, /\bus\b/i, /\blet'?s\b/i, /\bwe will\b/i, /\bwe need to\b/i,
   /\bwe can\b/i, /\bwe should\b/i, /\bwe both\b/i, /\bwe all\b/i,
+  /\bhow we can\b/i,
 ];
+
+// Risk-flag normalization: map common full labels to canonical tokens
+const RISK_FLAG_ALIASES: Record<string, string[]> = {
+  past_fact: ["past-fact", "past fact", "confirmation risk", "past-fact confirmation"],
+  admission: ["admission", "admission trap", "admission risk"],
+  trap: ["trap", "admission trap", "validation trap"],
+  escalation: ["escalation", "escalation risk", "leverage"],
+  leverage: ["leverage", "escalation", "conflict leverage"],
+  emotional: ["emotional", "emotional risk", "emotional deepening"],
+  financial: ["financial", "financial assumption", "financial risk"],
+};
+
+function normalizeFlag(flag: string): string[] {
+  const lower = flag.toLowerCase().trim();
+  const tokens: string[] = [lower];
+  for (const [canonical, aliases] of Object.entries(RISK_FLAG_ALIASES)) {
+    if (aliases.some((a) => lower.includes(a)) || lower.includes(canonical)) {
+      tokens.push(canonical);
+    }
+  }
+  return [...new Set(tokens)];
+}
 
 function runValidator(
   rules: ValidatorRules | null,
