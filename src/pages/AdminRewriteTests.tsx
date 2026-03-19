@@ -645,6 +645,153 @@ export default function AdminRewriteTests() {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="adhoc" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Run a single message through the live rewrite engine</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  placeholder="Paste the original message here…"
+                  value={adHocMessage}
+                  onChange={(e) => setAdHocMessage(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                />
+                <div className="flex gap-3">
+                  <Input
+                    placeholder="Category label (optional)"
+                    value={adHocCategory}
+                    onChange={(e) => setAdHocCategory(e.target.value)}
+                    className="text-sm max-w-[200px]"
+                  />
+                  <Input
+                    placeholder="Notes (optional)"
+                    value={adHocNotes}
+                    onChange={(e) => setAdHocNotes(e.target.value)}
+                    className="text-sm flex-1"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={runAdHocTest}
+                    disabled={adHocRunning || !adHocMessage.trim()}
+                    className="gap-2"
+                  >
+                    {adHocRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {adHocRunning ? "Running…" : "Run Test"}
+                  </Button>
+                  {adHocResult && (
+                    <Button
+                      variant="outline"
+                      onClick={saveAsGoldCandidate}
+                      disabled={adHocSaving}
+                      className="gap-2"
+                    >
+                      {adHocSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookmarkPlus className="h-4 w-4" />}
+                      Save as Gold-Suite Candidate
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {adHocError && (
+              <Card className="border-destructive">
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-sm text-destructive">Error: {adHocError}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {adHocResult && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Result</CardTitle>
+                    <div className="text-xs text-muted-foreground">
+                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any)._prompt_version ?? "—"}</span>
+                      {" · "}Source: {(adHocResult as any)._prompt_source ?? "—"}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Scores */}
+                  <div className="flex gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-foreground">{adHocResult.original_score}</p>
+                      <p className="text-xs text-muted-foreground">Original Score</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-foreground">{adHocResult.rewrite_quality_score}</p>
+                      <p className="text-xs text-muted-foreground">Rewrite Score</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Rewrites */}
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Primary Rewrite</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.primary_rewrite}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Shorter Version</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.shorter_version}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Firmer Version</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.firmer_version}</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Analysis */}
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground font-medium">Tone Assessment: </span>
+                      <span className="text-foreground">{adHocResult.tone_assessment}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground font-medium">Risk Flags: </span>
+                      <span className="text-foreground">
+                        {adHocResult.risk_flags.length > 0 ? adHocResult.risk_flags.join(", ") : "none"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground font-medium">Why This is Safer: </span>
+                      <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Score Notes */}
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Original Score Notes</p>
+                      <ul className="space-y-0.5 text-foreground">
+                        {(adHocResult.original_score_notes ?? []).map((n, i) => (
+                          <li key={i}>• {n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Rewrite Quality Notes</p>
+                      <ul className="space-y-0.5 text-foreground">
+                        {(adHocResult.rewrite_quality_notes ?? []).map((n, i) => (
+                          <li key={i}>• {n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
