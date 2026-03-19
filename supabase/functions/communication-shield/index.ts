@@ -94,7 +94,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
 
    Also provide "original_score_notes" — array of strings describing each issue found.
 
-2. "self_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
+2. "rewrite_quality_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
    A score of 10 should be EXCEPTIONALLY RARE — reserved only for rewrites that require zero improvement.
    
    Score the rewrite quality:
