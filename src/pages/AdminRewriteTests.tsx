@@ -690,8 +690,10 @@ export default function AdminRewriteTests() {
               <Card key={r.test_id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
-                    {r.validatorPass ? (
+                    {r.validatorStatus === "pass" ? (
                       <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                    ) : r.validatorStatus === "warn" ? (
+                      <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
                     ) : (
                       <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     )}
@@ -701,8 +703,8 @@ export default function AdminRewriteTests() {
                         Category: {r.category} · Prompt: {r.promptVersion} · Source: {r.promptSource}
                       </p>
                     </div>
-                    <Badge variant={r.validatorPass ? "default" : "destructive"}>
-                      {r.validatorPass ? "PASS" : "FAIL"}
+                    <Badge variant={r.validatorStatus === "pass" ? "default" : r.validatorStatus === "warn" ? "secondary" : "destructive"}>
+                      {r.validatorStatus.toUpperCase()}
                     </Badge>
                   </div>
                 </CardHeader>
