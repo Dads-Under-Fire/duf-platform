@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Play, CheckCircle, XCircle, Loader2, Send, BookmarkPlus } from "lucide-react";
+import { Play, CheckCircle, XCircle, AlertTriangle, Loader2, Send, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ──
