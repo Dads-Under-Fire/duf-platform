@@ -1470,7 +1470,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { message, mode, original_context, communication_context } = body;
+    const { message, mode, original_context, communication_context, skip_quota } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
@@ -1489,16 +1489,32 @@ serve(async (req) => {
       return jsonResponse({ error: "Original context too long" }, 400);
     }
 
-    // Quota check
+    // Check if admin requesting quota bypass
     const { serviceClient } = auth;
-    const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
-    if (quotaError || !quotaRows || quotaRows.length === 0) {
-      console.error("Quota check failed:", quotaError);
-      return jsonResponse({ error: "Could not verify quota" }, 500);
+    let isAdminBypass = false;
+    if (skip_quota === true) {
+      const { data: profileRow } = await serviceClient
+        .from("profiles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+      isAdminBypass = profileRow?.role === "admin";
+      if (isAdminBypass) {
+        console.log(`[${FN}] admin_quota_bypass | user=${userId}`);
+      }
     }
-    console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
-    if (!quotaRows[0].allowed) {
-      return jsonResponse({ error: "You've used all your message rewrites." }, 429);
+
+    // Quota check (skip for admin bypass)
+    if (!isAdminBypass) {
+      const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
+      if (quotaError || !quotaRows || quotaRows.length === 0) {
+        console.error("Quota check failed:", quotaError);
+        return jsonResponse({ error: "Could not verify quota" }, 500);
+      }
+      console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
+      if (!quotaRows[0].allowed) {
+        return jsonResponse({ error: "You've used all your message rewrites." }, 429);
+      }
     }
 
     // Score the original message (server-side, independent of AI)
