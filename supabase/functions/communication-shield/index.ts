@@ -730,6 +730,53 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   }
   if (escalationHits > 0 && accusatoryHits === 0) { deductions += 1; issueCategories++; notes.push("-1: escalation risk"); }
 
+  // ── Additional classification flags (no score deduction, flagging only) ──
+
+  // Past-fact confirmation risk
+  const pastFactPatterns = [
+    /\bso you (agree|admit|acknowledge|confirm|concede)\b/i,
+    /\byou (agreed|admitted|acknowledged|confirmed|said|told me)\b/i,
+    /\blast time you\b/i, /\byou already said\b/i,
+    /\byou said yourself\b/i, /\bremember when you\b/i,
+    /\byou promised\b/i, /\byou were (late|absent|wrong)\b/i,
+    /\byou didn't (show|come|follow|pick)\b/i,
+    /\byou missed\b/i, /\byou failed to\b/i,
+    /\byou canceled\b/i, /\byou cancelled\b/i,
+  ];
+  let pastFactHits = 0;
+  for (const p of pastFactPatterns) { if (p.test(text)) { pastFactHits++; } }
+  if (pastFactHits > 0) { notes.push("flag: Past-fact confirmation risk"); }
+
+  // Financial demand or assumption
+  const financialPatterns = [
+    /\b(you|your) (owe|pay|paying|income|salary|raise|money|finances?)\b/i,
+    /\bchild support\b/i, /\balimony\b/i,
+    /\byou('re| are) making more\b/i, /\bsince your (raise|promotion|new job)\b/i,
+    /\byou should be paying\b/i, /\byou need to pay\b/i,
+    /\breimburse\b/i, /\bsplit the cost\b/i,
+    /\byou can afford\b/i, /\byour (new|extra) income\b/i,
+    /\bexpense(s)?\b/i, /\bcost(s)?\b/i,
+  ];
+  let financialHits = 0;
+  for (const p of financialPatterns) { if (p.test(text)) { financialHits++; } }
+  if (financialHits > 0) { notes.push("flag: Financial demand or assumption"); }
+
+  // Irrelevant or non-child-related topic
+  const irrelevantPatterns = [
+    /\bi miss (us|you|our (family|life|marriage|relationship))\b/i,
+    /\bremember when we\b/i, /\bwe used to\b/i,
+    /\bi (still )?(love|care about) you\b/i,
+    /\b(my|your) (stuff|things|belongings|furniture|couch|clothes)\b/i,
+    /\bgive (me )?back my\b/i, /\breturn my\b/i,
+    /\byou hurt me\b/i, /\byou broke my heart\b/i,
+    /\bour relationship\b/i, /\bour marriage\b/i,
+    /\bwhy did (you|we) (break up|divorce|separate|split)\b/i,
+    /\bi('m| am) (lonely|lost without you|nothing without you)\b/i,
+  ];
+  let irrelevantHits = 0;
+  for (const p of irrelevantPatterns) { if (p.test(text)) { irrelevantHits++; } }
+  if (irrelevantHits > 0) { notes.push("flag: Irrelevant or non-child-related topic"); }
+
   let score = Math.max(1, 10 - deductions);
 
   // Hard caps
