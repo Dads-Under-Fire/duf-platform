@@ -430,7 +430,7 @@ OUTPUT FIELDS:
 - rewrite_quality_notes = notes explaining rewrite score deductions
 
 REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
-Apply these deductions to self_score in ADDITION to standard deductions:
+Apply these deductions to rewrite_quality_score in ADDITION to standard deductions:
 - -2 if a confirmation request was converted into a directive or self-commitment
 - -2 if an assumption or speculation was hardened into an asserted fact
 - -2 if emotional content was polished/articulated instead of narrowed/neutralized
