@@ -174,11 +174,16 @@ RISK FLAGS RULES:
   - ❌ "Escalation risk" — too vague
   - ❌ "Potentially problematic" — always specify the problem
   - ❌ "Could be misinterpreted" — name the actual issue
-  - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
+   - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
+
+  REWRITE-MODE ADDITIONAL FLAGS (use these when mode is rewrite):
+  - "Past-fact confirmation risk" — when the original message tries to get the other party to agree with a disputed prior event, characterization, or version of what happened (e.g. "So you admit you were late", "You agree that you canceled", "Last time you said...")
+  - "Financial demand or assumption" — when the message relies on an asserted or assumed change in finances, money responsibility, expense expectations, or income (e.g. "You're making more money now", "You should be paying more", "Since your raise...", "You owe me for...")
+  - "Irrelevant or non-child-related topic" — when the message is primarily emotional, nostalgic, personal-property related, relationship-processing, or otherwise outside core co-parenting logistics or child-related communication (e.g. "I miss our family", "Remember when we used to...", "I want my couch back", "You hurt me deeply")
 
   EDGE CASE RULES:
   - Single-word or very short emotional messages (e.g. "Unbelievable", "Seriously?", "Ridiculous") → MUST flag as "Emotional language detected" and score 5-6
-  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" and score 3-5
+  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" AND "Past-fact confirmation risk" and score 3-5
   - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
 
 const PERSPECTIVE_RULES = `PERSPECTIVE PRESERVATION — ABSOLUTE RULES:
@@ -724,6 +729,53 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
     if (p.test(text) && !accusatoryHits) { escalationHits++; }
   }
   if (escalationHits > 0 && accusatoryHits === 0) { deductions += 1; issueCategories++; notes.push("-1: escalation risk"); }
+
+  // ── Additional classification flags (no score deduction, flagging only) ──
+
+  // Past-fact confirmation risk
+  const pastFactPatterns = [
+    /\bso you (agree|admit|acknowledge|confirm|concede)\b/i,
+    /\byou (agreed|admitted|acknowledged|confirmed|said|told me)\b/i,
+    /\blast time you\b/i, /\byou already said\b/i,
+    /\byou said yourself\b/i, /\bremember when you\b/i,
+    /\byou promised\b/i, /\byou were (late|absent|wrong)\b/i,
+    /\byou didn't (show|come|follow|pick)\b/i,
+    /\byou missed\b/i, /\byou failed to\b/i,
+    /\byou canceled\b/i, /\byou cancelled\b/i,
+  ];
+  let pastFactHits = 0;
+  for (const p of pastFactPatterns) { if (p.test(text)) { pastFactHits++; } }
+  if (pastFactHits > 0) { notes.push("flag: Past-fact confirmation risk"); }
+
+  // Financial demand or assumption
+  const financialPatterns = [
+    /\b(you|your) (owe|pay|paying|income|salary|raise|money|finances?)\b/i,
+    /\bchild support\b/i, /\balimony\b/i,
+    /\byou('re| are) making more\b/i, /\bsince your (raise|promotion|new job)\b/i,
+    /\byou should be paying\b/i, /\byou need to pay\b/i,
+    /\breimburse\b/i, /\bsplit the cost\b/i,
+    /\byou can afford\b/i, /\byour (new|extra) income\b/i,
+    /\bexpense(s)?\b/i, /\bcost(s)?\b/i,
+  ];
+  let financialHits = 0;
+  for (const p of financialPatterns) { if (p.test(text)) { financialHits++; } }
+  if (financialHits > 0) { notes.push("flag: Financial demand or assumption"); }
+
+  // Irrelevant or non-child-related topic
+  const irrelevantPatterns = [
+    /\bi miss (us|you|our (family|life|marriage|relationship))\b/i,
+    /\bremember when we\b/i, /\bwe used to\b/i,
+    /\bi (still )?(love|care about) you\b/i,
+    /\b(my|your) (stuff|things|belongings|furniture|couch|clothes)\b/i,
+    /\bgive (me )?back my\b/i, /\breturn my\b/i,
+    /\byou hurt me\b/i, /\byou broke my heart\b/i,
+    /\bour relationship\b/i, /\bour marriage\b/i,
+    /\bwhy did (you|we) (break up|divorce|separate|split)\b/i,
+    /\bi('m| am) (lonely|lost without you|nothing without you)\b/i,
+  ];
+  let irrelevantHits = 0;
+  for (const p of irrelevantPatterns) { if (p.test(text)) { irrelevantHits++; } }
+  if (irrelevantHits > 0) { notes.push("flag: Irrelevant or non-child-related topic"); }
 
   let score = Math.max(1, 10 - deductions);
 
@@ -1274,9 +1326,19 @@ async function attemptAICall(
   }
 }
 
-function normalizeRiskFlags(flags: string[] | undefined): string[] {
-  if (!flags || !Array.isArray(flags) || flags.length === 0) return ["No risk flags"];
-  return flags;
+function extractServerFlags(notes: string[]): string[] {
+  return notes
+    .filter(n => n.startsWith("flag: "))
+    .map(n => n.replace("flag: ", ""));
+}
+
+function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
+  const combined = [...(flags && Array.isArray(flags) ? flags : [])];
+  for (const sf of serverFlags) {
+    if (!combined.includes(sf)) combined.push(sf);
+  }
+  if (combined.length === 0) return ["No risk flags"];
+  return combined;
 }
 
 // ── Build DB insert row — mode-aware scoring ──
@@ -1296,7 +1358,7 @@ function buildInsertRow(
     shorter_version: (result.shorter_version as string) ?? null,
     firmer_version: (result.firmer_version as string) ?? null,
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
-    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
+    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
     // ── Scoring: always write original_score ──
     original_score: originalScore.score,
@@ -1561,7 +1623,7 @@ You MUST call the provided tool with your structured output.`;
     const responsePayload: Record<string, unknown> = {
       ...aiResult,
       mode,
-      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
+      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined, extractServerFlags(originalScoreResult.notes)),
       original_score: originalScoreResult.score,
     };
     if (mode === "rewrite") {
