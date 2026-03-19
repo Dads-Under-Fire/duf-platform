@@ -138,7 +138,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
     - Concise, natural-sounding, and would require zero meaningful improvement
     - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
    
-   Also provide "self_score_deductions" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
+   Also provide "rewrite_quality_notes" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the ORIGINAL message
