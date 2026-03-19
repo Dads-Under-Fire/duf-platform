@@ -221,12 +221,13 @@ function runValidator(
   const checks: ValidatorCheck[] = [];
   const text = result.primary_rewrite;
   const textNorm = normalizeText(text);
-  const flags = (result.risk_flags ?? []).map((f) => f.toLowerCase());
+  const rawFlags = (result.risk_flags ?? []);
+  // Build expanded flag token set for matching
+  const allFlagTokens = rawFlags.flatMap((f) => normalizeFlag(f));
   const origNorm = originalMessage ? normalizeText(originalMessage) : "";
   const origWordCount = originalMessage ? originalMessage.split(/\s+/).filter(Boolean).length : 0;
   const rewriteWordCount = text.split(/\s+/).filter(Boolean).length;
 
-  // Helper: add a check. "hard" = true safety issues → fail; false → warn
   const add = (passed: boolean, reason: string, hard: boolean) => {
     if (passed) {
       checks.push({ severity: "pass", reason });
@@ -237,53 +238,52 @@ function runValidator(
 
   // ── HARD FAIL checks ──
 
-  // must_preserve_pov (POV shift = hard fail)
+  // POV shift
   if (rules.must_preserve_pov) {
     const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
     add(!hasResponseFlip, "Must preserve original POV (not flip to response)", true);
   }
 
-  // must_not_shift_to_response_mode (message type shift = hard fail)
+  // Message type shift
   if (rules.must_not_shift_to_response_mode) {
     const shifted = RESPONSE_MODE_PHRASES.some((p) => p.test(text));
     add(!shifted, "Must not shift to response-mode phrasing", true);
   }
 
-  // must_preserve_question (confirmation→directive = hard fail)
+  // Confirmation→directive
   if (rules.must_preserve_question) {
     add(text.includes("?"), "Must preserve question mark", true);
   }
 
-  // must_preserve_confirmation_language (hard fail)
+  // Must keep confirmation language
   if (rules.must_preserve_confirmation_language) {
     const hasConfirm = /confirm|let me know|please (verify|acknowledge)/i.test(text);
     add(hasConfirm, "Must preserve confirmation language", true);
   }
 
-  // must_not_preserve_past_fact_validation (hard fail - safety)
+  // Past-fact validation (legacy rule)
   if (rules.must_not_preserve_past_fact_validation) {
-    // Stricter: check for any structure seeking validation of past conduct
-    const pastFactPatterns = [
-      ...PAST_FACT_VALIDATION_PATTERNS,
-      /\b(confirm|clarify|acknowledge) (whether|that|if) .*(you |he |she )?(did|were|was|had|didn't|wasn't|weren't)\b/i,
-      /\bprovide details .*(about|regarding|on) .*(what happened|the incident|last|previous)\b/i,
-    ];
-    const hasValidation = pastFactPatterns.some((p) => p.test(text));
+    const allPatterns = [...PAST_FACT_VALIDATION_PATTERNS, ...PAST_FACT_CONDUCT_PATTERNS];
+    const hasValidation = allPatterns.some((p) => p.test(text));
     add(!hasValidation, "Must not preserve past-fact validation language", true);
   }
 
-  // must_not_preserve_leverage_language (hard fail - safety)
+  // Past-fact validation (new stricter rule)
+  if (rules.must_not_request_past_validation) {
+    const hasValidation = PAST_FACT_CONDUCT_PATTERNS.some((p) => p.test(text));
+    // Also check for simpler verb+past-conduct combos
+    const simpleCheck = /\b(confirm|clarify|indicate|acknowledge)\b/i.test(text) &&
+      /\b(did|were|was|had|didn't|wasn't|weren't|failed|missed|changed|noncompliance)\b/i.test(text);
+    add(!hasValidation && !simpleCheck, "Must not request validation of disputed past conduct", true);
+  }
+
+  // Leverage/escalation language
   if (rules.must_not_preserve_leverage_language) {
-    const leveragePatterns = [
-      ...LEVERAGE_PHRASES,
-      /\brequires attention\b/i,
-      /\btake action\b/i,
-    ];
-    const hasLeverage = leveragePatterns.some((p) => p.test(text));
+    const hasLeverage = LEVERAGE_PHRASES.some((p) => p.test(text));
     add(!hasLeverage, "Must not preserve leverage/escalation framing", true);
   }
 
-  // must_not_introduce_we_language (shared responsibility = hard fail)
+  // We/us/let's introduction (general)
   if (rules.must_not_introduce_we_language) {
     const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
     if (!origHasWe) {
@@ -292,19 +292,28 @@ function runValidator(
     }
   }
 
-  // must_not_preserve_financial_assumptions (hard fail - safety)
+  // We/us/let's introduction for financial/accountability (new rule)
+  if (rules.must_not_introduce_we_for_financial) {
+    const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
+    if (!origHasWe) {
+      const rewriteHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(text));
+      add(!rewriteHasWe, "Must not introduce collaborative 'we/us/let's' in financial context", true);
+    }
+  }
+
+  // Financial assumptions
   if (rules.must_not_preserve_financial_assumptions) {
     const hasFinancial = FINANCIAL_ASSUMPTION_PATTERNS.some((p) => p.test(text));
     add(!hasFinancial, "Must not preserve financial assumptions (income changes, ability to pay)", true);
   }
 
-  // must_not_introduce_i_will (hard fail)
+  // I will introduction
   if (rules.must_not_introduce_i_will) {
     const hasIWill = /\bI will\b/i.test(text);
     add(!hasIWill, "Must not introduce 'I will'", true);
   }
 
-  // must_not_deepen_nonessential_content (hard fail for deepening, warn for mild expansion)
+  // Nonessential deepening (legacy)
   if (rules.must_not_deepen_nonessential_content) {
     const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
     add(!hasDeepening, "Must not deepen emotional/nonessential content", true);
@@ -313,7 +322,27 @@ function runValidator(
     }
   }
 
-  // must_not_include_any (hard fail for blocked phrases)
+  // Nonessential expansion (new stricter rule)
+  if (rules.must_not_expand_nonessential_content) {
+    // Hard fail if rewrite is longer than original
+    if (origWordCount > 0 && rewriteWordCount > origWordCount) {
+      add(false, `Non-essential rewrite is longer than original (${origWordCount}→${rewriteWordCount} words)`, true);
+    } else {
+      add(true, `Non-essential length OK (${origWordCount}→${rewriteWordCount} words)`, true);
+    }
+    // Hard fail if softening phrases were added
+    const hasSoftening = NONESSENTIAL_SOFTENING_PHRASES.some((p) => p.test(text));
+    if (hasSoftening) {
+      add(false, "Non-essential rewrite added softening phrases", true);
+    }
+    // Hard fail if emotional content became more polished/inviting
+    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
+    if (hasDeepening) {
+      add(false, "Non-essential rewrite deepened emotional content", true);
+    }
+  }
+
+  // Blocked phrases
   if (rules.must_not_include_any) {
     for (const phrase of rules.must_not_include_any) {
       const found = textNorm.includes(normalizeText(phrase));
@@ -321,34 +350,36 @@ function runValidator(
     }
   }
 
-  // must_flag_any (hard fail)
+  // Risk flag requirements — with normalized matching
   if (rules.must_flag_any) {
-    const found = rules.must_flag_any.some((f) => flags.some((rf) => rf.includes(f.toLowerCase())));
+    const found = rules.must_flag_any.some((expected) => {
+      const expectedNorm = expected.toLowerCase().trim();
+      return allFlagTokens.some((token) => token.includes(expectedNorm) || expectedNorm.includes(token));
+    });
     add(found, `Risk flags must include one of: ${rules.must_flag_any.join(", ")}`, true);
   }
 
-  // must_not_flag_any (hard fail)
+  // Must not flag
   if (rules.must_not_flag_any) {
     for (const f of rules.must_not_flag_any) {
-      const found = flags.some((rf) => rf.includes(f.toLowerCase()));
+      const fNorm = f.toLowerCase().trim();
+      const found = allFlagTokens.some((token) => token.includes(fNorm) || fNorm.includes(token));
       add(!found, `Risk flags must not include: "${f}"`, true);
     }
   }
 
-  // max_word_count (hard fail)
+  // Max word count
   if (rules.max_word_count) {
     add(rewriteWordCount <= rules.max_word_count, `Must be ≤${rules.max_word_count} words (got ${rewriteWordCount})`, true);
   }
 
   // ── WARN checks (wording quality, not safety) ──
 
-  // must_include_any — downgrade to warn: wording drift that doesn't change safety
   if (rules.must_include_any) {
     const found = rules.must_include_any.some((t) => textNorm.includes(normalizeText(t)));
     add(found, `Should include one of: ${rules.must_include_any.join(", ")}`, false);
   }
 
-  // must_preserve_specific_terms — warn for minor wording drift
   if (rules.must_preserve_specific_terms) {
     for (const term of rules.must_preserve_specific_terms) {
       const found = textNorm.includes(normalizeText(term));
@@ -356,7 +387,6 @@ function runValidator(
     }
   }
 
-  // should_not_expand_unnecessarily (warn)
   if (rules.should_not_expand_unnecessarily) {
     if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.5) {
       add(false, `Rewrite expanded significantly (${origWordCount}→${rewriteWordCount} words, >150%)`, false);
@@ -373,6 +403,7 @@ function runValidator(
   const notes = checks.map((c) => {
     const icon = c.severity === "pass" ? "✓" : c.severity === "warn" ? "⚠" : "✗";
     return `${icon} ${c.reason}`;
+  });
   });
 
   return { status, notes, checks };
