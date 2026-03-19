@@ -404,7 +404,6 @@ function runValidator(
     const icon = c.severity === "pass" ? "✓" : c.severity === "warn" ? "⚠" : "✗";
     return `${icon} ${c.reason}`;
   });
-  });
 
   return { status, notes, checks };
 }
