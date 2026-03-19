@@ -1702,6 +1702,7 @@ You MUST call the provided tool with your structured output.`;
       original_score: originalScoreResult.score,
       prompt_version: loadedPrompt.versionLabel,
       prompt_source: loadedPrompt.source,
+      ...(loadedPrompt.fallbackReason ? { prompt_fallback_reason: loadedPrompt.fallbackReason } : {}),
     };
     if (mode === "rewrite") {
       responsePayload.rewrite_quality_score = rewriteScore!.score;
