@@ -31,6 +31,22 @@ interface GoldCase {
   original_message: string;
   expected_behavior: string | null;
   must_not_do: string | null;
+  validator_rules: ValidatorRules | null;
+}
+
+interface ValidatorRules {
+  must_include_any?: string[];
+  must_not_include_any?: string[];
+  must_preserve_question?: boolean;
+  must_preserve_confirmation_language?: boolean;
+  must_preserve_pov?: boolean;
+  must_not_shift_to_response_mode?: boolean;
+  must_preserve_specific_terms?: string[];
+  must_not_introduce_we_language?: boolean;
+  must_not_introduce_i_will?: boolean;
+  max_word_count?: number;
+  must_flag_any?: string[];
+  must_not_flag_any?: string[];
 }
 
 interface RewriteResult {
@@ -72,56 +88,104 @@ interface RunHistoryRow {
 
 // ── Built-in validators (client-side assertions matching original gold suite) ──
 
-const BANNED_SOFT = [
-  /\bi would like to\b/i,
-  /\bi was hoping\b/i,
-  /\bif possible\b/i,
-  /\bi would appreciate\b/i,
-  /\bi was wondering\b/i,
-  /\bperhaps we could\b/i,
+// Response-mode indicators
+const RESPONSE_MODE_PHRASES = [
+  /\bkeep communication focused\b/i,
+  /\bI understand\b/i,
+  /\bthank you for sharing\b/i,
+  /\bI appreciate you\b/i,
+  /\blet'?s focus on\b/i,
 ];
 
-type ValidatorFn = (r: RewriteResult) => { pass: boolean; reason: string }[];
+function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pass: boolean; notes: string[] } {
+  if (!rules || Object.keys(rules).length === 0) {
+    return { pass: false, notes: ["⚠ No validator_rules defined — cannot validate"] };
+  }
 
-const VALIDATORS: Record<string, ValidatorFn> = {
-  "financial-neutralize": (r) => [
-    { pass: !/you should (be )?pay/i.test(r.primary_rewrite), reason: "Must not contain 'you should pay'" },
-    { pass: !/adjust your contributions/i.test(r.primary_rewrite), reason: "Must not contain 'adjust your contributions'" },
-    { pass: !/making (way )?more money/i.test(r.primary_rewrite), reason: "Must not assert income change" },
-    { pass: r.risk_flags.some((f) => /financial/i.test(f)), reason: "Risk flags should mention financial assumption" },
-  ],
-  "confirmation-preserve": (r) => [
-    { pass: /confirm/i.test(r.primary_rewrite), reason: "Must preserve confirmation language" },
-    { pass: /4\s?pm/i.test(r.primary_rewrite) || /4:00/i.test(r.primary_rewrite), reason: "Must preserve time '4pm'" },
-    { pass: /thursday/i.test(r.primary_rewrite), reason: "Must preserve 'Thursday'" },
-    { pass: /lincoln park/i.test(r.primary_rewrite), reason: "Must preserve 'Lincoln Park'" },
-  ],
-  "emotional-suppress": (r) => [
-    { pass: !/i miss/i.test(r.primary_rewrite), reason: "Must not preserve 'I miss' language" },
-    { pass: r.primary_rewrite.split(/\s+/).length <= 30, reason: "Should be brief (≤30 words)" },
-    { pass: r.risk_flags.some((f) => /emotional|irrelevant|non-child/i.test(f)), reason: "Risk flags should mention emotional/irrelevant content" },
-  ],
-  "over-softening": (r) =>
-    BANNED_SOFT.map((p) => ({ pass: !p.test(r.primary_rewrite), reason: `Must not contain '${p.source}'` })),
-  "clean-passthrough": (r) => [
-    { pass: r.original_score >= 9, reason: "original_score should be ≥9 for clean message" },
-    { pass: r.rewrite_quality_score >= 9, reason: "rewrite_quality_score should be ≥9 for clean message" },
-    { pass: /5\s?pm/i.test(r.primary_rewrite), reason: "Must preserve '5pm'" },
-    { pass: /friday/i.test(r.primary_rewrite), reason: "Must preserve 'Friday'" },
-    { pass: /lincoln elementary/i.test(r.primary_rewrite), reason: "Must preserve 'Lincoln Elementary'" },
-  ],
-  "strategic-intent": (r) => [
-    { pass: /car seat/i.test(r.primary_rewrite), reason: "Must preserve 'car seat'" },
-    { pass: /winter jacket/i.test(r.primary_rewrite), reason: "Must preserve 'winter jacket'" },
-    { pass: /backpack/i.test(r.primary_rewrite), reason: "Must preserve 'backpack'" },
-    { pass: /wednesday/i.test(r.primary_rewrite), reason: "Must preserve 'Wednesday'" },
-  ],
-};
+  const checks: { pass: boolean; reason: string }[] = [];
+  const text = result.primary_rewrite;
+  const textLower = text.toLowerCase();
+  const flags = (result.risk_flags ?? []).map((f) => f.toLowerCase());
 
-function runValidator(testId: string, result: RewriteResult): { pass: boolean; notes: string[] } {
-  const fn = VALIDATORS[testId];
-  if (!fn) return { pass: true, notes: ["No validator defined — auto-pass"] };
-  const checks = fn(result);
+  // must_include_any
+  if (rules.must_include_any) {
+    const found = rules.must_include_any.some((t) => textLower.includes(t.toLowerCase()));
+    checks.push({ pass: found, reason: `Must include one of: ${rules.must_include_any.join(", ")}` });
+  }
+
+  // must_not_include_any
+  if (rules.must_not_include_any) {
+    for (const phrase of rules.must_not_include_any) {
+      const found = textLower.includes(phrase.toLowerCase());
+      checks.push({ pass: !found, reason: `Must not include: "${phrase}"` });
+    }
+  }
+
+  // must_preserve_question
+  if (rules.must_preserve_question) {
+    checks.push({ pass: text.includes("?"), reason: "Must preserve question mark" });
+  }
+
+  // must_preserve_confirmation_language
+  if (rules.must_preserve_confirmation_language) {
+    const hasConfirm = /confirm|let me know|please (verify|acknowledge)/i.test(text);
+    checks.push({ pass: hasConfirm, reason: "Must preserve confirmation language" });
+  }
+
+  // must_preserve_pov (first-person outgoing, not flipped to second-person reply)
+  if (rules.must_preserve_pov) {
+    const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
+    checks.push({ pass: !hasResponseFlip, reason: "Must preserve original POV (not flip to response)" });
+  }
+
+  // must_not_shift_to_response_mode
+  if (rules.must_not_shift_to_response_mode) {
+    const shifted = RESPONSE_MODE_PHRASES.some((p) => p.test(text));
+    checks.push({ pass: !shifted, reason: "Must not shift to response-mode phrasing" });
+  }
+
+  // must_preserve_specific_terms
+  if (rules.must_preserve_specific_terms) {
+    for (const term of rules.must_preserve_specific_terms) {
+      checks.push({
+        pass: textLower.includes(term.toLowerCase()),
+        reason: `Must preserve term: "${term}"`,
+      });
+    }
+  }
+
+  // must_not_introduce_we_language
+  if (rules.must_not_introduce_we_language) {
+    const hasWe = /\b(we both|we all|we can|we should|we need)\b/i.test(text);
+    checks.push({ pass: !hasWe, reason: "Must not introduce 'we' language" });
+  }
+
+  // must_not_introduce_i_will
+  if (rules.must_not_introduce_i_will) {
+    const hasIWill = /\bI will\b/i.test(text);
+    checks.push({ pass: !hasIWill, reason: "Must not introduce 'I will'" });
+  }
+
+  // max_word_count
+  if (rules.max_word_count) {
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    checks.push({ pass: wordCount <= rules.max_word_count, reason: `Must be ≤${rules.max_word_count} words (got ${wordCount})` });
+  }
+
+  // must_flag_any
+  if (rules.must_flag_any) {
+    const found = rules.must_flag_any.some((f) => flags.some((rf) => rf.includes(f.toLowerCase())));
+    checks.push({ pass: found, reason: `Risk flags must include one of: ${rules.must_flag_any.join(", ")}` });
+  }
+
+  // must_not_flag_any
+  if (rules.must_not_flag_any) {
+    for (const f of rules.must_not_flag_any) {
+      const found = flags.some((rf) => rf.includes(f.toLowerCase()));
+      checks.push({ pass: !found, reason: `Risk flags must not include: "${f}"` });
+    }
+  }
+
   const failures = checks.filter((c) => !c.pass);
   return {
     pass: failures.length === 0,
@@ -154,7 +218,7 @@ export default function AdminRewriteTests() {
   useEffect(() => {
     async function load() {
       const { data } = await (supabase.from as any)("ai_gold_suite_cases")
-        .select("id, test_id, category, original_message, expected_behavior, must_not_do")
+        .select("id, test_id, category, original_message, expected_behavior, must_not_do, validator_rules")
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("is_active", true)
@@ -246,7 +310,7 @@ export default function AdminRewriteTests() {
             firstPromptVersion = pv;
             firstPromptSource = ps;
           }
-          const validation = runValidator(tc.test_id, result);
+          const validation = runValidator(tc.validator_rules, result);
           caseResult = {
             test_id: tc.test_id,
             category: tc.category,
