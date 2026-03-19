@@ -55,6 +55,19 @@ interface ValidatorRules {
   must_not_preserve_financial_assumptions?: boolean;
 }
 
+type CheckSeverity = "pass" | "warn" | "fail";
+
+interface ValidatorCheck {
+  severity: CheckSeverity;
+  reason: string;
+}
+
+interface ValidatorResult {
+  status: "pass" | "warn" | "fail";
+  notes: string[];
+  checks: ValidatorCheck[];
+}
+
 interface RewriteResult {
   primary_rewrite: string;
   shorter_version: string;
@@ -75,7 +88,7 @@ interface CaseRunResult {
   category: string;
   original_message: string;
   result: RewriteResult | null;
-  validatorPass: boolean;
+  validatorStatus: "pass" | "warn" | "fail";
   validatorNotes: string[];
   error?: string;
   promptVersion: string;
@@ -89,6 +102,7 @@ interface RunHistoryRow {
   run_label: string | null;
   created_at: string;
   pass_count: number;
+  warn_count: number;
   fail_count: number;
 }
 
