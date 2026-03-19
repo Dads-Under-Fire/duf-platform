@@ -1705,7 +1705,9 @@ You MUST call the provided tool with your structured output.`;
     const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(insertPayload);
     if (insertErr) console.error(`[${FN}] insert error:`, JSON.stringify(insertErr));
 
-    await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    if (!isAdminBypass) {
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    }
 
     console.log(`[${FN}] success | mode=${mode} | prompt_version=${loadedPrompt.versionLabel} | prompt_source=${loadedPrompt.source} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
