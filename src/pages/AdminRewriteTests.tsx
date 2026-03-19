@@ -624,7 +624,7 @@ export default function AdminRewriteTests() {
 
         {/* Summary cards */}
         {latestResults.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-3xl font-bold text-foreground">{latestResults.length}</p>
@@ -635,6 +635,12 @@ export default function AdminRewriteTests() {
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-3xl font-bold text-green-500">{passCount}</p>
                 <p className="text-xs text-muted-foreground">Passed</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-3xl font-bold text-yellow-500">{warnCount}</p>
+                <p className="text-xs text-muted-foreground">Warnings</p>
               </CardContent>
             </Card>
             <Card>
