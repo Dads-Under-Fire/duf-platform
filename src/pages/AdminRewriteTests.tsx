@@ -462,6 +462,7 @@ export default function AdminRewriteTests() {
               )}
             </TabsTrigger>
             <TabsTrigger value="adhoc">Ad Hoc Test</TabsTrigger>
+          </TabsList>
 
           <TabsContent value="results" className="space-y-3 mt-4">
             {latestResults.length === 0 && !running && (
