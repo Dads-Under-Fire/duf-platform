@@ -310,7 +310,7 @@ export default function AdminRewriteTests() {
             firstPromptVersion = pv;
             firstPromptSource = ps;
           }
-          const validation = runValidator(tc.test_id, result);
+          const validation = runValidator(tc.validator_rules, result);
           caseResult = {
             test_id: tc.test_id,
             category: tc.category,
