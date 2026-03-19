@@ -810,10 +810,11 @@ export default function AdminRewriteTests() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-green-500 font-medium">{run.pass_count} pass</span>
+                          <span className="text-sm text-yellow-500 font-medium">{run.warn_count} warn</span>
                           <span className="text-sm text-destructive font-medium">{run.fail_count} fail</span>
                           <Badge variant={run.fail_count === 0 ? "default" : "destructive"}>
-                            {run.pass_count + run.fail_count > 0
-                              ? `${Math.round((run.pass_count / (run.pass_count + run.fail_count)) * 100)}%`
+                            {run.pass_count + run.warn_count + run.fail_count > 0
+                              ? `${Math.round((run.pass_count / (run.pass_count + run.warn_count + run.fail_count)) * 100)}%`
                               : "—"}
                           </Badge>
                         </div>
