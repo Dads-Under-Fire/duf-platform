@@ -1623,7 +1623,7 @@ You MUST call the provided tool with your structured output.`;
     const responsePayload: Record<string, unknown> = {
       ...aiResult,
       mode,
-      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined),
+      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined, extractServerFlags(originalScoreResult.notes)),
       original_score: originalScoreResult.score,
     };
     if (mode === "rewrite") {
