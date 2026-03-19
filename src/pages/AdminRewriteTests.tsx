@@ -440,7 +440,7 @@ export default function AdminRewriteTests() {
             category: tc.category,
             original_message: tc.original_message,
             result: null,
-            validatorPass: false,
+            validatorStatus: "fail",
             validatorNotes: [error?.message ?? "No data returned"],
             error: error?.message ?? "No data returned",
             promptVersion: "unknown",
