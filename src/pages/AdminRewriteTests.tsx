@@ -472,7 +472,7 @@ export default function AdminRewriteTests() {
           category: tc.category,
           original_message: tc.original_message,
           result: null,
-          validatorPass: false,
+          validatorStatus: "fail",
           validatorNotes: [e.message],
           error: e.message,
           promptVersion: "unknown",
