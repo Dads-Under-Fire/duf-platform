@@ -120,7 +120,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
     - -1 if slightly controlling or patronizing tone
     - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
     
-    HARD CAPS for self_score (these override all other scoring):
+    HARD CAPS for rewrite_quality_score (these override all other scoring):
     - If ANY admission trap language remains in the rewrite (asks for confirmation of past events, restates wrongdoing, includes questions that create legal exposure like "Can you confirm...?", "Do you agree...?", "Were you late...?") → MAX score = 6
     - If ANY threat language remains in the rewrite → MAX score = 7
     - If the rewrite introduces NEW legal risk not present in the original → MAX score = 5
