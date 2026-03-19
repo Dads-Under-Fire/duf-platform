@@ -485,7 +485,7 @@ export default function AdminRewriteTests() {
     setAdHocError(null);
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
-        body: { message: adHocMessage.trim(), mode: "rewrite" },
+        body: { message: adHocMessage.trim(), mode: "rewrite", skip_quota: true },
       });
       if (error || !data) {
         setAdHocError(error?.message ?? "No data returned");
