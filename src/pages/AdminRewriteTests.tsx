@@ -47,46 +47,24 @@ interface ValidatorRules {
   max_word_count?: number;
   must_flag_any?: string[];
   must_not_flag_any?: string[];
+  // New validators
+  must_not_preserve_past_fact_validation?: boolean;
+  must_not_preserve_leverage_language?: boolean;
+  must_not_deepen_nonessential_content?: boolean;
+  should_not_expand_unnecessarily?: boolean;
+  must_not_preserve_financial_assumptions?: boolean;
 }
 
-interface RewriteResult {
-  primary_rewrite: string;
-  shorter_version: string;
-  firmer_version: string;
-  original_score: number;
-  rewrite_quality_score: number;
-  risk_flags: string[];
-  tone_assessment: string;
-  original_score_notes: string[];
-  rewrite_quality_notes: string[];
-  why_this_is_safer: string;
-  prompt_version?: string;
-  prompt_source?: string;
-}
+// ── Normalization helpers ──
 
-interface CaseRunResult {
-  test_id: string;
-  category: string;
-  original_message: string;
-  result: RewriteResult | null;
-  validatorPass: boolean;
-  validatorNotes: string[];
-  error?: string;
-  promptVersion: string;
-  promptSource: string;
+function normalizeText(s: string): string {
+  // lowercase, collapse whitespace, normalize time formats, strip trailing punctuation differences
+  let t = s.toLowerCase().replace(/\s+/g, " ").trim();
+  // Normalize time: "3pm", "3 pm", "3:00pm", "3:00 PM" → "3:00 pm"
+  t = t.replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)\b/gi, (_, h, m, ap) => `${h}:${m} ${ap.toLowerCase()}`);
+  t = t.replace(/\b(\d{1,2})\s*(am|pm)\b/gi, (_, h, ap) => `${h}:00 ${ap.toLowerCase()}`);
+  return t;
 }
-
-interface RunHistoryRow {
-  id: string;
-  prompt_version: string | null;
-  prompt_source: string | null;
-  run_label: string | null;
-  created_at: string;
-  pass_count: number;
-  fail_count: number;
-}
-
-// ── Built-in validators (client-side assertions matching original gold suite) ──
 
 // Response-mode indicators
 const RESPONSE_MODE_PHRASES = [
@@ -97,26 +75,71 @@ const RESPONSE_MODE_PHRASES = [
   /\blet'?s focus on\b/i,
 ];
 
-function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pass: boolean; notes: string[] } {
+const PAST_FACT_VALIDATION_PATTERNS = [
+  /\b(please |can you |could you |I would like you to )?(confirm|acknowledge|clarify|validate|admit)\b/i,
+];
+
+const LEVERAGE_PHRASES = [
+  /\brecurring (pattern|issue)\b/i,
+  /\bpattern\b/i,
+  /\baddress this matter\b/i,
+  /\bresolve this matter\b/i,
+  /\bmay require attention\b/i,
+  /\bnecessary steps\b/i,
+  /\bprepared to take action\b/i,
+  /\bescalate\b/i,
+  /\bif necessary\b/i,
+  /\bdocumenting everything\b/i,
+];
+
+const EMOTIONAL_DEEPENING_PATTERNS = [
+  /\bhow (do |did )?(you |we )feel/i,
+  /\btell me (more )?about your feelings\b/i,
+  /\bremember when we\b/i,
+  /\bI miss\b/i,
+  /\bour (relationship|family|love)\b/i,
+  /\byour dreams\b/i,
+  /\byour personality\b/i,
+];
+
+const FINANCIAL_ASSUMPTION_PATTERNS = [
+  /\b(making more money|income (has )?changed|earning more|afford|financial(ly)? (stable|secure|better|worse))\b/i,
+  /\b(take on|cover(ing)?) (a )?(larger|bigger|more) share\b/i,
+  /\b(you can|you should|you need to) (pay|contribute|cover)\b/i,
+];
+
+const WE_LANGUAGE_PATTERNS = [
+  /\bwe\b/i, /\bus\b/i, /\blet'?s\b/i, /\bwe will\b/i, /\bwe need to\b/i,
+  /\bwe can\b/i, /\bwe should\b/i, /\bwe both\b/i, /\bwe all\b/i,
+];
+
+function runValidator(
+  rules: ValidatorRules | null,
+  result: RewriteResult,
+  originalMessage?: string,
+): { pass: boolean; notes: string[] } {
   if (!rules || Object.keys(rules).length === 0) {
     return { pass: false, notes: ["⚠ No validator_rules defined — cannot validate"] };
   }
 
   const checks: { pass: boolean; reason: string }[] = [];
   const text = result.primary_rewrite;
-  const textLower = text.toLowerCase();
+  const textNorm = normalizeText(text);
   const flags = (result.risk_flags ?? []).map((f) => f.toLowerCase());
+  const origNorm = originalMessage ? normalizeText(originalMessage) : "";
+  const origWordCount = originalMessage ? originalMessage.split(/\s+/).filter(Boolean).length : 0;
+  const rewriteWordCount = text.split(/\s+/).filter(Boolean).length;
 
   // must_include_any
   if (rules.must_include_any) {
-    const found = rules.must_include_any.some((t) => textLower.includes(t.toLowerCase()));
+    const found = rules.must_include_any.some((t) => textNorm.includes(normalizeText(t)));
     checks.push({ pass: found, reason: `Must include one of: ${rules.must_include_any.join(", ")}` });
   }
 
   // must_not_include_any
   if (rules.must_not_include_any) {
     for (const phrase of rules.must_not_include_any) {
-      const found = textLower.includes(phrase.toLowerCase());
+      const found = textNorm.includes(normalizeText(phrase));
       checks.push({ pass: !found, reason: `Must not include: "${phrase}"` });
     }
   }
@@ -132,7 +155,7 @@ function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pa
     checks.push({ pass: hasConfirm, reason: "Must preserve confirmation language" });
   }
 
-  // must_preserve_pov (first-person outgoing, not flipped to second-person reply)
+  // must_preserve_pov
   if (rules.must_preserve_pov) {
     const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
     checks.push({ pass: !hasResponseFlip, reason: "Must preserve original POV (not flip to response)" });
@@ -144,11 +167,11 @@ function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pa
     checks.push({ pass: !shifted, reason: "Must not shift to response-mode phrasing" });
   }
 
-  // must_preserve_specific_terms
+  // must_preserve_specific_terms (with normalization)
   if (rules.must_preserve_specific_terms) {
     for (const term of rules.must_preserve_specific_terms) {
       checks.push({
-        pass: textLower.includes(term.toLowerCase()),
+        pass: textNorm.includes(normalizeText(term)),
         reason: `Must preserve term: "${term}"`,
       });
     }
@@ -156,8 +179,11 @@ function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pa
 
   // must_not_introduce_we_language
   if (rules.must_not_introduce_we_language) {
-    const hasWe = /\b(we both|we all|we can|we should|we need)\b/i.test(text);
-    checks.push({ pass: !hasWe, reason: "Must not introduce 'we' language" });
+    const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
+    if (!origHasWe) {
+      const rewriteHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(text));
+      checks.push({ pass: !rewriteHasWe, reason: "Must not introduce 'we/us/let's' language not in original" });
+    }
   }
 
   // must_not_introduce_i_will
@@ -168,8 +194,7 @@ function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pa
 
   // max_word_count
   if (rules.max_word_count) {
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
-    checks.push({ pass: wordCount <= rules.max_word_count, reason: `Must be ≤${rules.max_word_count} words (got ${wordCount})` });
+    checks.push({ pass: rewriteWordCount <= rules.max_word_count, reason: `Must be ≤${rules.max_word_count} words (got ${rewriteWordCount})` });
   }
 
   // must_flag_any
@@ -184,6 +209,43 @@ function runValidator(rules: ValidatorRules | null, result: RewriteResult): { pa
       const found = flags.some((rf) => rf.includes(f.toLowerCase()));
       checks.push({ pass: !found, reason: `Risk flags must not include: "${f}"` });
     }
+  }
+
+  // must_not_preserve_past_fact_validation
+  if (rules.must_not_preserve_past_fact_validation) {
+    const hasValidation = PAST_FACT_VALIDATION_PATTERNS.some((p) => p.test(text));
+    checks.push({ pass: !hasValidation, reason: "Must not preserve past-fact validation language (confirm/acknowledge/admit/clarify disputed conduct)" });
+  }
+
+  // must_not_preserve_leverage_language
+  if (rules.must_not_preserve_leverage_language) {
+    const hasLeverage = LEVERAGE_PHRASES.some((p) => p.test(text));
+    checks.push({ pass: !hasLeverage, reason: "Must not preserve leverage/escalation framing" });
+  }
+
+  // must_not_deepen_nonessential_content
+  if (rules.must_not_deepen_nonessential_content) {
+    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
+    checks.push({ pass: !hasDeepening, reason: "Must not deepen emotional/nonessential content" });
+    // Also check expansion for emotional cases
+    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.3) {
+      checks.push({ pass: false, reason: `Nonessential content expanded (${origWordCount}→${rewriteWordCount} words)` });
+    }
+  }
+
+  // should_not_expand_unnecessarily
+  if (rules.should_not_expand_unnecessarily) {
+    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.5) {
+      checks.push({ pass: false, reason: `Rewrite expanded significantly without safety reason (${origWordCount}→${rewriteWordCount} words, >150%)` });
+    } else {
+      checks.push({ pass: true, reason: `Rewrite length acceptable (${origWordCount}→${rewriteWordCount} words)` });
+    }
+  }
+
+  // must_not_preserve_financial_assumptions
+  if (rules.must_not_preserve_financial_assumptions) {
+    const hasFinancial = FINANCIAL_ASSUMPTION_PATTERNS.some((p) => p.test(text));
+    checks.push({ pass: !hasFinancial, reason: "Must not preserve financial assumptions (income changes, ability to pay)" });
   }
 
   const failures = checks.filter((c) => !c.pass);
