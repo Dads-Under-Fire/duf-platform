@@ -384,11 +384,15 @@ export default function AdminRewriteTests() {
       const enriched: RunHistoryRow[] = [];
       for (const run of runs) {
         const { data: results } = await (supabase.from as any)("ai_gold_suite_results")
-          .select("validator_pass")
+          .select("validator_pass, validator_status")
           .eq("run_id", run.id);
-        const passCount = (results ?? []).filter((r: any) => r.validator_pass).length;
-        const failCount = (results ?? []).filter((r: any) => !r.validator_pass).length;
-        enriched.push({ ...run, pass_count: passCount, fail_count: failCount });
+        const passCount = (results ?? []).filter((r: any) => (r.validator_status ?? (r.validator_pass ? "pass" : "fail")) === "pass").length;
+        const warnCount = (results ?? []).filter((r: any) => (r.validator_status ?? "") === "warn").length;
+        const failCount = (results ?? []).filter((r: any) => {
+          const s = r.validator_status ?? (r.validator_pass ? "pass" : "fail");
+          return s === "fail";
+        }).length;
+        enriched.push({ ...run, pass_count: passCount, warn_count: warnCount, fail_count: failCount });
       }
       setRunHistory(enriched);
     }
