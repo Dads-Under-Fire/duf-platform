@@ -961,6 +961,130 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
   return null;
 }
 
+// ── Rewrite semantic validation (pre-save) ──
+const SHARED_RESPONSIBILITY_PATTERNS = [
+  /\bwe need to\b/i, /\bwe should\b/i, /\bwe must\b/i,
+  /\blet's\b/i, /\blet us\b/i, /\bwe can\b/i,
+  /\bwe both\b/i, /\btogether we\b/i, /\bour shared\b/i,
+];
+
+const NEW_COMMITMENT_PATTERNS = [
+  /\bi will\b/i, /\bi'll\b/i, /\bi commit\b/i,
+  /\bi promise\b/i, /\bi pledge\b/i, /\bi guarantee\b/i,
+  /\bi am going to\b/i, /\bi'm going to\b/i,
+];
+
+const HOSTILE_FIRMNESS_PATTERNS = [
+  /\byou need to understand\b/i, /\bi expect you to\b/i,
+  /\bi need you to\b/i, /\byou will\b/i,
+  /\byou are required\b/i, /\bi demand\b/i,
+  /\byou have been\b/i, /\byou('re| are) expected to\b/i,
+  /\bgoing forward,? you will\b/i, /\bi insist\b/i,
+  /\bi trust that you\b/i, /\byou('re| are) not allowed\b/i,
+];
+
+interface SemanticIssue {
+  field: string;
+  type: string;
+  detail: string;
+}
+
+function validateRewriteSemantics(
+  original: string,
+  result: Record<string, unknown>,
+): SemanticIssue[] {
+  const issues: SemanticIssue[] = [];
+  const origLower = original.toLowerCase();
+
+  const rewriteFields = [
+    { key: "primary_rewrite", label: "primary_rewrite" },
+    { key: "shorter_version", label: "shorter_version" },
+    { key: "firmer_version", label: "firmer_version" },
+  ] as const;
+
+  const originalIsRequest = /\b(please|can you|could you|will you|would you|you need|confirm|let me know)\b/i.test(origLower)
+    || /\?/.test(original);
+
+  const originalHasCommitment = /\bi will\b/i.test(origLower)
+    || /\bi'll\b/i.test(origLower)
+    || /\bi am going to\b/i.test(origLower)
+    || /\bi'm going to\b/i.test(origLower)
+    || /\bi commit\b/i.test(origLower)
+    || /\bi promise\b/i.test(origLower);
+
+  const originalHasShared = /\b(we need|we should|we must|let's|let us|we can|we both)\b/i.test(origLower);
+
+  const originalDirectsAtYou = /\b(you need|you should|you must|you have to|you haven't|you didn't|you failed|you were late|you missed)\b/i.test(origLower);
+
+  for (const { key, label } of rewriteFields) {
+    const text = result[key];
+    if (typeof text !== "string" || !text.trim()) continue;
+
+    // 1. Perspective flip: original is a request → output says "I will"
+    if (originalIsRequest && !originalHasCommitment) {
+      for (const p of NEW_COMMITMENT_PATTERNS) {
+        if (p.test(text)) {
+          issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
+          break;
+        }
+      }
+    }
+
+    // 2. Shared responsibility reframing
+    if (originalDirectsAtYou && !originalHasShared) {
+      for (const p of SHARED_RESPONSIBILITY_PATTERNS) {
+        if (p.test(text)) {
+          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}` });
+          break;
+        }
+      }
+    }
+
+    // 3. Over-softening
+    for (const p of PASSIVE_WEAK_PATTERNS) {
+      if (p.test(text)) {
+        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}` });
+        break;
+      }
+    }
+
+    // 4. New commitments not in original
+    if (!originalHasCommitment) {
+      if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
+        const isAdmissionTrapRedirect = /\bi will (follow|adhere to|comply with) the agreed/i.test(text)
+          || /\bi will be at the scheduled/i.test(text);
+        if (!isAdmissionTrapRedirect) {
+          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original` });
+        }
+      }
+    }
+
+    // 5. Hostile firmness (firmer_version only)
+    if (key === "firmer_version") {
+      for (const p of HOSTILE_FIRMNESS_PATTERNS) {
+        if (p.test(text)) {
+          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}` });
+          break;
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
+const SEMANTIC_RETRY_ADDENDUM = `
+
+CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Your previous output violated these rules:
+
+1. NEVER convert a request into "I will" — if the original asks the other party to do something, keep it as a request.
+2. NEVER reframe directed responsibility as "we need to" or "let's" — preserve who the original holds accountable.
+3. NEVER soften the message with passive phrases like "I would appreciate", "perhaps we could", "if that's okay".
+4. NEVER add "I will" commitments unless the original explicitly contains them.
+5. firmer_version must be assertive but NEVER hostile, controlling, or patronizing (no "I expect you to", "you need to understand", "I demand").
+
+Regenerate ALL variants following these rules strictly.`;
+
 function validateRewriteResult(r: Record<string, unknown>): string | null {
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
   if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
@@ -1199,17 +1323,37 @@ You MUST call the provided tool with your structured output.`;
             const s = scoreRewriteQuality(parsed, mode);
             console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
 
-            if (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable") {
+            // Semantic validation for rewrite mode
+            let semanticFailed = false;
+            if (mode === "rewrite") {
+              const semanticIssues = validateRewriteSemantics(message, parsed);
+              if (semanticIssues.length > 0) {
+                semanticFailed = true;
+                console.log(`[${FN}] Tier1 semantic validation failed: ${JSON.stringify(semanticIssues)}`);
+              }
+            }
+
+            if (!semanticFailed && (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable")) {
               aiResult = parsed;
               rewriteScore = s;
             } else {
-              console.log(`[${FN}] Tier1 score ${s.quality_score_status}, attempting stricter retry`);
-              const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
+              const retryAddendum = semanticFailed ? SEMANTIC_RETRY_ADDENDUM : STRICTER_RETRY_ADDENDUM;
+              console.log(`[${FN}] Tier1 ${semanticFailed ? "semantic" : "score"} issue, attempting stricter retry`);
+              const stricterBody = buildRequestBody(retryAddendum);
               const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
               if (retryResult) {
                 const s2 = scoreRewriteQuality(retryResult, mode);
                 console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
-                if (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable") {
+                // Re-check semantics on retry
+                let retrySemanticOk = true;
+                if (mode === "rewrite") {
+                  const retryIssues = validateRewriteSemantics(message, retryResult);
+                  if (retryIssues.length > 0) {
+                    retrySemanticOk = false;
+                    console.log(`[${FN}] Tier1-strict-retry semantic issues persist: ${JSON.stringify(retryIssues)}`);
+                  }
+                }
+                if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
                   aiResult = retryResult;
                   rewriteScore = s2;
                 }
@@ -1231,11 +1375,20 @@ You MUST call the provided tool with your structured output.`;
     if (!aiResult) {
       console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
       const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
-      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, stricterBody, mode, toolName, "Tier2");
+      const tier2Body = mode === "rewrite" ? buildRequestBody(SEMANTIC_RETRY_ADDENDUM) : stricterBody;
+      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, tier2Body, mode, toolName, "Tier2");
       if (tier2Result) {
         const s = scoreRewriteQuality(tier2Result, mode);
         console.log(`[${FN}] Tier2 score: ${s.score}/10 (${s.quality_score_status})`);
-        if (s.quality_score_status !== "reject") {
+        let tier2SemanticOk = true;
+        if (mode === "rewrite") {
+          const tier2Issues = validateRewriteSemantics(message, tier2Result);
+          if (tier2Issues.length > 0) {
+            tier2SemanticOk = false;
+            console.log(`[${FN}] Tier2 semantic issues: ${JSON.stringify(tier2Issues)}`);
+          }
+        }
+        if (tier2SemanticOk && s.quality_score_status !== "reject") {
           aiResult = tier2Result;
           rewriteScore = s;
         }
