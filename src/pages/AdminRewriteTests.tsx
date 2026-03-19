@@ -315,7 +315,51 @@ export default function AdminRewriteTests() {
     setSelectedRunResults(data ?? []);
   }, []);
 
+  const runAdHocTest = useCallback(async () => {
+    if (!adHocMessage.trim()) return;
+    setAdHocRunning(true);
+    setAdHocResult(null);
+    setAdHocError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: { message: adHocMessage.trim(), mode: "rewrite" },
+      });
+      if (error || !data) {
+        setAdHocError(error?.message ?? "No data returned");
+      } else {
+        setAdHocResult(data as RewriteResult);
+      }
+    } catch (e: any) {
+      setAdHocError(e.message);
+    }
+    setAdHocRunning(false);
+  }, [adHocMessage]);
+
+  const saveAsGoldCandidate = useCallback(async () => {
+    if (!adHocMessage.trim()) return;
+    setAdHocSaving(true);
+    const testId = `ADHOC-${Date.now()}`;
+    const { error } = await (supabase.from as any)("ai_gold_suite_cases").insert({
+      feature_key: "communication_shield",
+      mode: "rewrite",
+      test_id: testId,
+      category: adHocCategory.trim() || "ad_hoc",
+      original_message: adHocMessage.trim(),
+      expected_behavior: null,
+      must_not_do: null,
+      notes: adHocNotes.trim() || "Saved from ad hoc test",
+      is_active: false,
+    });
+    setAdHocSaving(false);
+    if (error) {
+      toast.error("Failed to save: " + error.message);
+    } else {
+      toast.success(`Saved as gold-suite candidate: ${testId}`);
+    }
+  }, [adHocMessage, adHocCategory, adHocNotes]);
+
   if (authLoading || roleLoading) {
+
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-full">
