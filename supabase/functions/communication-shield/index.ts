@@ -1682,7 +1682,7 @@ You MUST call the provided tool with your structured output.`;
 
     await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] success | mode=${mode} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
+    console.log(`[${FN}] success | mode=${mode} | prompt_version=${loadedPrompt.versionLabel} | prompt_source=${loadedPrompt.source} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
 
     // For respond mode, also populate primary_response for backward compatibility
@@ -1691,6 +1691,8 @@ You MUST call the provided tool with your structured output.`;
       mode,
       risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined, extractServerFlags(originalScoreResult.notes)),
       original_score: originalScoreResult.score,
+      prompt_version: loadedPrompt.versionLabel,
+      prompt_source: loadedPrompt.source,
     };
     if (mode === "rewrite") {
       responsePayload.rewrite_quality_score = rewriteScore!.score;
