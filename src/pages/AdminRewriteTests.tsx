@@ -498,7 +498,8 @@ export default function AdminRewriteTests() {
         rewrite_quality_notes: caseResult.result?.rewrite_quality_notes ?? null,
         prompt_version: caseResult.promptVersion,
         prompt_source: caseResult.promptSource,
-        validator_pass: caseResult.validatorPass,
+        validator_pass: caseResult.validatorStatus === "pass",
+        validator_status: caseResult.validatorStatus,
         validator_notes: caseResult.validatorNotes,
       });
 
