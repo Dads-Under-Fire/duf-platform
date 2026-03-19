@@ -1358,7 +1358,7 @@ function buildInsertRow(
     shorter_version: (result.shorter_version as string) ?? null,
     firmer_version: (result.firmer_version as string) ?? null,
     tone_assessment: (result.tone_assessment as string) ?? "Fallback",
-    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined),
+    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
     why_this_is_safer: (result.why_this_is_safer as string) ?? null,
     // ── Scoring: always write original_score ──
     original_score: originalScore.score,
