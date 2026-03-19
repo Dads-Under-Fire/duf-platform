@@ -460,7 +460,7 @@ export default function AdminRewriteTests() {
             category: tc.category,
             original_message: tc.original_message,
             result,
-            validatorPass: validation.pass,
+            validatorStatus: validation.status,
             validatorNotes: validation.notes,
             promptVersion: pv,
             promptSource: ps,
