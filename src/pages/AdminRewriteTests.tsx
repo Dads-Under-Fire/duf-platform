@@ -55,6 +55,43 @@ interface ValidatorRules {
   must_not_preserve_financial_assumptions?: boolean;
 }
 
+interface RewriteResult {
+  primary_rewrite: string;
+  shorter_version: string;
+  firmer_version: string;
+  original_score: number;
+  rewrite_quality_score: number;
+  risk_flags: string[];
+  tone_assessment: string;
+  original_score_notes: string[];
+  rewrite_quality_notes: string[];
+  why_this_is_safer: string;
+  prompt_version?: string;
+  prompt_source?: string;
+}
+
+interface CaseRunResult {
+  test_id: string;
+  category: string;
+  original_message: string;
+  result: RewriteResult | null;
+  validatorPass: boolean;
+  validatorNotes: string[];
+  error?: string;
+  promptVersion: string;
+  promptSource: string;
+}
+
+interface RunHistoryRow {
+  id: string;
+  prompt_version: string | null;
+  prompt_source: string | null;
+  run_label: string | null;
+  created_at: string;
+  pass_count: number;
+  fail_count: number;
+}
+
 // ── Normalization helpers ──
 
 function normalizeText(s: string): string {
