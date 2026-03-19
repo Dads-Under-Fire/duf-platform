@@ -308,8 +308,9 @@ Always prioritize protecting the user from unnecessary engagement and legal risk
 const REWRITE_INTRO = `The user wants to REWRITE their own drafted outgoing co-parent message into neutral, factual, court-safe language.
 
 PURPOSE:
-- Preserve the user's intent while reducing legal risk, emotional language, escalation, and ambiguity.
+- Preserve the user's SAFEST FUNCTIONAL INTENT while reducing legal risk, emotional language, escalation, and ambiguity.
 - The output must read as something the user could copy-paste and send immediately.
+- The goal is NOT to preserve every emotional nuance. The goal is to preserve the safest functional intent in a neutral, disciplined way.
 
 CRITICAL RULES — PERSPECTIVE AND ACCOUNTABILITY:
 - NEVER change the speaker's perspective. If the user wrote "I" → rewrite says "I". If "you" → handle carefully but do NOT flip perspective.
@@ -317,6 +318,42 @@ CRITICAL RULES — PERSPECTIVE AND ACCOUNTABILITY:
 - NEVER convert a request into a statement of action. If the original asks the other party to confirm, act, or clarify, the rewrite MUST remain a request.
 - NEVER generate "I will" unless the original clearly states the sender is making that commitment.
 - Preserve accountability direction. Do not reframe the issue as shared responsibility unless that is explicitly appropriate from the original.
+
+CONFIRMATION REQUEST PRESERVATION:
+- If the original asks the other party to confirm a future action (e.g. "Can you confirm you'll be there Saturday?"), the rewrite MUST remain a confirmation request.
+- Do NOT convert "Can you confirm..." or "Will you..." into a directive like "Be there Saturday" or "You will be there Saturday."
+- Do NOT convert a confirmation request into a statement of the sender's own action.
+- Acceptable: "Please confirm the Saturday pickup time." / "Will you be at the pickup location at 3pm?"
+- Unacceptable: "I will be at the pickup location at 3pm." (when the original asked the OTHER party to confirm)
+
+ASSUMPTION-TO-FACT PROHIBITION:
+- Do NOT assert that the other party's finances, motives, intentions, compliance history, or circumstances have changed unless that fact is ALREADY clearly established in the original AND is safe to preserve.
+- Do NOT harden soft language ("I think you might be..." → "You are...").
+- Do NOT infer or state reasons for the other party's behavior.
+- If the original contains speculation or assumptions, the rewrite should NARROW or REMOVE them — never strengthen them into stated facts.
+- Especially avoid asserting anything about: money, income changes, new partners, mental health, substance use, compliance history, or intent.
+
+EMOTIONAL CONTENT NARROWING:
+- If the original message is primarily emotional, nostalgic, relational, or not materially related to co-parenting logistics, parenting issues, or necessary communication:
+  - The rewrite should NARROW it to the functional core or NEUTRALIZE it — not polish it into a deeper or more articulate emotional discussion.
+  - Strip sentimental, guilt-tripping, or relationship-processing language.
+  - If there is NO functional intent beneath the emotion, the rewrite should be extremely brief and logistics-focused.
+- The goal is NOT to preserve every emotional nuance. The goal is to preserve the SAFEST FUNCTIONAL INTENT in a neutral, disciplined way.
+
+CONTROLLING/PATRONIZING LANGUAGE PROHIBITION:
+- Do NOT add controlling or patronizing closing language to any variant.
+- Specifically BANNED closing phrases:
+  • "Please confirm you understand this change."
+  • "Please confirm you understand."
+  • "I expect you to..."
+  • "You need to..."
+  • "I trust you will..."
+  • "I assume you will..."
+  • "Make sure you..."
+  • "Ensure that you..."
+  • "See to it that..."
+- Firmer phrasing must still remain court-safe and non-controlling. Assertive ≠ controlling.
+- Acceptable firm closers: "Please confirm the pickup time." / "The schedule is as agreed." / "I will follow the parenting plan."
 
 SHARED RESPONSIBILITY RULE:
 - Avoid "we," "us," "let's," or other mutual framing unless clearly necessary and explicitly supported by the original.
@@ -387,12 +424,24 @@ OUTPUT FIELDS:
 - original_score_deductions = notes explaining original score deductions
 - self_score_deductions = notes explaining rewrite score deductions
 
+REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
+Apply these deductions to self_score in ADDITION to standard deductions:
+- -2 if a confirmation request was converted into a directive or self-commitment
+- -2 if an assumption or speculation was hardened into an asserted fact
+- -2 if emotional content was polished/articulated instead of narrowed/neutralized
+- -2 if controlling or patronizing closing language was introduced
+- -1 if the rewrite preserves emotional nuance that has no functional purpose
+
 VALIDATION — SELF-CHECK BEFORE OUTPUTTING:
 - If the rewrite changes perspective → regenerate
 - If the rewrite turns a request into a statement of action → regenerate
 - If the rewrite introduces shared responsibility improperly → regenerate
 - If the rewrite adds admissions, escalation, or unnecessary softness → regenerate
 - If the rewrite uses any BANNED passive phrases → regenerate
+- If a confirmation request became a directive → regenerate
+- If an assumption became an asserted fact → regenerate
+- If emotional bait was polished instead of narrowed → regenerate
+- If controlling/patronizing closing language was added → regenerate
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
@@ -854,15 +903,23 @@ function scoreOutputQuality(
     notes.push("-3: placeholder brackets");
   }
 
-  // 11. Controlling / patronizing tone (-1)
+  // 11. Controlling / patronizing tone (-2 in rewrite, -1 in respond)
   const controllingPatterns = [
     /\byou need to\b/i, /\byou must\b/i, /\byou should\b/i,
     /\bi expect you to\b/i, /\bi need you to\b/i,
     /\bgoing forward,? you will\b/i, /\bi trust that you\b/i,
+    /\bplease confirm you understand\b/i, /\bi assume you will\b/i,
+    /\bmake sure you\b/i, /\bensure that you\b/i,
+    /\bsee to it that\b/i, /\bi trust you will\b/i,
   ];
   let controlHits = 0;
   for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; notes.push(`controlling: ${p.source}`); } }
-  if (controlHits > 0) { deductions += 1; issueCategories++; notes.push("-1: controlling/patronizing tone"); }
+  if (controlHits > 0) {
+    const controlDeduction = mode === "rewrite" ? 2 : 1;
+    deductions += controlDeduction;
+    issueCategories++;
+    notes.push(`-${controlDeduction}: controlling/patronizing tone`);
+  }
 
   // 12. Generic/bland wording (-1)
   const genericPatterns = [
@@ -1070,6 +1127,34 @@ function validateRewriteSemantics(
         }
       }
     }
+
+    // 6. Controlling/patronizing closers (all variants)
+    const controllingCloserPatterns = [
+      /\bplease confirm you understand\b/i,
+      /\bi expect you to\b/i,
+      /\bi trust that you will\b/i,
+      /\bi assume you will\b/i,
+      /\bmake sure you\b/i,
+      /\bensure that you\b/i,
+      /\bsee to it that\b/i,
+    ];
+    for (const p of controllingCloserPatterns) {
+      if (p.test(text)) {
+        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}` });
+        break;
+      }
+    }
+
+    // 7. Confirmation request converted to directive
+    if (originalIsRequest && !originalHasCommitment) {
+      const originalAsksOther = /\b(can you|could you|will you|would you|are you going to|please confirm)\b/i.test(origLower);
+      if (originalAsksOther) {
+        const isDirective = /\b(you will|you are to)\b/i.test(text) && !/\b(will you|can you|could you|would you)\b/i.test(text);
+        if (isDirective) {
+          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive` });
+        }
+      }
+    }
   }
 
   return issues;
@@ -1084,6 +1169,10 @@ CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Your previous output violated the
 3. NEVER soften the message with passive phrases like "I would appreciate", "perhaps we could", "if that's okay".
 4. NEVER add "I will" commitments unless the original explicitly contains them.
 5. firmer_version must be assertive but NEVER hostile, controlling, or patronizing (no "I expect you to", "you need to understand", "I demand").
+6. NEVER convert a confirmation request into a directive. If the original asks "Can you confirm...?" or "Will you...?", the rewrite MUST remain a request.
+7. NEVER add controlling or patronizing closers like "Please confirm you understand", "I expect you to", "Make sure you", "Ensure that you".
+8. NEVER harden assumptions into facts. If the original speculates about the other party's finances, motives, or intent, narrow or remove it — do not assert it as fact.
+9. If the original is primarily emotional with no logistical content, NARROW it to a brief logistics-focused message — do NOT polish the emotion.
 
 Regenerate ALL variants following these rules strictly.`;
 
