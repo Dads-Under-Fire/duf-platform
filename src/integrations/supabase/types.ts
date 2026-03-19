@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_system_prompts: {
+        Row: {
+          created_at: string
+          feature_key: string
+          id: string
+          is_active: boolean
+          mode: string
+          notes: string | null
+          prompt_text: string
+          updated_at: string
+          version_label: string
+        }
+        Insert: {
+          created_at?: string
+          feature_key: string
+          id?: string
+          is_active?: boolean
+          mode: string
+          notes?: string | null
+          prompt_text: string
+          updated_at?: string
+          version_label?: string
+        }
+        Update: {
+          created_at?: string
+          feature_key?: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          notes?: string | null
+          prompt_text?: string
+          updated_at?: string
+          version_label?: string
+        }
+        Relationships: []
+      }
       communication_shield_history: {
         Row: {
           actionability_score: number | null
