@@ -1323,17 +1323,37 @@ You MUST call the provided tool with your structured output.`;
             const s = scoreRewriteQuality(parsed, mode);
             console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
 
-            if (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable") {
+            // Semantic validation for rewrite mode
+            let semanticFailed = false;
+            if (mode === "rewrite") {
+              const semanticIssues = validateRewriteSemantics(message, parsed);
+              if (semanticIssues.length > 0) {
+                semanticFailed = true;
+                console.log(`[${FN}] Tier1 semantic validation failed: ${JSON.stringify(semanticIssues)}`);
+              }
+            }
+
+            if (!semanticFailed && (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable")) {
               aiResult = parsed;
               rewriteScore = s;
             } else {
-              console.log(`[${FN}] Tier1 score ${s.quality_score_status}, attempting stricter retry`);
-              const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
+              const retryAddendum = semanticFailed ? SEMANTIC_RETRY_ADDENDUM : STRICTER_RETRY_ADDENDUM;
+              console.log(`[${FN}] Tier1 ${semanticFailed ? "semantic" : "score"} issue, attempting stricter retry`);
+              const stricterBody = buildRequestBody(retryAddendum);
               const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
               if (retryResult) {
                 const s2 = scoreRewriteQuality(retryResult, mode);
                 console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
-                if (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable") {
+                // Re-check semantics on retry
+                let retrySemanticOk = true;
+                if (mode === "rewrite") {
+                  const retryIssues = validateRewriteSemantics(message, retryResult);
+                  if (retryIssues.length > 0) {
+                    retrySemanticOk = false;
+                    console.log(`[${FN}] Tier1-strict-retry semantic issues persist: ${JSON.stringify(retryIssues)}`);
+                  }
+                }
+                if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
                   aiResult = retryResult;
                   rewriteScore = s2;
                 }
