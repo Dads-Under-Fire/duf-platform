@@ -1127,6 +1127,34 @@ function validateRewriteSemantics(
         }
       }
     }
+
+    // 6. Controlling/patronizing closers (all variants)
+    const controllingCloserPatterns = [
+      /\bplease confirm you understand\b/i,
+      /\bi expect you to\b/i,
+      /\bi trust that you will\b/i,
+      /\bi assume you will\b/i,
+      /\bmake sure you\b/i,
+      /\bensure that you\b/i,
+      /\bsee to it that\b/i,
+    ];
+    for (const p of controllingCloserPatterns) {
+      if (p.test(text)) {
+        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}` });
+        break;
+      }
+    }
+
+    // 7. Confirmation request converted to directive
+    if (originalIsRequest && !originalHasCommitment) {
+      const originalAsksOther = /\b(can you|could you|will you|would you|are you going to|please confirm)\b/i.test(origLower);
+      if (originalAsksOther) {
+        const isDirective = /\b(you will|you are to)\b/i.test(text) && !/\b(will you|can you|could you|would you)\b/i.test(text);
+        if (isDirective) {
+          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive` });
+        }
+      }
+    }
   }
 
   return issues;
