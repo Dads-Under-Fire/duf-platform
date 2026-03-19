@@ -1153,15 +1153,34 @@ async function attemptAICall(
 ): Promise<Record<string, unknown> | null> {
   try {
     const response = await callOpenAI(apiKey, model, requestBody);
-    if (!response.ok) { console.warn(`[${FN}] ${label} failed: status=${response.status}`); return null; }
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      console.warn(`[${FN}] ${label} failure_type=api_error | status=${response.status} | body=${errBody.slice(0, 200)}`);
+      return null;
+    }
     const aiData = await response.json();
     const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
-    if (!functionCall) { console.warn(`[${FN}] ${label} no function_call`); return null; }
-    const parsed = JSON.parse(functionCall.arguments);
+    if (!functionCall) {
+      console.warn(`[${FN}] ${label} failure_type=empty_response | no function_call in output`);
+      return null;
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(functionCall.arguments);
+    } catch (jsonErr) {
+      console.warn(`[${FN}] ${label} failure_type=json_parse_error | ${jsonErr}`);
+      return null;
+    }
     const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
-    if (validationError) { console.warn(`[${FN}] ${label} validation failed: ${validationError}`); return null; }
+    if (validationError) {
+      console.warn(`[${FN}] ${label} failure_type=validation_rejection | ${validationError}`);
+      return null;
+    }
     return parsed;
-  } catch (err) { console.warn(`[${FN}] ${label} error: ${err}`); return null; }
+  } catch (err) {
+    console.warn(`[${FN}] ${label} failure_type=api_error | ${err}`);
+    return null;
+  }
 }
 
 function normalizeRiskFlags(flags: string[] | undefined): string[] {
@@ -1317,58 +1336,67 @@ You MUST call the provided tool with your structured output.`;
         const aiData = await response.json();
         const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
         if (functionCall) {
-          const parsed = JSON.parse(functionCall.arguments);
-          const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
-          if (!validationError) {
-            const s = scoreRewriteQuality(parsed, mode);
-            console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(functionCall.arguments);
+          } catch (jsonErr) {
+            console.warn(`[${FN}] Tier1 failure_type=json_parse_error | ${jsonErr}`);
+            parsed = null as any;
+          }
+          if (parsed) {
+            const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
+            if (!validationError) {
+              const s = scoreRewriteQuality(parsed, mode);
+              console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
 
-            // Semantic validation for rewrite mode
-            let semanticFailed = false;
-            if (mode === "rewrite") {
-              const semanticIssues = validateRewriteSemantics(message, parsed);
-              if (semanticIssues.length > 0) {
-                semanticFailed = true;
-                console.log(`[${FN}] Tier1 semantic validation failed: ${JSON.stringify(semanticIssues)}`);
+              // Semantic validation for rewrite mode
+              let semanticFailed = false;
+              if (mode === "rewrite") {
+                const semanticIssues = validateRewriteSemantics(message, parsed);
+                if (semanticIssues.length > 0) {
+                  semanticFailed = true;
+                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | ${JSON.stringify(semanticIssues)}`);
+                }
               }
-            }
 
-            if (!semanticFailed && (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable")) {
-              aiResult = parsed;
-              rewriteScore = s;
-            } else {
-              const retryAddendum = semanticFailed ? SEMANTIC_RETRY_ADDENDUM : STRICTER_RETRY_ADDENDUM;
-              console.log(`[${FN}] Tier1 ${semanticFailed ? "semantic" : "score"} issue, attempting stricter retry`);
-              const stricterBody = buildRequestBody(retryAddendum);
-              const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
-              if (retryResult) {
-                const s2 = scoreRewriteQuality(retryResult, mode);
-                console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
-                // Re-check semantics on retry
-                let retrySemanticOk = true;
-                if (mode === "rewrite") {
-                  const retryIssues = validateRewriteSemantics(message, retryResult);
-                  if (retryIssues.length > 0) {
-                    retrySemanticOk = false;
-                    console.log(`[${FN}] Tier1-strict-retry semantic issues persist: ${JSON.stringify(retryIssues)}`);
+              if (!semanticFailed && (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable")) {
+                aiResult = parsed;
+                rewriteScore = s;
+              } else {
+                const retryAddendum = semanticFailed ? SEMANTIC_RETRY_ADDENDUM : STRICTER_RETRY_ADDENDUM;
+                console.log(`[${FN}] Tier1 ${semanticFailed ? "semantic" : "score"} issue, attempting stricter retry`);
+                const stricterBody = buildRequestBody(retryAddendum);
+                const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
+                if (retryResult) {
+                  const s2 = scoreRewriteQuality(retryResult, mode);
+                  console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
+                  let retrySemanticOk = true;
+                  if (mode === "rewrite") {
+                    const retryIssues = validateRewriteSemantics(message, retryResult);
+                    if (retryIssues.length > 0) {
+                      retrySemanticOk = false;
+                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryIssues)}`);
+                    }
+                  }
+                  if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
+                    aiResult = retryResult;
+                    rewriteScore = s2;
                   }
                 }
-                if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
-                  aiResult = retryResult;
-                  rewriteScore = s2;
-                }
               }
+            } else {
+              console.warn(`[${FN}] Tier1 failure_type=validation_rejection | ${validationError}`);
             }
-          } else {
-            console.warn(`[${FN}] Tier1 validation failed: ${validationError}`);
           }
+        } else {
+          console.warn(`[${FN}] Tier1 failure_type=empty_response | no function_call in output`);
         }
       } catch (parseErr) {
-        console.warn(`[${FN}] Tier1 parse error: ${parseErr}`);
+        console.warn(`[${FN}] Tier1 failure_type=json_parse_error | ${parseErr}`);
       }
     } else {
       const errText = response ? await response.text() : "no response";
-      console.warn(`[${FN}] Tier1 failed: status=${response?.status} body=${errText}`);
+      console.warn(`[${FN}] Tier1 failure_type=api_error | status=${response?.status} | body=${errText.slice(0, 200)}`);
     }
 
     // Tier 2: Fallback model
@@ -1395,9 +1423,15 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
-    // Tier 3: Deterministic fallback
+    // Tier 3: Rewrite mode → return error; Respond mode → deterministic fallback
     if (!aiResult) {
-      console.log(`[${FN}] Tier3 deterministic fallback | mode=${mode}`);
+      if (mode === "rewrite") {
+        console.log(`[${FN}] Tier3 rewrite mode — returning error (no fallback)`);
+        logRequest({ userId, functionName: FN, status: "error", detail: `all_tiers_failed | mode=rewrite | original_score=${originalScoreResult.score}` });
+        return jsonResponse({ error: "Unable to generate rewrite. Please try again." }, 503);
+      }
+
+      console.log(`[${FN}] Tier3 deterministic fallback | mode=respond`);
       const fallback = buildDeterministicFallback(mode, communication_context);
       const fallbackScore: RewriteQualityResult = {
         score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
@@ -1408,7 +1442,7 @@ You MUST call the provided tool with your structured output.`;
       );
       if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
 
-      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=${mode} | original_score=${originalScoreResult.score}` });
+      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=respond | original_score=${originalScoreResult.score}` });
       return jsonResponse(fallback);
     }
 

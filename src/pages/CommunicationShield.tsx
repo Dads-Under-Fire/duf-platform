@@ -200,7 +200,7 @@ export default function CommunicationShield() {
         body: { message: submittedMessage, mode: "rewrite" },
       }).then(({ data, error }) => {
         if (error || data?.error) {
-          toast({ title: "Error", description: "Failed to regenerate.", variant: "destructive" });
+          toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
         } else {
           setResult(data as AIResult);
           refetchProfile();
