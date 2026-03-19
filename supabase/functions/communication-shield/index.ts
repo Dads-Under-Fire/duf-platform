@@ -1380,6 +1380,73 @@ function buildInsertRow(
   return row;
 }
 
+// ── Prompt loading from database ──
+interface LoadedPrompt {
+  promptText: string;
+  versionLabel: string;
+  source: "database" | "hardcoded_fallback";
+}
+
+function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
+  if (mode === "rewrite") {
+    return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
+  }
+  return `${RESPOND_INTRO(originalContext)}\n\n${BASE_INSTRUCTIONS}\n\n${ALTERNATIVES_INSTRUCTIONS}`;
+}
+
+async function loadActivePrompt(
+  serviceClient: any,
+  featureKey: string,
+  mode: "respond" | "rewrite",
+  originalContext?: string,
+): Promise<LoadedPrompt> {
+  try {
+    const { data, error } = await serviceClient
+      .from("ai_system_prompts")
+      .select("prompt_text, version_label")
+      .eq("feature_key", featureKey)
+      .eq("mode", mode)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.error(`[${FN}] prompt_load | ERROR: No active prompt found for ${featureKey}/${mode} | error=${JSON.stringify(error)}`);
+      console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+      return {
+        promptText: assembleHardcodedPrompt(mode, originalContext),
+        versionLabel: "hardcoded",
+        source: "hardcoded_fallback",
+      };
+    }
+
+    let promptText = data.prompt_text as string;
+
+    // Replace respond mode placeholder with actual context
+    if (mode === "respond") {
+      const contextSentence = originalContext
+        ? ` The original message received was: "${originalContext}"`
+        : "";
+      promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", contextSentence);
+    }
+
+    console.log(`[${FN}] prompt_load | source=database | feature=${featureKey} | mode=${mode} | version=${data.version_label} | length=${promptText.length}`);
+    return {
+      promptText,
+      versionLabel: data.version_label as string,
+      source: "database",
+    };
+  } catch (err) {
+    console.error(`[${FN}] prompt_load | EXCEPTION loading prompt: ${err}`);
+    console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+    return {
+      promptText: assembleHardcodedPrompt(mode, originalContext),
+      versionLabel: "hardcoded",
+      source: "hardcoded_fallback",
+    };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
