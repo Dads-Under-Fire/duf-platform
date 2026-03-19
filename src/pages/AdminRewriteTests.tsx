@@ -304,8 +304,8 @@ export default function AdminRewriteTests() {
           };
         } else {
           const result: RewriteResult = data;
-          const pv = (data as any)._prompt_version ?? "unknown";
-          const ps = (data as any)._prompt_source ?? "unknown";
+          const pv = (data as any).prompt_version ?? "unknown";
+          const ps = (data as any).prompt_source ?? "unknown";
           if (firstPromptVersion === "unknown" && pv !== "unknown") {
             firstPromptVersion = pv;
             firstPromptSource = ps;
