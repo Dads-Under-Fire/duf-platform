@@ -1525,7 +1525,11 @@ You MUST call the provided tool with your structured output.`;
     const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
     const toolName = tool.name;
 
-    console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
+    if (loadedPrompt.source === "hardcoded_fallback") {
+      console.warn(`[${FN}] ⚠️ USING HARDCODED FALLBACK | version=${loadedPrompt.versionLabel} | reason=${loadedPrompt.fallbackReason}`);
+    } else {
+      console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
+    }
 
     const buildRequestBody = (addendum = "") => JSON.stringify({
       model: MODEL_PRIMARY,
