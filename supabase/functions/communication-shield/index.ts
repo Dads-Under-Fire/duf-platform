@@ -92,9 +92,9 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - If emotional or vague language exists → must not exceed 7-8
    - Only score 9-10 if message is already fully neutral and concise
 
-   Also provide "original_score_deductions" — array of strings describing each issue found.
+   Also provide "original_score_notes" — array of strings describing each issue found.
 
-2. "self_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
+2. "rewrite_quality_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
    A score of 10 should be EXCEPTIONALLY RARE — reserved only for rewrites that require zero improvement.
    
    Score the rewrite quality:
@@ -104,7 +104,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - 8-9 = strong rewrite with minor issues
    - 10 = near-perfect — NO meaningful improvement possible
    
-   Deduction rules for self_score (start at 10, apply ALL that match):
+   Deduction rules for rewrite_quality_score (start at 10, apply ALL that match):
     - -3 if accusatory language remains in output
     - -3 if admission of fault or apology language exists in output
     - -2 if emotional language remains
@@ -120,7 +120,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
     - -1 if slightly controlling or patronizing tone
     - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
     
-    HARD CAPS for self_score (these override all other scoring):
+    HARD CAPS for rewrite_quality_score (these override all other scoring):
     - If ANY admission trap language remains in the rewrite (asks for confirmation of past events, restates wrongdoing, includes questions that create legal exposure like "Can you confirm...?", "Do you agree...?", "Were you late...?") → MAX score = 6
     - If ANY threat language remains in the rewrite → MAX score = 7
     - If the rewrite introduces NEW legal risk not present in the original → MAX score = 5
@@ -138,7 +138,7 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
     - Concise, natural-sounding, and would require zero meaningful improvement
     - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
    
-   Also provide "self_score_deductions" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
+   Also provide "rewrite_quality_notes" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the ORIGINAL message
@@ -426,11 +426,11 @@ OUTPUT FIELDS:
 - risk_flags = array of issues found in the ORIGINAL message
 - original_score = score for how risky the original message is (1=very risky, 10=already safe)
 - rewrite_quality_score = score for how strong and safe the rewrite is (1=poor, 10=excellent)
-- original_score_deductions = notes explaining original score deductions
-- self_score_deductions = notes explaining rewrite score deductions
+- original_score_notes = notes explaining original score deductions
+- rewrite_quality_notes = notes explaining rewrite score deductions
 
 REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
-Apply these deductions to self_score in ADDITION to standard deductions:
+Apply these deductions to rewrite_quality_score in ADDITION to standard deductions:
 - -2 if a confirmation request was converted into a directive or self-commitment
 - -2 if an assumption or speculation was hardened into an asserted fact
 - -2 if emotional content was polished/articulated instead of narrowed/neutralized
@@ -485,11 +485,11 @@ const RESPOND_TOOL = {
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this recommendation is safer" },
       three_alternatives: { type: "array", items: { type: "string" }, description: "Exactly 3 alternatives: [more direct, slightly softer, highly structured/formal]" },
       original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
-      original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−3: accusatory language'. Use ['none'] if clean." },
-      self_score: { type: "integer", description: "Quality score of YOUR generated output only (1=poor, 10=excellent)" },
-      self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your output quality, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
+      original_score_notes: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−3: accusatory language'. Use ['none'] if clean." },
+      rewrite_quality_score: { type: "integer", description: "Quality score of YOUR generated output only (1=poor, 10=excellent)" },
+      rewrite_quality_notes: { type: "array", items: { type: "string" }, description: "Deductions on your output quality, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
+    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "rewrite_quality_score", "rewrite_quality_notes"],
     additionalProperties: false,
   },
   strict: true,
@@ -509,11 +509,11 @@ const REWRITE_TOOL = {
       risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
       why_this_is_safer: { type: "string", description: "1-2 sentences on why this rewrite is safer" },
       original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
-      original_score_deductions: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−2: emotional language'. Use ['none'] if clean." },
-      self_score: { type: "integer", description: "Quality score of YOUR rewritten output only (1=poor, 10=excellent)" },
-      self_score_deductions: { type: "array", items: { type: "string" }, description: "Deductions on your rewrite quality, e.g. '−1: slightly verbose'. Use ['none'] if perfect." },
+      original_score_notes: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−2: emotional language'. Use ['none'] if clean." },
+      rewrite_quality_score: { type: "integer", description: "Quality score of YOUR rewritten output only (1=poor, 10=excellent)" },
+      rewrite_quality_notes: { type: "array", items: { type: "string" }, description: "Deductions on your rewrite quality, e.g. '−1: slightly verbose'. Use ['none'] if perfect." },
     },
-    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_deductions", "self_score", "self_score_deductions"],
+    required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_notes", "rewrite_quality_score", "rewrite_quality_notes"],
     additionalProperties: false,
   },
   strict: true,
@@ -996,11 +996,11 @@ function scoreOutputQuality(
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
   // Incorporate AI self-score (take minimum)
-  const aiSelfScore = typeof result.self_score === "number" ? result.self_score : null;
+  const aiSelfScore = typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null;
   if (aiSelfScore !== null) {
     notes.push(`ai_self_score: ${aiSelfScore}`);
-    if (Array.isArray(result.self_score_deductions)) {
-      notes.push(`ai_deductions: ${(result.self_score_deductions as string[]).join("; ")}`);
+    if (Array.isArray(result.rewrite_quality_notes)) {
+      notes.push(`ai_deductions: ${(result.rewrite_quality_notes as string[]).join("; ")}`);
     }
   }
 
