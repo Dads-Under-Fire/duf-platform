@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -16,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Play, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Play, CheckCircle, XCircle, Loader2, Send, BookmarkPlus } from "lucide-react";
+import { toast } from "sonner";
 
 // ── Types ──
 
@@ -136,6 +140,15 @@ export default function AdminRewriteTests() {
   const [latestResults, setLatestResults] = useState<CaseRunResult[]>([]);
   const [runHistory, setRunHistory] = useState<RunHistoryRow[]>([]);
   const [selectedRunResults, setSelectedRunResults] = useState<any[] | null>(null);
+
+  // Ad hoc test state
+  const [adHocMessage, setAdHocMessage] = useState("");
+  const [adHocCategory, setAdHocCategory] = useState("");
+  const [adHocNotes, setAdHocNotes] = useState("");
+  const [adHocRunning, setAdHocRunning] = useState(false);
+  const [adHocResult, setAdHocResult] = useState<RewriteResult | null>(null);
+  const [adHocError, setAdHocError] = useState<string | null>(null);
+  const [adHocSaving, setAdHocSaving] = useState(false);
 
   // Load active gold suite cases
   useEffect(() => {
@@ -302,7 +315,51 @@ export default function AdminRewriteTests() {
     setSelectedRunResults(data ?? []);
   }, []);
 
+  const runAdHocTest = useCallback(async () => {
+    if (!adHocMessage.trim()) return;
+    setAdHocRunning(true);
+    setAdHocResult(null);
+    setAdHocError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: { message: adHocMessage.trim(), mode: "rewrite" },
+      });
+      if (error || !data) {
+        setAdHocError(error?.message ?? "No data returned");
+      } else {
+        setAdHocResult(data as RewriteResult);
+      }
+    } catch (e: any) {
+      setAdHocError(e.message);
+    }
+    setAdHocRunning(false);
+  }, [adHocMessage]);
+
+  const saveAsGoldCandidate = useCallback(async () => {
+    if (!adHocMessage.trim()) return;
+    setAdHocSaving(true);
+    const testId = `ADHOC-${Date.now()}`;
+    const { error } = await (supabase.from as any)("ai_gold_suite_cases").insert({
+      feature_key: "communication_shield",
+      mode: "rewrite",
+      test_id: testId,
+      category: adHocCategory.trim() || "ad_hoc",
+      original_message: adHocMessage.trim(),
+      expected_behavior: null,
+      must_not_do: null,
+      notes: adHocNotes.trim() || "Saved from ad hoc test",
+      is_active: false,
+    });
+    setAdHocSaving(false);
+    if (error) {
+      toast.error("Failed to save: " + error.message);
+    } else {
+      toast.success(`Saved as gold-suite candidate: ${testId}`);
+    }
+  }, [adHocMessage, adHocCategory, adHocNotes]);
+
   if (authLoading || roleLoading) {
+
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-full">
@@ -404,6 +461,7 @@ export default function AdminRewriteTests() {
                 <Badge variant="secondary" className="ml-2 text-xs">{runHistory.length}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="adhoc">Ad Hoc Test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="results" className="space-y-3 mt-4">
@@ -585,6 +643,153 @@ export default function AdminRewriteTests() {
                   </Card>
                 )}
               </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="adhoc" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Run a single message through the live rewrite engine</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  placeholder="Paste the original message here…"
+                  value={adHocMessage}
+                  onChange={(e) => setAdHocMessage(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                />
+                <div className="flex gap-3">
+                  <Input
+                    placeholder="Category label (optional)"
+                    value={adHocCategory}
+                    onChange={(e) => setAdHocCategory(e.target.value)}
+                    className="text-sm max-w-[200px]"
+                  />
+                  <Input
+                    placeholder="Notes (optional)"
+                    value={adHocNotes}
+                    onChange={(e) => setAdHocNotes(e.target.value)}
+                    className="text-sm flex-1"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={runAdHocTest}
+                    disabled={adHocRunning || !adHocMessage.trim()}
+                    className="gap-2"
+                  >
+                    {adHocRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {adHocRunning ? "Running…" : "Run Test"}
+                  </Button>
+                  {adHocResult && (
+                    <Button
+                      variant="outline"
+                      onClick={saveAsGoldCandidate}
+                      disabled={adHocSaving}
+                      className="gap-2"
+                    >
+                      {adHocSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookmarkPlus className="h-4 w-4" />}
+                      Save as Gold-Suite Candidate
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {adHocError && (
+              <Card className="border-destructive">
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-sm text-destructive">Error: {adHocError}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {adHocResult && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Result</CardTitle>
+                    <div className="text-xs text-muted-foreground">
+                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any)._prompt_version ?? "—"}</span>
+                      {" · "}Source: {(adHocResult as any)._prompt_source ?? "—"}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Scores */}
+                  <div className="flex gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-foreground">{adHocResult.original_score}</p>
+                      <p className="text-xs text-muted-foreground">Original Score</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-foreground">{adHocResult.rewrite_quality_score}</p>
+                      <p className="text-xs text-muted-foreground">Rewrite Score</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Rewrites */}
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Primary Rewrite</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.primary_rewrite}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Shorter Version</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.shorter_version}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium text-xs mb-1">Firmer Version</p>
+                      <p className="text-foreground bg-muted/50 rounded p-2">{adHocResult.firmer_version}</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Analysis */}
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground font-medium">Tone Assessment: </span>
+                      <span className="text-foreground">{adHocResult.tone_assessment}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground font-medium">Risk Flags: </span>
+                      <span className="text-foreground">
+                        {adHocResult.risk_flags.length > 0 ? adHocResult.risk_flags.join(", ") : "none"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground font-medium">Why This is Safer: </span>
+                      <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Score Notes */}
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Original Score Notes</p>
+                      <ul className="space-y-0.5 text-foreground">
+                        {(adHocResult.original_score_notes ?? []).map((n, i) => (
+                          <li key={i}>• {n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground font-medium mb-1">Rewrite Quality Notes</p>
+                      <ul className="space-y-0.5 text-foreground">
+                        {(adHocResult.rewrite_quality_notes ?? []).map((n, i) => (
+                          <li key={i}>• {n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
         </Tabs>
