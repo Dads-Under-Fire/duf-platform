@@ -775,8 +775,8 @@ export default function AdminRewriteTests() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm">Result</CardTitle>
                     <div className="text-xs text-muted-foreground">
-                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any)._prompt_version ?? "—"}</span>
-                      {" · "}Source: {(adHocResult as any)._prompt_source ?? "—"}
+                      Prompt: <span className="font-medium text-foreground">{(adHocResult as any).prompt_version ?? "—"}</span>
+                      {" · "}Source: {(adHocResult as any).prompt_source ?? "—"}
                     </div>
                   </div>
                 </CardHeader>
