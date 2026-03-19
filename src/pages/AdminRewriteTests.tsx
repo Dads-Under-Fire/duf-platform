@@ -835,19 +835,23 @@ export default function AdminRewriteTests() {
                           <TableRow>
                             <TableHead>Test</TableHead>
                             <TableHead>Category</TableHead>
-                            <TableHead>Pass</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead>Scores</TableHead>
                             <TableHead>Prompt</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {selectedRunResults.map((r: any) => (
+                          {selectedRunResults.map((r: any) => {
+                            const status = r.validator_status ?? (r.validator_pass ? "pass" : "fail");
+                            return (
                             <TableRow key={r.id}>
                               <TableCell className="text-xs">{r.test_id}</TableCell>
                               <TableCell className="text-xs">{r.category}</TableCell>
                               <TableCell>
-                                {r.validator_pass ? (
+                                {status === "pass" ? (
                                   <CheckCircle className="h-4 w-4 text-green-500" />
+                                ) : status === "warn" ? (
+                                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
                                 ) : (
                                   <XCircle className="h-4 w-4 text-destructive" />
                                 )}
