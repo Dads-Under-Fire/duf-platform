@@ -426,8 +426,8 @@ OUTPUT FIELDS:
 - risk_flags = array of issues found in the ORIGINAL message
 - original_score = score for how risky the original message is (1=very risky, 10=already safe)
 - rewrite_quality_score = score for how strong and safe the rewrite is (1=poor, 10=excellent)
-- original_score_deductions = notes explaining original score deductions
-- self_score_deductions = notes explaining rewrite score deductions
+- original_score_notes = notes explaining original score deductions
+- rewrite_quality_notes = notes explaining rewrite score deductions
 
 REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
 Apply these deductions to self_score in ADDITION to standard deductions:
