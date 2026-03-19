@@ -1375,11 +1375,20 @@ You MUST call the provided tool with your structured output.`;
     if (!aiResult) {
       console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
       const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
-      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, stricterBody, mode, toolName, "Tier2");
+      const tier2Body = mode === "rewrite" ? buildRequestBody(SEMANTIC_RETRY_ADDENDUM) : stricterBody;
+      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, tier2Body, mode, toolName, "Tier2");
       if (tier2Result) {
         const s = scoreRewriteQuality(tier2Result, mode);
         console.log(`[${FN}] Tier2 score: ${s.score}/10 (${s.quality_score_status})`);
-        if (s.quality_score_status !== "reject") {
+        let tier2SemanticOk = true;
+        if (mode === "rewrite") {
+          const tier2Issues = validateRewriteSemantics(message, tier2Result);
+          if (tier2Issues.length > 0) {
+            tier2SemanticOk = false;
+            console.log(`[${FN}] Tier2 semantic issues: ${JSON.stringify(tier2Issues)}`);
+          }
+        }
+        if (tier2SemanticOk && s.quality_score_status !== "reject") {
           aiResult = tier2Result;
           rewriteScore = s;
         }
