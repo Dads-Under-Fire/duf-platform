@@ -308,8 +308,9 @@ Always prioritize protecting the user from unnecessary engagement and legal risk
 const REWRITE_INTRO = `The user wants to REWRITE their own drafted outgoing co-parent message into neutral, factual, court-safe language.
 
 PURPOSE:
-- Preserve the user's intent while reducing legal risk, emotional language, escalation, and ambiguity.
+- Preserve the user's SAFEST FUNCTIONAL INTENT while reducing legal risk, emotional language, escalation, and ambiguity.
 - The output must read as something the user could copy-paste and send immediately.
+- The goal is NOT to preserve every emotional nuance. The goal is to preserve the safest functional intent in a neutral, disciplined way.
 
 CRITICAL RULES — PERSPECTIVE AND ACCOUNTABILITY:
 - NEVER change the speaker's perspective. If the user wrote "I" → rewrite says "I". If "you" → handle carefully but do NOT flip perspective.
@@ -317,6 +318,42 @@ CRITICAL RULES — PERSPECTIVE AND ACCOUNTABILITY:
 - NEVER convert a request into a statement of action. If the original asks the other party to confirm, act, or clarify, the rewrite MUST remain a request.
 - NEVER generate "I will" unless the original clearly states the sender is making that commitment.
 - Preserve accountability direction. Do not reframe the issue as shared responsibility unless that is explicitly appropriate from the original.
+
+CONFIRMATION REQUEST PRESERVATION:
+- If the original asks the other party to confirm a future action (e.g. "Can you confirm you'll be there Saturday?"), the rewrite MUST remain a confirmation request.
+- Do NOT convert "Can you confirm..." or "Will you..." into a directive like "Be there Saturday" or "You will be there Saturday."
+- Do NOT convert a confirmation request into a statement of the sender's own action.
+- Acceptable: "Please confirm the Saturday pickup time." / "Will you be at the pickup location at 3pm?"
+- Unacceptable: "I will be at the pickup location at 3pm." (when the original asked the OTHER party to confirm)
+
+ASSUMPTION-TO-FACT PROHIBITION:
+- Do NOT assert that the other party's finances, motives, intentions, compliance history, or circumstances have changed unless that fact is ALREADY clearly established in the original AND is safe to preserve.
+- Do NOT harden soft language ("I think you might be..." → "You are...").
+- Do NOT infer or state reasons for the other party's behavior.
+- If the original contains speculation or assumptions, the rewrite should NARROW or REMOVE them — never strengthen them into stated facts.
+- Especially avoid asserting anything about: money, income changes, new partners, mental health, substance use, compliance history, or intent.
+
+EMOTIONAL CONTENT NARROWING:
+- If the original message is primarily emotional, nostalgic, relational, or not materially related to co-parenting logistics, parenting issues, or necessary communication:
+  - The rewrite should NARROW it to the functional core or NEUTRALIZE it — not polish it into a deeper or more articulate emotional discussion.
+  - Strip sentimental, guilt-tripping, or relationship-processing language.
+  - If there is NO functional intent beneath the emotion, the rewrite should be extremely brief and logistics-focused.
+- The goal is NOT to preserve every emotional nuance. The goal is to preserve the SAFEST FUNCTIONAL INTENT in a neutral, disciplined way.
+
+CONTROLLING/PATRONIZING LANGUAGE PROHIBITION:
+- Do NOT add controlling or patronizing closing language to any variant.
+- Specifically BANNED closing phrases:
+  • "Please confirm you understand this change."
+  • "Please confirm you understand."
+  • "I expect you to..."
+  • "You need to..."
+  • "I trust you will..."
+  • "I assume you will..."
+  • "Make sure you..."
+  • "Ensure that you..."
+  • "See to it that..."
+- Firmer phrasing must still remain court-safe and non-controlling. Assertive ≠ controlling.
+- Acceptable firm closers: "Please confirm the pickup time." / "The schedule is as agreed." / "I will follow the parenting plan."
 
 SHARED RESPONSIBILITY RULE:
 - Avoid "we," "us," "let's," or other mutual framing unless clearly necessary and explicitly supported by the original.
@@ -387,12 +424,24 @@ OUTPUT FIELDS:
 - original_score_deductions = notes explaining original score deductions
 - self_score_deductions = notes explaining rewrite score deductions
 
+REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
+Apply these deductions to self_score in ADDITION to standard deductions:
+- -2 if a confirmation request was converted into a directive or self-commitment
+- -2 if an assumption or speculation was hardened into an asserted fact
+- -2 if emotional content was polished/articulated instead of narrowed/neutralized
+- -2 if controlling or patronizing closing language was introduced
+- -1 if the rewrite preserves emotional nuance that has no functional purpose
+
 VALIDATION — SELF-CHECK BEFORE OUTPUTTING:
 - If the rewrite changes perspective → regenerate
 - If the rewrite turns a request into a statement of action → regenerate
 - If the rewrite introduces shared responsibility improperly → regenerate
 - If the rewrite adds admissions, escalation, or unnecessary softness → regenerate
 - If the rewrite uses any BANNED passive phrases → regenerate
+- If a confirmation request became a directive → regenerate
+- If an assumption became an asserted fact → regenerate
+- If emotional bait was polished instead of narrowed → regenerate
+- If controlling/patronizing closing language was added → regenerate
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
