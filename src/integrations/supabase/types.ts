@@ -14,6 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_gold_suite_cases: {
+        Row: {
+          category: string
+          created_at: string
+          expected_behavior: string | null
+          feature_key: string
+          id: string
+          is_active: boolean
+          mode: string
+          must_not_do: string | null
+          notes: string | null
+          original_message: string
+          test_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          expected_behavior?: string | null
+          feature_key: string
+          id?: string
+          is_active?: boolean
+          mode: string
+          must_not_do?: string | null
+          notes?: string | null
+          original_message: string
+          test_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          expected_behavior?: string | null
+          feature_key?: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          must_not_do?: string | null
+          notes?: string | null
+          original_message?: string
+          test_id?: string
+        }
+        Relationships: []
+      }
+      ai_gold_suite_results: {
+        Row: {
+          category: string
+          created_at: string
+          firmer_version: string | null
+          id: string
+          original_message: string
+          original_score: number | null
+          original_score_notes: Json | null
+          primary_rewrite: string | null
+          prompt_source: string | null
+          prompt_version: string | null
+          rewrite_quality_notes: Json | null
+          rewrite_quality_score: number | null
+          risk_flags: Json | null
+          run_id: string
+          shorter_version: string | null
+          test_id: string
+          tone_assessment: string | null
+          validator_notes: Json | null
+          validator_pass: boolean | null
+          why_this_is_safer: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          firmer_version?: string | null
+          id?: string
+          original_message: string
+          original_score?: number | null
+          original_score_notes?: Json | null
+          primary_rewrite?: string | null
+          prompt_source?: string | null
+          prompt_version?: string | null
+          rewrite_quality_notes?: Json | null
+          rewrite_quality_score?: number | null
+          risk_flags?: Json | null
+          run_id: string
+          shorter_version?: string | null
+          test_id: string
+          tone_assessment?: string | null
+          validator_notes?: Json | null
+          validator_pass?: boolean | null
+          why_this_is_safer?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          firmer_version?: string | null
+          id?: string
+          original_message?: string
+          original_score?: number | null
+          original_score_notes?: Json | null
+          primary_rewrite?: string | null
+          prompt_source?: string | null
+          prompt_version?: string | null
+          rewrite_quality_notes?: Json | null
+          rewrite_quality_score?: number | null
+          risk_flags?: Json | null
+          run_id?: string
+          shorter_version?: string | null
+          test_id?: string
+          tone_assessment?: string | null
+          validator_notes?: Json | null
+          validator_pass?: boolean | null
+          why_this_is_safer?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_gold_suite_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_gold_suite_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_gold_suite_runs: {
+        Row: {
+          created_at: string
+          feature_key: string
+          id: string
+          mode: string
+          prompt_source: string | null
+          prompt_version: string | null
+          run_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          feature_key: string
+          id?: string
+          mode: string
+          prompt_source?: string | null
+          prompt_version?: string | null
+          run_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          feature_key?: string
+          id?: string
+          mode?: string
+          prompt_source?: string | null
+          prompt_version?: string | null
+          run_label?: string | null
+        }
+        Relationships: []
+      }
       ai_system_prompts: {
         Row: {
           created_at: string
