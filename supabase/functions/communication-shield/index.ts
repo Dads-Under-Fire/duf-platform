@@ -1153,15 +1153,34 @@ async function attemptAICall(
 ): Promise<Record<string, unknown> | null> {
   try {
     const response = await callOpenAI(apiKey, model, requestBody);
-    if (!response.ok) { console.warn(`[${FN}] ${label} failed: status=${response.status}`); return null; }
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      console.warn(`[${FN}] ${label} failure_type=api_error | status=${response.status} | body=${errBody.slice(0, 200)}`);
+      return null;
+    }
     const aiData = await response.json();
     const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
-    if (!functionCall) { console.warn(`[${FN}] ${label} no function_call`); return null; }
-    const parsed = JSON.parse(functionCall.arguments);
+    if (!functionCall) {
+      console.warn(`[${FN}] ${label} failure_type=empty_response | no function_call in output`);
+      return null;
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(functionCall.arguments);
+    } catch (jsonErr) {
+      console.warn(`[${FN}] ${label} failure_type=json_parse_error | ${jsonErr}`);
+      return null;
+    }
     const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
-    if (validationError) { console.warn(`[${FN}] ${label} validation failed: ${validationError}`); return null; }
+    if (validationError) {
+      console.warn(`[${FN}] ${label} failure_type=validation_rejection | ${validationError}`);
+      return null;
+    }
     return parsed;
-  } catch (err) { console.warn(`[${FN}] ${label} error: ${err}`); return null; }
+  } catch (err) {
+    console.warn(`[${FN}] ${label} failure_type=api_error | ${err}`);
+    return null;
+  }
 }
 
 function normalizeRiskFlags(flags: string[] | undefined): string[] {
