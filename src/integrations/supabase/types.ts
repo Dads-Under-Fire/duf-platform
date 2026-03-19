@@ -80,6 +80,7 @@ export type Database = {
           tone_assessment: string | null
           validator_notes: Json | null
           validator_pass: boolean | null
+          validator_status: string | null
           why_this_is_safer: string | null
         }
         Insert: {
@@ -102,6 +103,7 @@ export type Database = {
           tone_assessment?: string | null
           validator_notes?: Json | null
           validator_pass?: boolean | null
+          validator_status?: string | null
           why_this_is_safer?: string | null
         }
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           tone_assessment?: string | null
           validator_notes?: Json | null
           validator_pass?: boolean | null
+          validator_status?: string | null
           why_this_is_safer?: string | null
         }
         Relationships: [

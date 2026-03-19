@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Play, CheckCircle, XCircle, Loader2, Send, BookmarkPlus } from "lucide-react";
+import { Play, CheckCircle, XCircle, AlertTriangle, Loader2, Send, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ──
@@ -55,6 +55,19 @@ interface ValidatorRules {
   must_not_preserve_financial_assumptions?: boolean;
 }
 
+type CheckSeverity = "pass" | "warn" | "fail";
+
+interface ValidatorCheck {
+  severity: CheckSeverity;
+  reason: string;
+}
+
+interface ValidatorResult {
+  status: "pass" | "warn" | "fail";
+  notes: string[];
+  checks: ValidatorCheck[];
+}
+
 interface RewriteResult {
   primary_rewrite: string;
   shorter_version: string;
@@ -75,7 +88,7 @@ interface CaseRunResult {
   category: string;
   original_message: string;
   result: RewriteResult | null;
-  validatorPass: boolean;
+  validatorStatus: "pass" | "warn" | "fail";
   validatorNotes: string[];
   error?: string;
   promptVersion: string;
@@ -89,6 +102,7 @@ interface RunHistoryRow {
   run_label: string | null;
   created_at: string;
   pass_count: number;
+  warn_count: number;
   fail_count: number;
 }
 
@@ -154,12 +168,12 @@ function runValidator(
   rules: ValidatorRules | null,
   result: RewriteResult,
   originalMessage?: string,
-): { pass: boolean; notes: string[] } {
+): ValidatorResult {
   if (!rules || Object.keys(rules).length === 0) {
-    return { pass: false, notes: ["⚠ No validator_rules defined — cannot validate"] };
+    return { status: "fail", notes: ["⚠ No validator_rules defined — cannot validate"], checks: [] };
   }
 
-  const checks: { pass: boolean; reason: string }[] = [];
+  const checks: ValidatorCheck[] = [];
   const text = result.primary_rewrite;
   const textNorm = normalizeText(text);
   const flags = (result.risk_flags ?? []).map((f) => f.toLowerCase());
@@ -167,129 +181,156 @@ function runValidator(
   const origWordCount = originalMessage ? originalMessage.split(/\s+/).filter(Boolean).length : 0;
   const rewriteWordCount = text.split(/\s+/).filter(Boolean).length;
 
-  // must_include_any
-  if (rules.must_include_any) {
-    const found = rules.must_include_any.some((t) => textNorm.includes(normalizeText(t)));
-    checks.push({ pass: found, reason: `Must include one of: ${rules.must_include_any.join(", ")}` });
-  }
-
-  // must_not_include_any
-  if (rules.must_not_include_any) {
-    for (const phrase of rules.must_not_include_any) {
-      const found = textNorm.includes(normalizeText(phrase));
-      checks.push({ pass: !found, reason: `Must not include: "${phrase}"` });
+  // Helper: add a check. "hard" = true safety issues → fail; false → warn
+  const add = (passed: boolean, reason: string, hard: boolean) => {
+    if (passed) {
+      checks.push({ severity: "pass", reason });
+    } else {
+      checks.push({ severity: hard ? "fail" : "warn", reason });
     }
-  }
+  };
 
-  // must_preserve_question
-  if (rules.must_preserve_question) {
-    checks.push({ pass: text.includes("?"), reason: "Must preserve question mark" });
-  }
+  // ── HARD FAIL checks ──
 
-  // must_preserve_confirmation_language
-  if (rules.must_preserve_confirmation_language) {
-    const hasConfirm = /confirm|let me know|please (verify|acknowledge)/i.test(text);
-    checks.push({ pass: hasConfirm, reason: "Must preserve confirmation language" });
-  }
-
-  // must_preserve_pov
+  // must_preserve_pov (POV shift = hard fail)
   if (rules.must_preserve_pov) {
     const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
-    checks.push({ pass: !hasResponseFlip, reason: "Must preserve original POV (not flip to response)" });
+    add(!hasResponseFlip, "Must preserve original POV (not flip to response)", true);
   }
 
-  // must_not_shift_to_response_mode
+  // must_not_shift_to_response_mode (message type shift = hard fail)
   if (rules.must_not_shift_to_response_mode) {
     const shifted = RESPONSE_MODE_PHRASES.some((p) => p.test(text));
-    checks.push({ pass: !shifted, reason: "Must not shift to response-mode phrasing" });
+    add(!shifted, "Must not shift to response-mode phrasing", true);
   }
 
-  // must_preserve_specific_terms (with normalization)
-  if (rules.must_preserve_specific_terms) {
-    for (const term of rules.must_preserve_specific_terms) {
-      checks.push({
-        pass: textNorm.includes(normalizeText(term)),
-        reason: `Must preserve term: "${term}"`,
-      });
-    }
+  // must_preserve_question (confirmation→directive = hard fail)
+  if (rules.must_preserve_question) {
+    add(text.includes("?"), "Must preserve question mark", true);
   }
 
-  // must_not_introduce_we_language
+  // must_preserve_confirmation_language (hard fail)
+  if (rules.must_preserve_confirmation_language) {
+    const hasConfirm = /confirm|let me know|please (verify|acknowledge)/i.test(text);
+    add(hasConfirm, "Must preserve confirmation language", true);
+  }
+
+  // must_not_preserve_past_fact_validation (hard fail - safety)
+  if (rules.must_not_preserve_past_fact_validation) {
+    // Stricter: check for any structure seeking validation of past conduct
+    const pastFactPatterns = [
+      ...PAST_FACT_VALIDATION_PATTERNS,
+      /\b(confirm|clarify|acknowledge) (whether|that|if) .*(you |he |she )?(did|were|was|had|didn't|wasn't|weren't)\b/i,
+      /\bprovide details .*(about|regarding|on) .*(what happened|the incident|last|previous)\b/i,
+    ];
+    const hasValidation = pastFactPatterns.some((p) => p.test(text));
+    add(!hasValidation, "Must not preserve past-fact validation language", true);
+  }
+
+  // must_not_preserve_leverage_language (hard fail - safety)
+  if (rules.must_not_preserve_leverage_language) {
+    const leveragePatterns = [
+      ...LEVERAGE_PHRASES,
+      /\brequires attention\b/i,
+      /\btake action\b/i,
+    ];
+    const hasLeverage = leveragePatterns.some((p) => p.test(text));
+    add(!hasLeverage, "Must not preserve leverage/escalation framing", true);
+  }
+
+  // must_not_introduce_we_language (shared responsibility = hard fail)
   if (rules.must_not_introduce_we_language) {
     const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
     if (!origHasWe) {
       const rewriteHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(text));
-      checks.push({ pass: !rewriteHasWe, reason: "Must not introduce 'we/us/let's' language not in original" });
+      add(!rewriteHasWe, "Must not introduce 'we/us/let's' language not in original", true);
     }
   }
 
-  // must_not_introduce_i_will
+  // must_not_preserve_financial_assumptions (hard fail - safety)
+  if (rules.must_not_preserve_financial_assumptions) {
+    const hasFinancial = FINANCIAL_ASSUMPTION_PATTERNS.some((p) => p.test(text));
+    add(!hasFinancial, "Must not preserve financial assumptions (income changes, ability to pay)", true);
+  }
+
+  // must_not_introduce_i_will (hard fail)
   if (rules.must_not_introduce_i_will) {
     const hasIWill = /\bI will\b/i.test(text);
-    checks.push({ pass: !hasIWill, reason: "Must not introduce 'I will'" });
+    add(!hasIWill, "Must not introduce 'I will'", true);
   }
 
-  // max_word_count
-  if (rules.max_word_count) {
-    checks.push({ pass: rewriteWordCount <= rules.max_word_count, reason: `Must be ≤${rules.max_word_count} words (got ${rewriteWordCount})` });
+  // must_not_deepen_nonessential_content (hard fail for deepening, warn for mild expansion)
+  if (rules.must_not_deepen_nonessential_content) {
+    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
+    add(!hasDeepening, "Must not deepen emotional/nonessential content", true);
+    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.3) {
+      add(false, `Nonessential content expanded (${origWordCount}→${rewriteWordCount} words)`, true);
+    }
   }
 
-  // must_flag_any
+  // must_not_include_any (hard fail for blocked phrases)
+  if (rules.must_not_include_any) {
+    for (const phrase of rules.must_not_include_any) {
+      const found = textNorm.includes(normalizeText(phrase));
+      add(!found, `Must not include: "${phrase}"`, true);
+    }
+  }
+
+  // must_flag_any (hard fail)
   if (rules.must_flag_any) {
     const found = rules.must_flag_any.some((f) => flags.some((rf) => rf.includes(f.toLowerCase())));
-    checks.push({ pass: found, reason: `Risk flags must include one of: ${rules.must_flag_any.join(", ")}` });
+    add(found, `Risk flags must include one of: ${rules.must_flag_any.join(", ")}`, true);
   }
 
-  // must_not_flag_any
+  // must_not_flag_any (hard fail)
   if (rules.must_not_flag_any) {
     for (const f of rules.must_not_flag_any) {
       const found = flags.some((rf) => rf.includes(f.toLowerCase()));
-      checks.push({ pass: !found, reason: `Risk flags must not include: "${f}"` });
+      add(!found, `Risk flags must not include: "${f}"`, true);
     }
   }
 
-  // must_not_preserve_past_fact_validation
-  if (rules.must_not_preserve_past_fact_validation) {
-    const hasValidation = PAST_FACT_VALIDATION_PATTERNS.some((p) => p.test(text));
-    checks.push({ pass: !hasValidation, reason: "Must not preserve past-fact validation language (confirm/acknowledge/admit/clarify disputed conduct)" });
+  // max_word_count (hard fail)
+  if (rules.max_word_count) {
+    add(rewriteWordCount <= rules.max_word_count, `Must be ≤${rules.max_word_count} words (got ${rewriteWordCount})`, true);
   }
 
-  // must_not_preserve_leverage_language
-  if (rules.must_not_preserve_leverage_language) {
-    const hasLeverage = LEVERAGE_PHRASES.some((p) => p.test(text));
-    checks.push({ pass: !hasLeverage, reason: "Must not preserve leverage/escalation framing" });
+  // ── WARN checks (wording quality, not safety) ──
+
+  // must_include_any — downgrade to warn: wording drift that doesn't change safety
+  if (rules.must_include_any) {
+    const found = rules.must_include_any.some((t) => textNorm.includes(normalizeText(t)));
+    add(found, `Should include one of: ${rules.must_include_any.join(", ")}`, false);
   }
 
-  // must_not_deepen_nonessential_content
-  if (rules.must_not_deepen_nonessential_content) {
-    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
-    checks.push({ pass: !hasDeepening, reason: "Must not deepen emotional/nonessential content" });
-    // Also check expansion for emotional cases
-    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.3) {
-      checks.push({ pass: false, reason: `Nonessential content expanded (${origWordCount}→${rewriteWordCount} words)` });
+  // must_preserve_specific_terms — warn for minor wording drift
+  if (rules.must_preserve_specific_terms) {
+    for (const term of rules.must_preserve_specific_terms) {
+      const found = textNorm.includes(normalizeText(term));
+      add(found, `Should preserve term: "${term}"`, false);
     }
   }
 
-  // should_not_expand_unnecessarily
+  // should_not_expand_unnecessarily (warn)
   if (rules.should_not_expand_unnecessarily) {
     if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.5) {
-      checks.push({ pass: false, reason: `Rewrite expanded significantly without safety reason (${origWordCount}→${rewriteWordCount} words, >150%)` });
+      add(false, `Rewrite expanded significantly (${origWordCount}→${rewriteWordCount} words, >150%)`, false);
     } else {
-      checks.push({ pass: true, reason: `Rewrite length acceptable (${origWordCount}→${rewriteWordCount} words)` });
+      add(true, `Rewrite length acceptable (${origWordCount}→${rewriteWordCount} words)`, false);
     }
   }
 
-  // must_not_preserve_financial_assumptions
-  if (rules.must_not_preserve_financial_assumptions) {
-    const hasFinancial = FINANCIAL_ASSUMPTION_PATTERNS.some((p) => p.test(text));
-    checks.push({ pass: !hasFinancial, reason: "Must not preserve financial assumptions (income changes, ability to pay)" });
-  }
+  // Determine overall status
+  const hasFail = checks.some((c) => c.severity === "fail");
+  const hasWarn = checks.some((c) => c.severity === "warn");
+  const status: "pass" | "warn" | "fail" = hasFail ? "fail" : hasWarn ? "warn" : "pass";
 
-  const failures = checks.filter((c) => !c.pass);
-  return {
-    pass: failures.length === 0,
-    notes: checks.map((c) => `${c.pass ? "✓" : "✗"} ${c.reason}`),
-  };
+  const notes = checks.map((c) => {
+    const icon = c.severity === "pass" ? "✓" : c.severity === "warn" ? "⚠" : "✗";
+    return `${icon} ${c.reason}`;
+  });
+
+  return { status, notes, checks };
 }
 
 export default function AdminRewriteTests() {
@@ -343,11 +384,15 @@ export default function AdminRewriteTests() {
       const enriched: RunHistoryRow[] = [];
       for (const run of runs) {
         const { data: results } = await (supabase.from as any)("ai_gold_suite_results")
-          .select("validator_pass")
+          .select("validator_pass, validator_status")
           .eq("run_id", run.id);
-        const passCount = (results ?? []).filter((r: any) => r.validator_pass).length;
-        const failCount = (results ?? []).filter((r: any) => !r.validator_pass).length;
-        enriched.push({ ...run, pass_count: passCount, fail_count: failCount });
+        const passCount = (results ?? []).filter((r: any) => (r.validator_status ?? (r.validator_pass ? "pass" : "fail")) === "pass").length;
+        const warnCount = (results ?? []).filter((r: any) => (r.validator_status ?? "") === "warn").length;
+        const failCount = (results ?? []).filter((r: any) => {
+          const s = r.validator_status ?? (r.validator_pass ? "pass" : "fail");
+          return s === "fail";
+        }).length;
+        enriched.push({ ...run, pass_count: passCount, warn_count: warnCount, fail_count: failCount });
       }
       setRunHistory(enriched);
     }
@@ -395,7 +440,7 @@ export default function AdminRewriteTests() {
             category: tc.category,
             original_message: tc.original_message,
             result: null,
-            validatorPass: false,
+            validatorStatus: "fail",
             validatorNotes: [error?.message ?? "No data returned"],
             error: error?.message ?? "No data returned",
             promptVersion: "unknown",
@@ -415,7 +460,7 @@ export default function AdminRewriteTests() {
             category: tc.category,
             original_message: tc.original_message,
             result,
-            validatorPass: validation.pass,
+            validatorStatus: validation.status,
             validatorNotes: validation.notes,
             promptVersion: pv,
             promptSource: ps,
@@ -427,7 +472,7 @@ export default function AdminRewriteTests() {
           category: tc.category,
           original_message: tc.original_message,
           result: null,
-          validatorPass: false,
+          validatorStatus: "fail",
           validatorNotes: [e.message],
           error: e.message,
           promptVersion: "unknown",
@@ -453,7 +498,8 @@ export default function AdminRewriteTests() {
         rewrite_quality_notes: caseResult.result?.rewrite_quality_notes ?? null,
         prompt_version: caseResult.promptVersion,
         prompt_source: caseResult.promptSource,
-        validator_pass: caseResult.validatorPass,
+        validator_pass: caseResult.validatorStatus === "pass",
+        validator_status: caseResult.validatorStatus,
         validator_notes: caseResult.validatorNotes,
       });
 
@@ -536,10 +582,11 @@ export default function AdminRewriteTests() {
     return <Navigate to="/" replace />;
   }
 
-  const passCount = latestResults.filter((r) => r.validatorPass).length;
-  const failCount = latestResults.filter((r) => !r.validatorPass).length;
+  const passCount = latestResults.filter((r) => r.validatorStatus === "pass").length;
+  const warnCount = latestResults.filter((r) => r.validatorStatus === "warn").length;
+  const failCount = latestResults.filter((r) => r.validatorStatus === "fail").length;
   const failedByCategory = latestResults
-    .filter((r) => !r.validatorPass)
+    .filter((r) => r.validatorStatus === "fail")
     .reduce<Record<string, number>>((acc, r) => {
       acc[r.category] = (acc[r.category] ?? 0) + 1;
       return acc;
@@ -577,7 +624,7 @@ export default function AdminRewriteTests() {
 
         {/* Summary cards */}
         {latestResults.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-3xl font-bold text-foreground">{latestResults.length}</p>
@@ -588,6 +635,12 @@ export default function AdminRewriteTests() {
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-3xl font-bold text-green-500">{passCount}</p>
                 <p className="text-xs text-muted-foreground">Passed</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-3xl font-bold text-yellow-500">{warnCount}</p>
+                <p className="text-xs text-muted-foreground">Warnings</p>
               </CardContent>
             </Card>
             <Card>
@@ -637,8 +690,10 @@ export default function AdminRewriteTests() {
               <Card key={r.test_id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
-                    {r.validatorPass ? (
+                    {r.validatorStatus === "pass" ? (
                       <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                    ) : r.validatorStatus === "warn" ? (
+                      <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
                     ) : (
                       <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     )}
@@ -648,8 +703,8 @@ export default function AdminRewriteTests() {
                         Category: {r.category} · Prompt: {r.promptVersion} · Source: {r.promptSource}
                       </p>
                     </div>
-                    <Badge variant={r.validatorPass ? "default" : "destructive"}>
-                      {r.validatorPass ? "PASS" : "FAIL"}
+                    <Badge variant={r.validatorStatus === "pass" ? "default" : r.validatorStatus === "warn" ? "secondary" : "destructive"}>
+                      {r.validatorStatus.toUpperCase()}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -682,10 +737,12 @@ export default function AdminRewriteTests() {
                         <p key={i} className="flex items-center gap-1.5">
                           {note.startsWith("✓") ? (
                             <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : note.startsWith("⚠") ? (
+                            <AlertTriangle className="h-3 w-3 text-yellow-500" />
                           ) : (
                             <XCircle className="h-3 w-3 text-destructive" />
                           )}
-                          {note.replace(/^[✓✗]\s*/, "")}
+                          {note.replace(/^[✓✗⚠]\s*/, "")}
                         </p>
                       ))}
                     </div>
@@ -753,10 +810,11 @@ export default function AdminRewriteTests() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-green-500 font-medium">{run.pass_count} pass</span>
+                          <span className="text-sm text-yellow-500 font-medium">{run.warn_count} warn</span>
                           <span className="text-sm text-destructive font-medium">{run.fail_count} fail</span>
                           <Badge variant={run.fail_count === 0 ? "default" : "destructive"}>
-                            {run.pass_count + run.fail_count > 0
-                              ? `${Math.round((run.pass_count / (run.pass_count + run.fail_count)) * 100)}%`
+                            {run.pass_count + run.warn_count + run.fail_count > 0
+                              ? `${Math.round((run.pass_count / (run.pass_count + run.warn_count + run.fail_count)) * 100)}%`
                               : "—"}
                           </Badge>
                         </div>
@@ -777,19 +835,23 @@ export default function AdminRewriteTests() {
                           <TableRow>
                             <TableHead>Test</TableHead>
                             <TableHead>Category</TableHead>
-                            <TableHead>Pass</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead>Scores</TableHead>
                             <TableHead>Prompt</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {selectedRunResults.map((r: any) => (
+                          {selectedRunResults.map((r: any) => {
+                            const status = r.validator_status ?? (r.validator_pass ? "pass" : "fail");
+                            return (
                             <TableRow key={r.id}>
                               <TableCell className="text-xs">{r.test_id}</TableCell>
                               <TableCell className="text-xs">{r.category}</TableCell>
                               <TableCell>
-                                {r.validator_pass ? (
+                                {status === "pass" ? (
                                   <CheckCircle className="h-4 w-4 text-green-500" />
+                                ) : status === "warn" ? (
+                                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
                                 ) : (
                                   <XCircle className="h-4 w-4 text-destructive" />
                                 )}
@@ -799,7 +861,8 @@ export default function AdminRewriteTests() {
                               </TableCell>
                               <TableCell className="text-xs">{r.prompt_version ?? "—"}</TableCell>
                             </TableRow>
-                          ))}
+                          );
+                          })}
                         </TableBody>
                       </Table>
                     </CardContent>
