@@ -1019,11 +1019,16 @@ function validateRewriteSemantics(
     if (typeof text !== "string" || !text.trim()) continue;
 
     // 1. Perspective flip: original is a request → output says "I will"
-    if (originalIsRequest && !originalHasCommitment) {
+    // Skip for firmer_version — it's designed to be more assertive
+    if (key !== "firmer_version" && originalIsRequest && !originalHasCommitment) {
       for (const p of NEW_COMMITMENT_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
-          break;
+          // Allow safe forward-looking "I will" statements
+          const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
+          if (!isSafeCommitment) {
+            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
+            break;
+          }
         }
       }
     }
@@ -1046,12 +1051,11 @@ function validateRewriteSemantics(
       }
     }
 
-    // 4. New commitments not in original
-    if (!originalHasCommitment) {
+    // 4. New commitments not in original — skip for firmer_version
+    if (key !== "firmer_version" && !originalHasCommitment) {
       if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
-        const isAdmissionTrapRedirect = /\bi will (follow|adhere to|comply with) the agreed/i.test(text)
-          || /\bi will be at the scheduled/i.test(text);
-        if (!isAdmissionTrapRedirect) {
+        const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
+        if (!isSafeCommitment) {
           issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original` });
         }
       }
