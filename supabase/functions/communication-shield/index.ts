@@ -1385,6 +1385,7 @@ interface LoadedPrompt {
   promptText: string;
   versionLabel: string;
   source: "database" | "hardcoded_fallback";
+  fallbackReason?: string;
 }
 
 function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
@@ -1411,12 +1412,14 @@ async function loadActivePrompt(
       .single();
 
     if (error || !data) {
-      console.error(`[${FN}] prompt_load | ERROR: No active prompt found for ${featureKey}/${mode} | error=${JSON.stringify(error)}`);
-      console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+      const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+      console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
       return {
         promptText: assembleHardcodedPrompt(mode, originalContext),
         versionLabel: "hardcoded",
         source: "hardcoded_fallback",
+        fallbackReason: reason,
       };
     }
 
@@ -1437,12 +1440,14 @@ async function loadActivePrompt(
       source: "database",
     };
   } catch (err) {
-    console.error(`[${FN}] prompt_load | EXCEPTION loading prompt: ${err}`);
-    console.warn(`[${FN}] prompt_load | FALLING BACK to hardcoded prompt for ${featureKey}/${mode}`);
+    const reason = `exception: ${String(err)}`;
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+    console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
     return {
       promptText: assembleHardcodedPrompt(mode, originalContext),
       versionLabel: "hardcoded",
       source: "hardcoded_fallback",
+      fallbackReason: reason,
     };
   }
 }
