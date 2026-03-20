@@ -1094,6 +1094,7 @@ interface SemanticIssue {
   field: string;
   type: string;
   detail: string;
+  severity: "hard" | "soft";
 }
 
 function validateRewriteSemantics(
