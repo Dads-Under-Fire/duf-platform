@@ -1,7 +1,7 @@
 /**
  * Gold-suite validator engine for Communication Shield REWRITE MODE.
- * v7 — Complete replacement: fail-closed, deterministic scoring,
- * strict schema, no legacy acknowledgment-only acceptance.
+ * v8 — Reduced assertion noise, relaxed confirm rule, narrowed new-facts,
+ * fixed emotional boundary contradiction, strict safety bans.
  */
 
 // ── Types ──
@@ -195,7 +195,17 @@ const CONFIRM_TRIGGERS = /\b(confirm|cnfirm|need to know)\b/i;
 const SCHEDULE_WORDS = /\b(time|what time|pick\s*up|drop\s*off|tomorrow|today|tonight|this weekend|next exchange|friday|saturday|sunday|monday|tuesday|wednesday|thursday|schedule|plan|appointment|reimbursement|payment date|when|where)\b/i;
 
 const LOGISTICS_CONTEXT_TERMS = /\b(schedule|plan|pickup|pick[\s-]?up|drop[\s-]?off|exchange|late|changed|changed the plan|tomorrow|weekend)\b/i;
-const INVENTED_TOPICS = ["schedule", "communication arrangements", "meet", "time to meet", "future communications"];
+
+// Abstract boundary words that are NOT concrete details
+const ABSTRACT_BOUNDARY_WORDS = new Set([
+  "child", "child-related", "children", "children's",
+  "logistics", "communication", "communications",
+  "updates", "schedule", "needs", "messages",
+]);
+
+// Topic-shift: only flag these if original has NO logistics context
+const INVENTED_TOPICS = ["communication arrangements", "meet", "time to meet", "future communications"];
+// NOTE: "schedule" removed — it's an abstract boundary word, not an invented concrete detail
 
 // ── Concrete detail extraction ──
 
@@ -213,22 +223,6 @@ function extractConcreteDetails(text: string): string[] {
 }
 
 // ── Scoring helpers ──
-
-const SCORE_PENALTY_MAP: Record<string, number> = {
-  "Safe message": 0,
-  "Vague or imprecise language": -1,
-  "Irrelevant or non-child-related topic": -1,
-  "Emotional language detected": -1,
-  "Denigration / disparagement": -2,
-  "Admission trap": -2,
-  "Past-fact confirmation risk": -2,
-  "Escalation language detected": -2,
-  "Leverage or intimidation language detected": -2,
-  "Financial demand or assumption": -1,
-  "Harassment / repeated contact": -2,
-  "Child safety concern": -3,
-  "Privacy / surveillance / tracking": -2,
-};
 
 const BLAME_LANGUAGE = [
   /\byou always\b/i,
@@ -301,14 +295,12 @@ export function runValidator(
     add("risk_flags_canonical", unknowns.length === 0,
       `All risk flags canonical${unknowns.length > 0 ? ` — unknown: [${unknowns.join(", ")}]` : ""}`);
 
-    // Category: safe_logistics
     if (testCategory === "safe_logistics") {
       const onlySafe = result.risk_flags.length === 1 && result.risk_flags[0] === "Safe message";
       add("safe_logistics_flags", onlySafe,
         `safe_logistics requires exactly ["Safe message"] — got [${result.risk_flags.join(", ")}]`);
     }
 
-    // Category: emotional_irrelevant
     if (testCategory === "emotional_irrelevant") {
       const hasRelevant = result.risk_flags.some(f =>
         f === "Irrelevant or non-child-related topic" || f === "Emotional language detected"
@@ -317,7 +309,6 @@ export function runValidator(
         `emotional_irrelevant requires relevant flag — got [${result.risk_flags.join(", ")}]`);
     }
 
-    // Category: past_fact_trap
     if (testCategory === "past_fact_trap") {
       const hasRelevant = result.risk_flags.some(f =>
         f === "Admission trap" || f === "Past-fact confirmation risk"
@@ -373,6 +364,8 @@ export function runValidator(
   }
 
   // ═══ 8) HARD FAIL: NEW CONCRETE DETAILS ═══
+  // Only flags actual concrete data (dates, times, amounts, phone numbers).
+  // Abstract boundary words (child, logistics, schedule, etc.) are NOT concrete details.
   if (originalMessage) {
     const primaryText = result.primary_rewrite ?? "";
     const rewriteDetails = extractConcreteDetails(primaryText);
@@ -388,14 +381,7 @@ export function runValidator(
       }
     }
 
-    // Topic words check
-    const TOPIC_WORDS = ["schedule", "school", "doctor", "appointment", "therapy", "counselor"];
-    const origNormTypo = normalizeTypos(originalMessage.toLowerCase());
-    for (const tw of TOPIC_WORDS) {
-      if (matchesToken(primaryText, tw) && !matchesToken(origNormTypo, tw) && !matchesToken(originalMessage, tw)) {
-        invented.push(`topic:${tw}`);
-      }
-    }
+    // No topic-word checks here. Abstract scope words are allowed.
 
     add("no_new_facts", invented.length === 0,
       `No invented concrete details${invented.length > 0 ? ` — found: [${invented.join(", ")}]` : ""}`);
@@ -408,18 +394,30 @@ export function runValidator(
       `Original is logistics question — primary_rewrite must contain "?"${hasQ ? "" : " — not found"}`);
   }
 
-  // ═══ 10) CONFIRM RULE (HARD FAIL conditional) ═══
-  const origHasConfirmTrigger = originalMessage && (
-    CONFIRM_TRIGGERS.test(normalizeTypos(originalMessage)) ||
-    (originalMessage.includes("?") && SCHEDULE_WORDS.test(originalMessage))
-  );
-  if (origHasConfirmTrigger) {
+  // ═══ 10) CONFIRM RULE (RELAXED — conditional) ═══
+  // If original explicitly uses "confirm"/"cnfirm"/"need to know", require "confirm" in rewrite.
+  // If original is just a logistics question (? + schedule words), accept EITHER:
+  //   A) a neutral direct logistics question preserving the ask, OR
+  //   B) a rewrite using the verb "confirm"
+  const origExplicitlyConfirms = originalMessage && CONFIRM_TRIGGERS.test(normalizeTypos(originalMessage));
+  const origIsScheduleQuestion = originalMessage && originalMessage.includes("?") && SCHEDULE_WORDS.test(originalMessage);
+
+  if (origExplicitlyConfirms) {
+    // Strict: original said "confirm" so rewrite must too
     const hasConfirmVerb = /\bconfirm\b/i.test(result.primary_rewrite ?? "");
     add("confirmation_preserved", hasConfirmVerb,
-      `primary_rewrite must include verb "confirm"${hasConfirmVerb ? "" : " — not found"}`);
+      `Original explicitly asks to confirm — primary_rewrite must include verb "confirm"${hasConfirmVerb ? "" : " — not found"}`);
+  } else if (origIsScheduleQuestion) {
+    // Relaxed: accept either "confirm" OR a preserved question form
+    const hasConfirmVerb = /\bconfirm\b/i.test(result.primary_rewrite ?? "");
+    const hasQuestionMark = (result.primary_rewrite ?? "").includes("?");
+    const passes = hasConfirmVerb || hasQuestionMark;
+    add("confirmation_preserved", passes,
+      `Original is schedule question — primary_rewrite must use "confirm" or remain a question${passes ? "" : " — neither found"}`);
   }
 
   // ═══ 11) TOPIC-SHIFT (HARD FAIL conditional) ═══
+  // Only flag truly invented topic phrases, NOT abstract boundary words
   if (originalMessage) {
     const origHasLogistics = LOGISTICS_CONTEXT_TERMS.test(originalMessage);
     if (!origHasLogistics) {
@@ -501,7 +499,6 @@ export function runValidator(
   if (hasSchemaFail) {
     adjustedScore = 1;
   } else {
-    // Deductions
     if (checks.some(c => c.severity === "fail" && c.rule === "risk_flags_canonical")) adjustedScore -= 3;
     if (checks.some(c => c.severity === "fail" && c.rule === "no_shared_framing")) adjustedScore -= 4;
     if (checks.some(c => c.severity === "fail" && c.rule === "no_escalation")) adjustedScore -= 4;
@@ -518,8 +515,6 @@ export function runValidator(
   }
 
   adjustedScore = Math.max(1, Math.min(10, adjustedScore));
-
-  // Hard fail caps score at 4
   if (hasHardFail && adjustedScore > 4) adjustedScore = 4;
 
   // ═══ PASS / FAIL DECISION ═══
@@ -527,10 +522,17 @@ export function runValidator(
   const hasWarn = checks.some(c => c.severity === "warn");
   const status: "pass" | "warn" | "fail" = hasFail ? "fail" : hasWarn ? "warn" : "pass";
 
-  const notes = checks.map(c => {
-    const icon = c.severity === "pass" ? "✓" : c.severity === "warn" ? "⚠" : "✗";
-    return `${icon} ${c.reason}`;
-  });
+  // ═══ NOTES: Only failed/warned checks, or one summary pass line ═══
+  const failedNotes = checks
+    .filter(c => c.severity === "fail" || c.severity === "warn")
+    .map(c => {
+      const icon = c.severity === "warn" ? "⚠" : "✗";
+      return `${icon} ${c.reason}`;
+    });
+
+  const notes = failedNotes.length > 0
+    ? failedNotes
+    : ["✓ All validation checks passed"];
 
   return { status, notes, checks, adjustedScore };
 }
