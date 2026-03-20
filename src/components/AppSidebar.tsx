@@ -101,6 +101,8 @@ export function AppSidebar() {
           {!collapsed && <span className="text-sm">Collapse</span>}
         </button>
 
+        <div className="h-px bg-sidebar-border mx-1" />
+
         {/* Usage section – mobile only */}
         {isMobile && (
           <div className="px-3 py-3 space-y-3">
