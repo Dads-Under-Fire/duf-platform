@@ -1630,9 +1630,16 @@ You MUST call the provided tool with your structured output.`;
                   let retrySemanticOk = true;
                   if (mode === "rewrite") {
                     const retryIssues = validateRewriteSemantics(message, retryResult);
-                    if (retryIssues.length > 0) {
+                    const retryHardIssues = retryIssues.filter(i => i.severity === "hard");
+                    if (retryHardIssues.length > 0) {
                       retrySemanticOk = false;
-                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryIssues)}`);
+                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryHardIssues)}`);
+                    }
+                    const retrySoftIssues = retryIssues.filter(i => i.severity === "soft");
+                    if (retrySoftIssues.length > 0 && s2.score !== null) {
+                      s2.score = Math.max(1, s2.score - retrySoftIssues.length);
+                      s2.notes.push(...retrySoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+                      s2.quality_score_status = s2.score >= 9 ? "excellent" : s2.score >= 7 ? "acceptable" : s2.score >= 5 ? "weak" : "reject";
                     }
                   }
                   if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
