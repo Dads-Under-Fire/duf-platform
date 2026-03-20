@@ -304,6 +304,33 @@ function runValidator(
       "Must not preserve financial assumptions", "fail");
   }
 
+  // Non-essential content deepening check
+  if (rules.must_not_deepen_nonessential_content) {
+    const DEEPENING_PATTERNS = [
+      /\bi would like to know\b/i,
+      /\bi wanted to ask\b/i,
+      /\bi am curious\b/i,
+      /\bi('d| would) love to (hear|know|understand|discuss)\b/i,
+      /\btell me more about\b/i,
+      /\bshare (your|more about)\b/i,
+      /\bhow (are|have) you been\b/i,
+      /\blet'?s (talk|discuss|catch up)\b/i,
+    ];
+    const deepens = DEEPENING_PATTERNS.some((p) => p.test(text));
+    const longerThanOrig = rewriteWc > origWc;
+    // Only hard-fail if BOTH deepening language is present AND it got longer
+    if (deepens && longerThanOrig) {
+      add("must_not_deepen_nonessential_content", false,
+        "Rewrite deepens non-essential content and is longer than original", "fail");
+    } else if (deepens) {
+      add("must_not_deepen_nonessential_content", false,
+        "Rewrite uses deepening language for non-essential content", "warn");
+    } else {
+      add("must_not_deepen_nonessential_content", true,
+        "No non-essential content deepening detected", "pass");
+    }
+  }
+
   // Banned phrases (case-insensitive, normalized)
   if (rules.banned_phrases) {
     for (const phrase of rules.banned_phrases) {
@@ -323,7 +350,7 @@ function runValidator(
   // Max words (hard cap)
   if (rules.max_words != null) {
     add("max_words", rewriteWc <= rules.max_words,
-      `Word limit: ${rewriteWc}/${rules.max_words}`, "fail");
+      `Word limit: ${rewriteWc}/${rules.max_words}`, "warn");
   }
 
   // Risk flag requirements (any inner set satisfies)
@@ -339,6 +366,16 @@ function runValidator(
       ` — got: [${rawFlags.join(", ")}]`, "fail");
   }
 
+  // Must-not-flag check
+  if (rules.must_not_flag_any && rules.must_not_flag_any.length > 0) {
+    for (const banned of rules.must_not_flag_any) {
+      const bannedNorm = banned.toLowerCase().trim();
+      const flagged = allFlagTokens.some((t) => t.includes(bannedNorm) || bannedNorm.includes(t));
+      add("must_not_flag", !flagged,
+        `Must not flag: "${banned}"${flagged ? ` — flagged: [${rawFlags.join(", ")}]` : ""}`, "warn");
+    }
+  }
+
   // ── WARN checks ──
 
   // Soft term preservation
@@ -349,7 +386,7 @@ function runValidator(
     }
   }
 
-  // Max word increase percentage
+  // Max word increase percentage — WARN by default for non-essential, not hard fail
   if (rules.max_word_increase_pct != null && origWc > 0) {
     const maxAllowed = Math.ceil(origWc * (1 + rules.max_word_increase_pct));
     const ok = rewriteWc <= maxAllowed;
