@@ -1,31 +1,15 @@
 /**
- * Gold-suite validator engine for Communication Shield rewrites.
- * Deterministic, explainable validation aligned to court-safe,
- * child-focused high-conflict custody communication standards.
- *
- * v5 — response-mode ban, question preservation, context-aware topic-shift,
- *       strengthened past-fact trap, emotional/irrelevant boundary requirements
+ * Gold-suite validator engine for Communication Shield REWRITE MODE.
+ * v7 — Complete replacement: fail-closed, deterministic scoring,
+ * strict schema, no legacy acknowledgment-only acceptance.
  */
 
 // ── Types ──
 
 export interface ValidatorRules {
-  must_preserve_pov?: boolean;
-  must_preserve_message_type?: "question" | "request" | "statement" | "any";
-  must_preserve_confirmation?: boolean;
-  must_preserve_terms?: string[];
-  must_not_introduce_we_language?: boolean;
-  must_not_request_past_validation?: boolean;
-  must_not_preserve_leverage?: boolean;
-  must_not_preserve_financial_assumptions?: boolean;
-  must_not_shift_to_response_mode?: boolean;
-  must_not_deepen_nonessential_content?: boolean;
-  max_word_increase_pct?: number;
-  max_words?: number;
-  banned_phrases?: string[];
   banned_tokens?: string[];
+  banned_phrases?: string[];
   required_risk_flags_any_of?: string[][];
-  must_not_flag_any?: string[];
   severity_overrides?: Record<string, "warn" | "fail">;
 }
 
@@ -52,22 +36,17 @@ export interface RewriteResult {
   rewrite_quality_score: number;
   risk_flags: string[];
   tone_assessment: string;
-  original_score_notes: string[] | any;
-  rewrite_quality_notes: string[] | any;
+  original_score_notes: string[];
+  rewrite_quality_notes: string[];
   why_this_is_safer: string;
   prompt_version?: string;
   prompt_source?: string;
 }
 
-// ── Normalization helpers ──
+// ── Helpers ──
 
 export function normalizeText(s: string): string {
-  let t = s.toLowerCase().replace(/\s+/g, " ").trim();
-  t = t.replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)\b/gi, (_, h, m, ap) => `${h}:${m} ${ap.toLowerCase()}`);
-  t = t.replace(/\b(\d{1,2})\s*(am|pm)\b/gi, (_, h, ap) => `${h}:00 ${ap.toLowerCase()}`);
-  t = t.replace(/(\d{1,2})\s*\/\s*(\d{1,2})/g, "$1/$2");
-  t = t.replace(/\.{2,}/g, ".").replace(/\s*\.\s*$/, ".");
-  return t;
+  return s.toLowerCase().replace(/\u2019/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, " ").trim();
 }
 
 export function wordCount(s: string): number {
@@ -79,27 +58,14 @@ export function matchesToken(text: string, token: string): boolean {
   return new RegExp(`\\b${escaped}\\b`, "i").test(text);
 }
 
-export function matchesPhrase(textNorm: string, phrase: string): boolean {
-  return textNorm.includes(normalizeText(phrase));
-}
-
-// ── Typo normalization map ──
+// ── Typo normalization (original input only) ──
 
 const TYPO_MAP: Record<string, string> = {
   afta: "after", schol: "school", tomorw: "tomorrow", tomorrw: "tomorrow",
   tmrw: "tomorrow", ur: "your", cnfirm: "confirm", cnt: "can't",
   guessin: "guessing", plz: "please", pls: "please", thx: "thanks",
   thanx: "thanks", cuz: "because", bcuz: "because", wut: "what",
-  wat: "what", wen: "when", whn: "when", dnt: "don't", dont: "don't",
-  doesnt: "doesn't", didnt: "didn't", wasnt: "wasn't", werent: "weren't",
-  isnt: "isn't", arent: "aren't", wont: "won't", cant: "can't",
-  shouldnt: "shouldn't", wouldnt: "wouldn't", couldnt: "couldn't",
-  im: "i'm", ive: "i've", id: "i'd", youre: "you're",
-  theyre: "they're", theyve: "they've", weve: "we've",
-  hes: "he's", shes: "she's", its: "it's", thats: "that's",
-  whats: "what's", whos: "who's", itll: "it'll", youll: "you'll",
-  theyll: "they'll", hell: "he'll", shell: "she'll", well: "we'll",
-  ill: "i'll",
+  wat: "what", wen: "when", whn: "when",
 };
 
 export function normalizeTypos(text: string): string {
@@ -109,11 +75,11 @@ export function normalizeTypos(text: string): string {
   });
 }
 
-// ── Robust "we/us/let's/our" check ──
+// ── Shared framing detection ──
 
 export function hasWeLanguage(text: string): boolean {
-  if (/\blet'?s\b/i.test(text)) return true;
-  const tokens = text.replace(/[.,!?;:\-—()\[\]{}'\"]/g, " ").split(/\s+/).filter(Boolean);
+  if (/\blet[\u2019']?s\b/i.test(text)) return true;
+  const tokens = text.replace(/[.,!?;:\-\u2014()\[\]{}'\"]/g, " ").split(/\s+/).filter(Boolean);
   for (const t of tokens) {
     const lower = t.toLowerCase();
     if (lower === "we" || lower === "us" || lower === "our") return true;
@@ -121,60 +87,31 @@ export function hasWeLanguage(text: string): boolean {
   return false;
 }
 
-// ── Acknowledgment-only detection (response-mode ban) ──
+// ── Acknowledgment-only detection ──
 
-const ACKNOWLEDGMENT_ONLY_EXACT = new Set([
-  "received.",
+const ACK_EXACT = new Set([
+  "received.", "received", "noted.", "noted", "understood.", "understood",
+  "okay.", "okay", "ok.", "ok",
+  "thanks for letting me know.", "thank you for letting me know.",
   "received your message.",
-  "noted.",
-  "understood.",
-  "okay.",
-  "ok.",
-  "thanks for letting me know.",
 ]);
 
 export function isAcknowledgmentOnly(text: string): boolean {
-  const trimmed = text.trim();
-  const lower = trimmed.toLowerCase();
-  // Exact match
-  if (ACKNOWLEDGMENT_ONLY_EXACT.has(lower)) return true;
-  // Starts with "Received" or "Noted" and is very short (no real rewrite content)
-  if (/^(received|noted)\b/i.test(trimmed) && wordCount(trimmed) <= 6) return true;
+  const lower = text.trim().toLowerCase();
+  if (ACK_EXACT.has(lower)) return true;
+  if (/^(received|noted)\b/i.test(text.trim()) && wordCount(text) <= 6) return true;
   return false;
 }
 
 // ── Question detection ──
 
-const QUESTION_STARTERS = /^(what|when|will|can|do|does|is|are)\b/i;
-const LOGISTICS_TERMS = /\b(pickup|pick[\s-]?up|drop[\s-]?off|exchange|school|doctor|schedule|time|tomorrow|friday|saturday|sunday|monday|tuesday|wednesday|thursday|appointment)\b/i;
+const Q_STARTERS = /^(what|when|where|who|why|how|can|will|do|does|is|are)\b/i;
+const LOGISTICS_TERMS = /\b(pickup|pick[\s-]?up|drop[\s-]?off|exchange|school|doctor|schedule|time|tomorrow|friday|saturday|sunday|monday|tuesday|wednesday|thursday|appointment|reimbursement|payment|tonight|weekend)\b/i;
 
 export function isLogisticsQuestion(text: string): boolean {
   const trimmed = text.trim();
-  const endsWithQ = trimmed.endsWith("?");
-  const startsWithQWord = QUESTION_STARTERS.test(trimmed);
-  const hasLogistics = LOGISTICS_TERMS.test(trimmed);
-  return (endsWithQ || startsWithQWord) && hasLogistics;
+  return (trimmed.endsWith("?") || Q_STARTERS.test(trimmed)) && LOGISTICS_TERMS.test(trimmed);
 }
-
-// ── Topic-shift detection ──
-
-const LOGISTICS_CONTEXT_TERMS = /\b(schedule|plan|pickup|pick[\s-]?up|drop[\s-]?off|exchange|late|changed|changed the plan|tomorrow|weekend)\b/i;
-const INVENTED_TOPICS = ["schedule", "communication arrangements", "meet", "time to meet", "future communications"];
-const ALLOWED_OPERATIONAL_TERMS = new Set(["schedule", "plan", "pickup", "pick-up", "drop-off", "exchange", "time"]);
-
-// ── Past-fact trap patterns ──
-
-const PAST_TIMEFRAME_REFS = [
-  /\blast weekend\b/i,
-  /\bpreviously\b/i,
-  /\bdetails regarding\b/i,
-  /\bwhether it was followed\b/i,
-  /\bwhat happened\b/i,
-  /\bwhy it happened\b/i,
-  /\blast friday\b/i,
-  /\blast time\b/i,
-  /\bthe other day\b/i,
-];
 
 // ── Canonical risk flags ──
 
@@ -194,29 +131,13 @@ export const CANONICAL_RISK_FLAGS = new Set([
   "Privacy / surveillance / tracking",
 ]);
 
-const FLAG_SYNONYMS: Record<string, string> = {
-  "no risk flags": "Safe message",
-};
-
 export function canonicalizeFlag(flag: string): string | null {
   const trimmed = flag.trim();
   if (CANONICAL_RISK_FLAGS.has(trimmed)) return trimmed;
-  const syn = FLAG_SYNONYMS[trimmed.toLowerCase()];
-  if (syn) return syn;
   return null;
 }
 
 // ── Pattern libraries ──
-
-const ADMISSION_TRAP_TRIGGERS = /\b(admit|admitting|are you admitting|are you saying|intentionally|confirm you changed|before i respond further|acknowledge)\b/i;
-
-const PAST_FACT_CONDUCT_PATTERNS = [
-  /\b(confirm|clarify|acknowledge|indicate|validate|admit)\s+(whether|that|if)\s+.*\b(you |he |she )?(did|were|was|had|didn't|wasn't|weren't|failed|missed|neglected|changed|switched|moved)\b/i,
-  /\b(confirm|clarify|acknowledge|indicate)\s+.*\b(past |previous |last |prior |earlier )/i,
-  /\bprovide details\s+.*(about|regarding|on)\s+.*(what happened|the incident|last|previous|prior)\b/i,
-  /\b(confirm|clarify|indicate|acknowledge)\s+.*\b(noncompliance|violation|breach|failure)\b/i,
-  /\bconfirm what (happened|occurred|took place)\b/i,
-];
 
 const ESCALATION_PHRASES: RegExp[] = [
   /\bescalat(e|ion)\b/i,
@@ -227,57 +148,96 @@ const ESCALATION_PHRASES: RegExp[] = [
   /\bdocument(ing|ed)\b/i,
   /\bpattern\b/i,
   /\brecurring (pattern|issue)\b/i,
-  /\bongoing (issues|concerns)\b/i,
+  /\bongoing (issue|concern)s?\b/i,
   /\baddress this( matter)?\b/i,
   /\bresolve this( matter)?\b/i,
   /\bbefore i respond further\b/i,
   /\bour communications\b/i,
 ];
 
+const ADMISSION_TRAP_TRIGGERS = /\b(admit|admitting|are you admitting|are you saying|intentionally|confirm you changed|before i respond further|acknowledge|changed the plan)\b/i;
+
+const ADMISSION_REWRITE_BANS = [
+  /\bare you admitting\b/i,
+  /\bare you saying\b/i,
+  /\bconfirm you violated\b/i,
+  /\bconfirm what happened\b/i,
+  /\bconfirm last weekend\b/i,
+  /\bconfirm last friday\b/i,
+  /\bconfirm the past\b/i,
+  /\badmit\b/i,
+  /\backnowledge that you\b/i,
+  /\bvalidate that you\b/i,
+  /\blast weekend\b/i,
+  /\bpreviously\b/i,
+  /\bdetails regarding\b/i,
+  /\bwhether it was followed\b/i,
+  /\bwhat happened\b/i,
+  /\bwhy it happened\b/i,
+  /\blast friday\b/i,
+  /\blast time\b/i,
+  /\bthe other day\b/i,
+];
+
+const CHILD_MESSENGER_PATTERNS = [
+  /\btell (your |the )?(mom|dad|mommy|daddy|mother|father)\b/i,
+  /\bhave the child tell\b/i,
+  /\bsend a message through the child\b/i,
+];
+
 const FINANCIAL_BAN_PHRASES = [
   "only fair", "fair share", "making more money", "increased income",
   "now that you make more", "you need to start paying", "covering more",
 ];
-
 const FINANCIAL_TRIGGERS = /\b(since you'?re making more money|now that you make more|pay more|fair share|only fair)\b/i;
 
-const CONFIRMATION_TRIGGERS = /\b(confirm|cnfirm|need to know)\b/i;
-const SCHEDULE_WORDS = /\b(time|what time|pick\s*up|drop\s*off|tomorrow|today|friday|saturday|sunday|monday|tuesday|wednesday|thursday|schedule)\b/i;
+const CONFIRM_TRIGGERS = /\b(confirm|cnfirm|need to know)\b/i;
+const SCHEDULE_WORDS = /\b(time|what time|pick\s*up|drop\s*off|tomorrow|today|tonight|this weekend|next exchange|friday|saturday|sunday|monday|tuesday|wednesday|thursday|schedule|plan|appointment|reimbursement|payment date|when|where)\b/i;
 
-const DENIGRATION_PATTERNS = [
-  /\b(idiot|stupid|narcissist|crazy|psycho|loser|deadbeat|worthless|pathetic|incompetent|unfit)\b/i,
-  /\byou('re| are) (a |an )?(bad|terrible|horrible|awful) (parent|mother|father|person)\b/i,
-  /\b(diagnosed|diagnosis|bipolar|borderline|mental(ly)? (ill|unstable))\b/i,
-];
+const LOGISTICS_CONTEXT_TERMS = /\b(schedule|plan|pickup|pick[\s-]?up|drop[\s-]?off|exchange|late|changed|changed the plan|tomorrow|weekend)\b/i;
+const INVENTED_TOPICS = ["schedule", "communication arrangements", "meet", "time to meet", "future communications"];
 
-const CHILD_MANIPULATION_PATTERNS = [
-  /\btell (the |your )?(kid|child|children|son|daughter)\b/i,
-  /\b(kid|child|children|son|daughter) (said|told|says|wants|thinks|feels)\b/i,
-  /\bask (the |your )?(kid|child|children) (about|what|if|whether)\b/i,
-  /\b(kid|child|son|daughter) (doesn't|does not) want to\b/i,
-];
+// ── Concrete detail extraction ──
 
-const HARASSMENT_PATTERNS = [
-  /\b(i('ll| will) keep (calling|texting|messaging|emailing))\b/i,
-  /\b(don't (ignore|avoid) me)\b/i,
-  /\b(respond (now|immediately|right now))\b/i,
-  /\b(i know (where|what) you)\b/i,
-];
+function extractConcreteDetails(text: string): string[] {
+  const details: string[] = [];
+  const dateP = /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g;
+  const timeP = /\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi;
+  const amountP = /\$\d+(\.\d{2})?/g;
+  const phoneP = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g;
+  for (const p of [dateP, timeP, amountP, phoneP]) {
+    const m = text.match(p);
+    if (m) details.push(...m);
+  }
+  return details;
+}
 
-const SAFETY_RISK_PATTERNS = [
-  /\b(kill|hurt|harm|beat|hit|slap|punch) (you|him|her|them|the kid|the child)\b/i,
-  /\b(take (the |my )?(kid|child|children) and (never|not) (come|bring|return))\b/i,
-  /\b(you('ll| will) never see (them|the kid|the child|your (son|daughter)) again)\b/i,
-  /\b(self[- ]?harm|suicide|kill myself)\b/i,
-];
+// ── Scoring helpers ──
+
+const SCORE_PENALTY_MAP: Record<string, number> = {
+  "Safe message": 0,
+  "Vague or imprecise language": -1,
+  "Irrelevant or non-child-related topic": -1,
+  "Emotional language detected": -1,
+  "Denigration / disparagement": -2,
+  "Admission trap": -2,
+  "Past-fact confirmation risk": -2,
+  "Escalation language detected": -2,
+  "Leverage or intimidation language detected": -2,
+  "Financial demand or assumption": -1,
+  "Harassment / repeated contact": -2,
+  "Child safety concern": -3,
+  "Privacy / surveillance / tracking": -2,
+};
 
 const BLAME_LANGUAGE = [
   /\byou always\b/i,
   /\byou never\b/i,
-  /\byou('re| are) (the |always |never )?(problem|issue|reason)\b/i,
 ];
 
-// ── Validator engine ──
+// ══════════════════════════════════════════
+// MAIN VALIDATOR
+// ══════════════════════════════════════════
 
 export function runValidator(
   rules: ValidatorRules | null,
@@ -286,450 +246,283 @@ export function runValidator(
   testCategory?: string,
 ): ValidatorResult {
   const checks: ValidatorCheck[] = [];
+
+  const add = (rule: string, passed: boolean, reason: string, defaultSev: "fail" | "warn" = "fail") => {
+    const sev = passed ? "pass" : (rules?.severity_overrides?.[rule] ?? defaultSev);
+    checks.push({ rule, severity: passed ? "pass" : sev as CheckSeverity, reason: passed ? `✓ ${reason}` : `✗ ${reason}` });
+  };
+
   const origNorm = originalMessage ? normalizeText(originalMessage) : "";
   const origTypoNorm = originalMessage ? normalizeText(normalizeTypos(originalMessage)) : "";
   const origWc = originalMessage ? wordCount(originalMessage) : 0;
-  const overrides = rules?.severity_overrides ?? {};
 
-  const add = (ruleName: string, passed: boolean, reason: string, defaultSeverity: "fail" | "warn") => {
-    const sev = passed ? "pass" : (overrides[ruleName] ?? defaultSeverity);
-    checks.push({
-      rule: ruleName,
-      severity: passed ? "pass" : (sev as CheckSeverity),
-      reason: passed ? `✓ ${reason}` : `✗ ${reason}`,
-    });
-  };
-
-  // ════════════════════════════════════════
-  // 1) Schema validation (HARD FAIL)
-  // ════════════════════════════════════════
-  const STRING_FIELDS = ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"];
-  for (const key of STRING_FIELDS) {
-    const val = (result as any)[key];
-    add("schema_string_field", typeof val === "string" && val.trim().length > 0,
-      `Field "${key}" is non-empty string`, "fail");
-  }
-
-  add("schema_tone",
-    result.tone_assessment === "Neutral" || result.tone_assessment === "Firm",
-    `tone_assessment ∈ {Neutral,Firm} — got "${result.tone_assessment}"`, "fail");
-
-  add("schema_risk_flags",
-    Array.isArray(result.risk_flags) && result.risk_flags.length >= 1,
-    `risk_flags array with ≥1 entry`, "fail");
-
-  add("schema_original_score",
-    typeof result.original_score === "number" && Number.isInteger(result.original_score) && result.original_score >= 1 && result.original_score <= 10,
-    `original_score integer 1–10 — got ${result.original_score}`, "fail");
-
-  add("schema_rewrite_quality_score",
-    typeof result.rewrite_quality_score === "number" && Number.isInteger(result.rewrite_quality_score) && result.rewrite_quality_score >= 1 && result.rewrite_quality_score <= 10,
-    `rewrite_quality_score integer 1–10 — got ${result.rewrite_quality_score}`, "fail");
-
-  const isNonEmptyStringArray = (v: any) => Array.isArray(v) && v.length > 0 && v.every((s: any) => typeof s === "string" && s.trim().length > 0);
-  add("schema_original_score_notes",
-    isNonEmptyStringArray(result.original_score_notes),
-    `original_score_notes is array of non-empty strings`, "fail");
-  add("schema_rewrite_quality_notes",
-    isNonEmptyStringArray(result.rewrite_quality_notes),
-    `rewrite_quality_notes is array of non-empty strings`, "fail");
-
-  // ════════════════════════════════════════
-  // 2) Shared-framing bans (HARD FAIL)
-  // ════════════════════════════════════════
-  const rewriteFields: { label: string; text: string }[] = [
+  const rewriteFields = [
     { label: "primary_rewrite", text: result.primary_rewrite ?? "" },
     { label: "shorter_version", text: result.shorter_version ?? "" },
     { label: "firmer_version", text: result.firmer_version ?? "" },
   ];
 
+  // ═══ 1) SCHEMA VALIDATION (HARD FAIL) ═══
+  const STRING_FIELDS = ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"];
+  for (const key of STRING_FIELDS) {
+    const val = (result as any)[key];
+    add("schema_string_field", typeof val === "string" && val.trim().length > 0,
+      `Field "${key}" is non-empty string`);
+  }
+
+  add("schema_tone",
+    result.tone_assessment === "Neutral" || result.tone_assessment === "Firm",
+    `tone_assessment ∈ {Neutral,Firm} — got "${result.tone_assessment}"`);
+
+  add("schema_risk_flags",
+    Array.isArray(result.risk_flags) && result.risk_flags.length >= 1 && result.risk_flags.length <= 3,
+    `risk_flags array with 1–3 entries — got ${Array.isArray(result.risk_flags) ? result.risk_flags.length : "non-array"}`);
+
+  add("schema_original_score",
+    typeof result.original_score === "number" && Number.isInteger(result.original_score) && result.original_score >= 1 && result.original_score <= 10,
+    `original_score integer 1–10 — got ${result.original_score}`);
+
+  add("schema_rewrite_quality_score",
+    typeof result.rewrite_quality_score === "number" && Number.isInteger(result.rewrite_quality_score) && result.rewrite_quality_score >= 1 && result.rewrite_quality_score <= 10,
+    `rewrite_quality_score integer 1–10 — got ${result.rewrite_quality_score}`);
+
+  const isNonEmptyStringArray = (v: any) => Array.isArray(v) && v.length > 0 && v.every((s: any) => typeof s === "string" && s.trim().length > 0);
+  add("schema_original_score_notes", isNonEmptyStringArray(result.original_score_notes),
+    `original_score_notes is array of non-empty strings`);
+  add("schema_rewrite_quality_notes", isNonEmptyStringArray(result.rewrite_quality_notes),
+    `rewrite_quality_notes is array of non-empty strings`);
+
+  // ═══ 2) CANONICAL RISK FLAGS (HARD FAIL) ═══
+  if (Array.isArray(result.risk_flags)) {
+    const unknowns: string[] = [];
+    for (const flag of result.risk_flags) {
+      if (!canonicalizeFlag(flag)) unknowns.push(flag);
+    }
+    add("risk_flags_canonical", unknowns.length === 0,
+      `All risk flags canonical${unknowns.length > 0 ? ` — unknown: [${unknowns.join(", ")}]` : ""}`);
+
+    // Category: safe_logistics
+    if (testCategory === "safe_logistics") {
+      const onlySafe = result.risk_flags.length === 1 && result.risk_flags[0] === "Safe message";
+      add("safe_logistics_flags", onlySafe,
+        `safe_logistics requires exactly ["Safe message"] — got [${result.risk_flags.join(", ")}]`);
+    }
+
+    // Category: emotional_irrelevant
+    if (testCategory === "emotional_irrelevant") {
+      const hasRelevant = result.risk_flags.some(f =>
+        f === "Irrelevant or non-child-related topic" || f === "Emotional language detected"
+      );
+      add("emotional_irrelevant_flags", hasRelevant,
+        `emotional_irrelevant requires relevant flag — got [${result.risk_flags.join(", ")}]`);
+    }
+
+    // Category: past_fact_trap
+    if (testCategory === "past_fact_trap") {
+      const hasRelevant = result.risk_flags.some(f =>
+        f === "Admission trap" || f === "Past-fact confirmation risk"
+      );
+      add("past_fact_trap_flags", hasRelevant,
+        `past_fact_trap requires admission/past-fact flag — got [${result.risk_flags.join(", ")}]`);
+    }
+  }
+
+  // ═══ 3) HARD FAIL: SHARED FRAMING ═══
   for (const rt of rewriteFields) {
     if (!rt.text) continue;
     const found = hasWeLanguage(rt.text);
     add("no_shared_framing", !found,
-      `No we/us/our/let's in ${rt.label}${found ? " — shared framing detected" : ""}`, "fail");
+      `No we/us/our/let's in ${rt.label}${found ? " — shared framing detected" : ""}`);
   }
 
-  // ════════════════════════════════════════
-  // 2b) Response-mode ban (HARD FAIL)
-  // ════════════════════════════════════════
-  for (const rt of rewriteFields) {
-    if (!rt.text) continue;
-    const ackOnly = isAcknowledgmentOnly(rt.text);
-    add("no_acknowledgment_only", !ackOnly,
-      `No acknowledgment-only output in ${rt.label}${ackOnly ? ` — "${rt.text.slice(0, 40)}" is not a rewrite` : ""}`, "fail");
-  }
-
-  // ════════════════════════════════════════
-  // 3) Escalation / leverage / intimidation bans (HARD FAIL)
-  // ════════════════════════════════════════
+  // ═══ 4) HARD FAIL: ESCALATION / LEVERAGE ═══
   for (const rt of rewriteFields) {
     if (!rt.text) continue;
     const matched = ESCALATION_PHRASES.filter(p => p.test(rt.text));
     add("no_escalation", matched.length === 0,
-      `No escalation/leverage in ${rt.label}${matched.length > 0 ? ` — ${matched.length} match(es)` : ""}`, "fail");
+      `No escalation/leverage in ${rt.label}${matched.length > 0 ? ` — ${matched.length} match(es)` : ""}`);
   }
 
-  // ════════════════════════════════════════
-  // 3b) Question preservation (HARD FAIL conditional)
-  // ════════════════════════════════════════
-  if (originalMessage && isLogisticsQuestion(originalMessage)) {
-    const primaryHasQ = (result.primary_rewrite ?? "").includes("?");
-    add("question_preserved", primaryHasQ,
-      `Original is logistics question — primary_rewrite must contain "?"${primaryHasQ ? "" : " — not found"}`, "fail");
+  // ═══ 5) HARD FAIL: ACKNOWLEDGMENT-ONLY ═══
+  for (const rt of rewriteFields) {
+    if (!rt.text) continue;
+    const ack = isAcknowledgmentOnly(rt.text);
+    add("no_acknowledgment_only", !ack,
+      `No acknowledgment-only in ${rt.label}${ack ? ` — "${rt.text.slice(0, 40)}" is not a valid rewrite` : ""}`);
   }
 
-  // ════════════════════════════════════════
-  // 3c) Context-aware topic-shift validation (HARD FAIL)
-  // ════════════════════════════════════════
-  if (originalMessage) {
-    const origHasLogistics = LOGISTICS_CONTEXT_TERMS.test(originalMessage);
-    const primaryText = result.primary_rewrite ?? "";
-
-    if (!origHasLogistics) {
-      // Original has NO logistics context — fail if rewrite invents logistics topics
-      for (const topic of INVENTED_TOPICS) {
-        const found = matchesPhrase(normalizeText(primaryText), topic);
-        if (found) {
-          add("no_topic_shift", false,
-            `Rewrite invents topic "${topic}" not in original`, "fail");
-        }
-      }
-    }
-    // If original HAS logistics context, allow operational terms — no check needed
-  }
-
-  // ════════════════════════════════════════
-  // 4) Admission-trap & past-fact bans (HARD FAIL conditional)
-  // ════════════════════════════════════════
+  // ═══ 6) HARD FAIL: ADMISSION TRAP / PAST-FACT ═══
   const origHasAdmissionTrigger = originalMessage && ADMISSION_TRAP_TRIGGERS.test(originalMessage);
   const isPastFactCategory = testCategory === "past_fact_trap";
 
   if (origHasAdmissionTrigger || isPastFactCategory) {
     for (const rt of rewriteFields) {
       if (!rt.text) continue;
-      const hasPastFact = PAST_FACT_CONDUCT_PATTERNS.some(p => p.test(rt.text));
-      const asksAdmit = /\b(admit|acknowledge|intentionally)\b/i.test(rt.text);
-      // Strengthened: also check past timeframe references
-      const hasPastTimeframe = PAST_TIMEFRAME_REFS.some(p => p.test(rt.text));
-      const failed = hasPastFact || asksAdmit || hasPastTimeframe;
+      const failed = ADMISSION_REWRITE_BANS.some(p => p.test(rt.text));
       add("no_admission_trap", !failed,
-        `No admission trap in ${rt.label}${failed ? " — seeks admission/validation of disputed past conduct or references past timeframes" : ""}`, "fail");
+        `No admission trap in ${rt.label}${failed ? " — references disputed past conduct" : ""}`);
     }
   }
 
-  // Category-specific: past_fact_trap requires specific risk flags
-  if (isPastFactCategory) {
-    const flags = (result.risk_flags ?? []).map(f => f.toLowerCase());
-    const hasRelevant = flags.some(f =>
-      f.includes("admission trap") || f.includes("past-fact confirmation risk") || f.includes("past-fact") || f.includes("admission")
-    );
-    add("past_fact_trap_flags", hasRelevant,
-      `past_fact_trap category requires "Admission trap" or "Past-fact confirmation risk" flag — got [${result.risk_flags?.join(", ")}]`, "fail");
+  // ═══ 7) HARD FAIL: CHILD-AS-MESSENGER ═══
+  for (const rt of rewriteFields) {
+    if (!rt.text) continue;
+    const found = CHILD_MESSENGER_PATTERNS.some(p => p.test(rt.text));
+    add("no_child_messenger", !found,
+      `No child-as-messenger in ${rt.label}${found ? " — child used as intermediary" : ""}`);
   }
 
-  // ════════════════════════════════════════
-  // 5) Financial assumption bans
-  // ════════════════════════════════════════
-  if ((originalMessage && FINANCIAL_TRIGGERS.test(originalMessage)) || rules?.must_not_preserve_financial_assumptions) {
-    for (const rt of rewriteFields) {
-      if (!rt.text) continue;
-      const hasAssumption = FINANCIAL_BAN_PHRASES.some(phrase => matchesPhrase(normalizeText(rt.text), phrase));
-      const severity = rt.label === "primary_rewrite" ? "warn" : "fail";
-      add("no_financial_assumptions", !hasAssumption,
-        `No financial assumptions in ${rt.label}${hasAssumption ? " — found income/fairness language" : ""}`, severity as "fail" | "warn");
-    }
-  }
-
-  // ════════════════════════════════════════
-  // 6) Confirmation-language rule (CONDITIONAL HARD FAIL)
-  // ════════════════════════════════════════
-  const origHasConfirmTrigger = originalMessage && (
-    CONFIRMATION_TRIGGERS.test(originalMessage) ||
-    (originalMessage.includes("?") && SCHEDULE_WORDS.test(originalMessage))
-  );
-  if (rules?.must_preserve_confirmation || origHasConfirmTrigger) {
-    const hasConfirmVerb = /\bconfirm\b/i.test(result.primary_rewrite ?? "");
-    add("confirmation_preserved", hasConfirmVerb,
-      `primary_rewrite must include verb "confirm"${hasConfirmVerb ? "" : " — not found (\"confirmation\" alone insufficient)"}`, "fail");
-  }
-
-  // ════════════════════════════════════════
-  // 7) Risk flag taxonomy
-  // ════════════════════════════════════════
-  if (Array.isArray(result.risk_flags)) {
-    let hasUnknown = false;
-    const unknowns: string[] = [];
-    for (const flag of result.risk_flags) {
-      const canon = canonicalizeFlag(flag);
-      if (!canon) {
-        hasUnknown = true;
-        unknowns.push(flag);
-      }
-    }
-    add("risk_flags_canonical", !hasUnknown,
-      `All risk flags canonical${hasUnknown ? ` — unknown: [${unknowns.join(", ")}]` : ""}`, "fail");
-
-    if (testCategory === "safe_logistics") {
-      const canonFlags = result.risk_flags.map(f => canonicalizeFlag(f)).filter(Boolean);
-      const onlySafe = canonFlags.length === 1 && canonFlags[0] === "Safe message";
-      add("safe_logistics_flags", onlySafe,
-        `safe_logistics requires exactly ["Safe message"] — got [${result.risk_flags.join(", ")}]`, "fail");
-    }
-
-    if (testCategory === "emotional_irrelevant") {
-      const canonFlags = result.risk_flags.map(f => canonicalizeFlag(f)).filter(Boolean) as string[];
-      const hasRelevant = canonFlags.some(f =>
-        f === "Irrelevant or non-child-related topic" || f === "Emotional language detected"
-      );
-      add("emotional_irrelevant_flags", hasRelevant,
-        `emotional_irrelevant requires "Irrelevant or non-child-related topic" or "Emotional language detected" — got [${result.risk_flags.join(", ")}]`, "fail");
-    }
-  }
-
-  // ════════════════════════════════════════
-  // 7b) Emotional/irrelevant: no acknowledgment-only, require boundary
-  // ════════════════════════════════════════
-  if (testCategory === "emotional_irrelevant") {
-    const primaryText = result.primary_rewrite ?? "";
-    // Must not be acknowledgment-only (already checked globally, but enforce category-specific)
-    const hasSubstance = wordCount(primaryText) >= 5 && !isAcknowledgmentOnly(primaryText);
-    add("emotional_irrelevant_substance", hasSubstance,
-      `emotional_irrelevant requires substantive output with neutral boundary${hasSubstance ? "" : " — too short or acknowledgment-only"}`, "fail");
-  }
-
-  // ════════════════════════════════════════
-  // 8) No new facts
-  // ════════════════════════════════════════
+  // ═══ 8) HARD FAIL: NEW CONCRETE DETAILS ═══
   if (originalMessage) {
     const primaryText = result.primary_rewrite ?? "";
-    let newFactsFound = false;
-    const newFactDetails: string[] = [];
+    const rewriteDetails = extractConcreteDetails(primaryText);
+    const origDetails = new Set([
+      ...extractConcreteDetails(origNorm),
+      ...extractConcreteDetails(origTypoNorm),
+    ]);
 
-    const dateTimePattern = /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g;
-    const timePattern = /\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi;
-    const amountPattern = /\$\d+(\.\d{2})?/g;
-
-    for (const p of [dateTimePattern, timePattern, amountPattern]) {
-      const matches = primaryText.match(p) ?? [];
-      for (const m of matches) {
-        if (!origTypoNorm.includes(m.toLowerCase()) && !origNorm.includes(m.toLowerCase())) {
-          newFactsFound = true;
-          newFactDetails.push(m);
-        }
+    const invented: string[] = [];
+    for (const d of rewriteDetails) {
+      if (!origDetails.has(d.toLowerCase()) && !origNorm.includes(d.toLowerCase())) {
+        invented.push(d);
       }
     }
 
+    // Topic words check
     const TOPIC_WORDS = ["schedule", "school", "doctor", "appointment", "therapy", "counselor"];
     const origNormTypo = normalizeTypos(originalMessage.toLowerCase());
     for (const tw of TOPIC_WORDS) {
       if (matchesToken(primaryText, tw) && !matchesToken(origNormTypo, tw) && !matchesToken(originalMessage, tw)) {
-        newFactsFound = true;
-        newFactDetails.push(`topic:${tw}`);
+        invented.push(`topic:${tw}`);
       }
     }
 
-    add("no_new_facts", !newFactsFound,
-      `No new facts/dates/amounts/topics${newFactsFound ? ` — found: [${newFactDetails.join(", ")}]` : ""}`, "fail");
+    add("no_new_facts", invented.length === 0,
+      `No invented concrete details${invented.length > 0 ? ` — found: [${invented.join(", ")}]` : ""}`);
   }
 
-  // ════════════════════════════════════════
-  // 9) Length controls
-  // ════════════════════════════════════════
+  // ═══ 9) QUESTION PRESERVATION (HARD FAIL conditional) ═══
+  if (originalMessage && isLogisticsQuestion(originalMessage)) {
+    const hasQ = (result.primary_rewrite ?? "").includes("?");
+    add("question_preserved", hasQ,
+      `Original is logistics question — primary_rewrite must contain "?"${hasQ ? "" : " — not found"}`);
+  }
+
+  // ═══ 10) CONFIRM RULE (HARD FAIL conditional) ═══
+  const origHasConfirmTrigger = originalMessage && (
+    CONFIRM_TRIGGERS.test(normalizeTypos(originalMessage)) ||
+    (originalMessage.includes("?") && SCHEDULE_WORDS.test(originalMessage))
+  );
+  if (origHasConfirmTrigger) {
+    const hasConfirmVerb = /\bconfirm\b/i.test(result.primary_rewrite ?? "");
+    add("confirmation_preserved", hasConfirmVerb,
+      `primary_rewrite must include verb "confirm"${hasConfirmVerb ? "" : " — not found"}`);
+  }
+
+  // ═══ 11) TOPIC-SHIFT (HARD FAIL conditional) ═══
+  if (originalMessage) {
+    const origHasLogistics = LOGISTICS_CONTEXT_TERMS.test(originalMessage);
+    if (!origHasLogistics) {
+      const primaryNorm = normalizeText(result.primary_rewrite ?? "");
+      for (const topic of INVENTED_TOPICS) {
+        if (primaryNorm.includes(topic.toLowerCase())) {
+          add("no_topic_shift", false, `Rewrite invents topic "${topic}" not in original`);
+        }
+      }
+    }
+  }
+
+  // ═══ 12) FINANCIAL BANS ═══
+  if (originalMessage && FINANCIAL_TRIGGERS.test(originalMessage)) {
+    for (const rt of rewriteFields) {
+      if (!rt.text) continue;
+      const rtNorm = normalizeText(rt.text);
+      const found = FINANCIAL_BAN_PHRASES.some(p => rtNorm.includes(p.toLowerCase()));
+      const sev = rt.label === "primary_rewrite" ? "warn" : "fail";
+      add("no_financial_assumptions", !found,
+        `No financial assumptions in ${rt.label}${found ? " — found income/fairness language" : ""}`, sev as "fail" | "warn");
+    }
+  }
+
+  // ═══ 13) EMOTIONAL/IRRELEVANT SUBSTANCE ═══
+  if (testCategory === "emotional_irrelevant") {
+    const pt = result.primary_rewrite ?? "";
+    const hasSubstance = wordCount(pt) >= 5 && !isAcknowledgmentOnly(pt);
+    add("emotional_irrelevant_substance", hasSubstance,
+      `emotional_irrelevant requires substantive boundary output${hasSubstance ? "" : " — too short or acknowledgment-only"}`);
+  }
+
+  // ═══ 14) LENGTH CONTROLS ═══
   if (origWc > 0) {
     const rewriteWc = wordCount(result.primary_rewrite ?? "");
     const softLimit = Math.max(Math.ceil(origWc * 1.25), origWc + 6);
     const hardLimit = Math.ceil(origWc * 1.75);
 
     if (rewriteWc > hardLimit) {
-      add("word_length", false,
-        `primary_rewrite too long: ${rewriteWc} words vs ${origWc} original (hard limit ${hardLimit})`, "fail");
+      add("word_length", false, `primary_rewrite too long: ${rewriteWc} words vs ${origWc} original (hard limit ${hardLimit})`);
     } else if (rewriteWc > softLimit) {
-      add("word_length", false,
-        `primary_rewrite long: ${rewriteWc} words vs ${origWc} original (soft limit ${softLimit})`, "warn");
+      add("word_length", false, `primary_rewrite long: ${rewriteWc} vs ${origWc} (soft limit ${softLimit})`, "warn");
     } else {
-      add("word_length", true,
-        `Word length OK: ${rewriteWc}/${origWc}`, "warn");
+      add("word_length", true, `Word length OK: ${rewriteWc}/${origWc}`, "warn");
     }
   }
 
-  // ════════════════════════════════════════
-  // Expanded category detectors (always active)
-  // ════════════════════════════════════════
-  for (const rt of rewriteFields) {
-    if (!rt.text) continue;
-    if (DENIGRATION_PATTERNS.some(p => p.test(rt.text))) {
-      add("no_denigration", false, `Denigration/disparagement in ${rt.label}`, "fail");
-    }
-    if (CHILD_MANIPULATION_PATTERNS.some(p => p.test(rt.text))) {
-      add("no_child_manipulation", false, `Child manipulation/triangulation in ${rt.label}`, "fail");
-    }
-    if (HARASSMENT_PATTERNS.some(p => p.test(rt.text))) {
-      add("no_harassment", false, `Harassment phrasing in ${rt.label}`, "fail");
-    }
-    if (SAFETY_RISK_PATTERNS.some(p => p.test(rt.text))) {
-      add("safety_risk", false, `Safety risk phrasing in ${rt.label}`, "fail");
-    }
-  }
-
-  // ════════════════════════════════════════
-  // Per-test rule checks (from validator_rules)
-  // ════════════════════════════════════════
-  if (rules && Object.keys(rules).length > 0) {
+  // ═══ 15) PER-TEST RULE CHECKS ═══
+  if (rules) {
     const text = result.primary_rewrite ?? "";
-    const textNorm = normalizeText(text);
-    const rewriteWc = wordCount(text);
 
-    // POV shift
-    if (rules.must_preserve_pov) {
-      const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
-      add("must_preserve_pov", !hasResponseFlip, "Preserve original POV", "fail");
-    }
-
-    // Message type
-    if (rules.must_preserve_message_type && rules.must_preserve_message_type !== "any") {
-      const mtype = rules.must_preserve_message_type;
-      let ok = true;
-      if (mtype === "question") ok = text.includes("?");
-      else if (mtype === "request") ok = /\b(please|could you|can you|would you|let me know|confirm)\b/i.test(text);
-      else if (mtype === "statement") ok = !text.includes("?") || /\b(I will|I am|I have|I can)\b/i.test(text);
-      add("must_preserve_message_type", ok, `Preserve message type: ${mtype}`, "fail");
-    }
-
-    // Response-mode shift (per-rule, broader than acknowledgment-only)
-    if (rules.must_not_shift_to_response_mode) {
-      const RESPONSE_MODE_PHRASES = [
-        /\bkeep communication focused\b/i,
-        /\bI understand\b/i,
-        /\bthank you for sharing\b/i,
-        /\bI appreciate you\b/i,
-        /\blet'?s focus on\b/i,
-      ];
-      const shifted = RESPONSE_MODE_PHRASES.some(p => p.test(text));
-      add("must_not_shift_to_response_mode", !shifted, "Must not shift to response-mode phrasing", "fail");
-    }
-
-    // Past-fact validation (per-rule)
-    if (rules.must_not_request_past_validation) {
-      const hasPattern = PAST_FACT_CONDUCT_PATTERNS.some(p => p.test(text));
-      const simpleCheck = /\b(confirm|clarify|indicate|acknowledge)\b/i.test(text) &&
-        /\b(did|were|was|had|didn't|wasn't|weren't|failed|missed|changed|noncompliance)\b/i.test(text);
-      const hasPastTimeframe = PAST_TIMEFRAME_REFS.some(p => p.test(text));
-      add("must_not_request_past_validation", !hasPattern && !simpleCheck && !hasPastTimeframe,
-        "Must not request validation of disputed past conduct", "fail");
-    }
-
-    // Leverage (per-rule)
-    if (rules.must_not_preserve_leverage) {
-      const hasLeverage = ESCALATION_PHRASES.some(p => p.test(text));
-      add("must_not_preserve_leverage", !hasLeverage, "Must not preserve leverage/escalation framing", "fail");
-    }
-
-    // We language (per-rule)
-    if (rules.must_not_introduce_we_language) {
-      const rewriteHasWe = hasWeLanguage(text);
-      add("must_not_introduce_we_language", !rewriteHasWe, "Must not introduce we/us/let's", "fail");
-    }
-
-    // Non-essential deepening
-    if (rules.must_not_deepen_nonessential_content) {
-      const DEEPENING = [
-        /\bi would like to know\b/i, /\bi wanted to ask\b/i, /\bi am curious\b/i,
-        /\bi('d| would) love to (hear|know|understand|discuss)\b/i, /\btell me more about\b/i,
-        /\bshare (your|more about)\b/i, /\bhow (are|have) you been\b/i,
-      ];
-      const deepens = DEEPENING.some(p => p.test(text));
-      const longerThanOrig = rewriteWc > origWc;
-      if (deepens && longerThanOrig) {
-        add("must_not_deepen_nonessential_content", false, "Deepens non-essential content and is longer", "fail");
-      } else if (deepens) {
-        add("must_not_deepen_nonessential_content", false, "Uses deepening language", "warn");
-      } else {
-        add("must_not_deepen_nonessential_content", true, "No non-essential deepening", "warn");
-      }
-    }
-
-    // Banned phrases
-    if (rules.banned_phrases) {
-      for (const phrase of rules.banned_phrases) {
-        const found = matchesPhrase(textNorm, phrase);
-        add("banned_phrase", !found, `Banned phrase: "${phrase}"${found ? " — found" : ""}`, "fail");
-      }
-    }
-
-    // Banned tokens (word-boundary)
     if (rules.banned_tokens) {
       for (const token of rules.banned_tokens) {
         const found = matchesToken(text, token);
-        add("banned_token", !found, `Banned token: "${token}"${found ? " — found" : ""}`, "fail");
+        add("banned_token", !found, `Banned token: "${token}"${found ? " — found" : ""}`);
       }
     }
-
-    // Max words
-    if (rules.max_words != null) {
-      add("max_words", wordCount(text) <= rules.max_words,
-        `Word limit: ${wordCount(text)}/${rules.max_words}`, "warn");
+    if (rules.banned_phrases) {
+      for (const phrase of rules.banned_phrases) {
+        const found = normalizeText(text).includes(normalizeText(phrase));
+        add("banned_phrase", !found, `Banned phrase: "${phrase}"${found ? " — found" : ""}`);
+      }
     }
-
-    // Max word increase pct
-    if (rules.max_word_increase_pct != null && origWc > 0) {
-      const maxAllowed = Math.ceil(origWc * (1 + rules.max_word_increase_pct));
-      add("max_word_increase_pct", rewriteWc <= maxAllowed,
-        `Word increase: ${origWc}→${rewriteWc} (max +${Math.round(rules.max_word_increase_pct * 100)}% = ${maxAllowed})`, "warn");
-    }
-
-    // Risk flag requirements (per-test)
-    if (rules.required_risk_flags_any_of && rules.required_risk_flags_any_of.length > 0) {
-      const canonFlags = (result.risk_flags ?? []).map(f => (canonicalizeFlag(f) ?? f).toLowerCase());
+    if (rules.required_risk_flags_any_of?.length) {
+      const flags = (result.risk_flags ?? []).map(f => (canonicalizeFlag(f) ?? f).toLowerCase());
       const satisfied = rules.required_risk_flags_any_of.some(set =>
-        set.some(expected => canonFlags.some(cf => cf.includes(expected.toLowerCase())))
+        set.some(expected => flags.some(cf => cf.includes(expected.toLowerCase())))
       );
       add("required_risk_flags", satisfied,
-        `Risk flags match: ${rules.required_risk_flags_any_of.map(s => s.join("/")).join(" OR ")} — got [${result.risk_flags?.join(", ")}]`, "fail");
-    }
-
-    // Must-not-flag
-    if (rules.must_not_flag_any && rules.must_not_flag_any.length > 0) {
-      for (const banned of rules.must_not_flag_any) {
-        const canonFlags = (result.risk_flags ?? []).map(f => (canonicalizeFlag(f) ?? f).toLowerCase());
-        const flagged = canonFlags.some(cf => cf.includes(banned.toLowerCase()));
-        add("must_not_flag", !flagged,
-          `Must not flag: "${banned}"${flagged ? ` — found in [${result.risk_flags?.join(", ")}]` : ""}`, "warn");
-      }
-    }
-
-    // Soft term preservation
-    if (rules.must_preserve_terms) {
-      for (const term of rules.must_preserve_terms) {
-        const found = textNorm.includes(normalizeText(term));
-        add("must_preserve_terms", found, `Preserve term: "${term}"`, "warn");
-      }
+        `Risk flags match requirement — got [${result.risk_flags?.join(", ")}]`);
     }
   }
 
-  // ════════════════════════════════════════
-  // 10) Scoring logic
-  // ════════════════════════════════════════
+  // ═══ 16) DETERMINISTIC SCORING ═══
   let adjustedScore = 10;
-  const primaryText = result.primary_rewrite ?? "";
+  const hasSchemaFail = checks.some(c => c.severity === "fail" && c.rule.startsWith("schema_"));
+  const hasHardFail = checks.some(c => c.severity === "fail");
 
-  const softViolations = checks.filter(c => c.severity === "warn" &&
-    (c.rule === "no_new_facts" || c.rule === "word_length" || c.rule === "max_word_increase_pct" || c.rule === "max_words"));
-  if (softViolations.length > 0) adjustedScore -= 4;
+  if (hasSchemaFail) {
+    adjustedScore = 1;
+  } else {
+    // Deductions
+    if (checks.some(c => c.severity === "fail" && c.rule === "risk_flags_canonical")) adjustedScore -= 3;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_shared_framing")) adjustedScore -= 4;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_escalation")) adjustedScore -= 4;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_acknowledgment_only")) adjustedScore -= 4;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_new_facts")) adjustedScore -= 4;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_admission_trap")) adjustedScore -= 4;
+    if (checks.some(c => c.severity === "fail" && c.rule === "confirmation_preserved")) adjustedScore -= 2;
+    if (checks.some(c => c.severity === "fail" && c.rule === "question_preserved")) adjustedScore -= 2;
+    if (checks.some(c => c.severity === "fail" && c.rule === "no_child_messenger")) adjustedScore -= 3;
+    if (checks.some(c => c.severity === "warn" && c.rule === "word_length")) adjustedScore -= 1;
 
-  if (checks.some(c => c.severity === "warn" && c.rule === "must_preserve_terms")) {
-    adjustedScore -= 3;
-  }
-
-  if (BLAME_LANGUAGE.some(p => p.test(primaryText))) {
-    adjustedScore -= 3;
+    const primaryText = result.primary_rewrite ?? "";
+    if (BLAME_LANGUAGE.some(p => p.test(primaryText))) adjustedScore -= 3;
   }
 
   adjustedScore = Math.max(1, Math.min(10, adjustedScore));
 
-  // ════════════════════════════════════════
-  // Determine overall status
-  // ════════════════════════════════════════
+  // Hard fail caps score at 4
+  if (hasHardFail && adjustedScore > 4) adjustedScore = 4;
+
+  // ═══ PASS / FAIL DECISION ═══
   const hasFail = checks.some(c => c.severity === "fail");
   const hasWarn = checks.some(c => c.severity === "warn");
   const status: "pass" | "warn" | "fail" = hasFail ? "fail" : hasWarn ? "warn" : "pass";
