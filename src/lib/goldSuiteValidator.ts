@@ -3,7 +3,8 @@
  * Deterministic, explainable validation aligned to court-safe,
  * child-focused high-conflict custody communication standards.
  *
- * v4 — 11-rule spec implementation
+ * v5 — response-mode ban, question preservation, context-aware topic-shift,
+ *       strengthened past-fact trap, emotional/irrelevant boundary requirements
  */
 
 // ── Types ──
@@ -62,10 +63,8 @@ export interface RewriteResult {
 
 export function normalizeText(s: string): string {
   let t = s.toLowerCase().replace(/\s+/g, " ").trim();
-  // time normalization
   t = t.replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)\b/gi, (_, h, m, ap) => `${h}:${m} ${ap.toLowerCase()}`);
   t = t.replace(/\b(\d{1,2})\s*(am|pm)\b/gi, (_, h, ap) => `${h}:00 ${ap.toLowerCase()}`);
-  // date normalization
   t = t.replace(/(\d{1,2})\s*\/\s*(\d{1,2})/g, "$1/$2");
   t = t.replace(/\.{2,}/g, ".").replace(/\s*\.\s*$/, ".");
   return t;
@@ -75,7 +74,6 @@ export function wordCount(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
 }
 
-/** Word-boundary match — "guessin" must NOT match "guessing" */
 export function matchesToken(text: string, token: string): boolean {
   const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`\\b${escaped}\\b`, "i").test(text);
@@ -85,60 +83,22 @@ export function matchesPhrase(textNorm: string, phrase: string): boolean {
   return textNorm.includes(normalizeText(phrase));
 }
 
-// ── Typo normalization map (rule 8) ──
+// ── Typo normalization map ──
 
 const TYPO_MAP: Record<string, string> = {
-  afta: "after",
-  schol: "school",
-  tomorw: "tomorrow",
-  tomorrw: "tomorrow",
-  tmrw: "tomorrow",
-  ur: "your",
-  cnfirm: "confirm",
-  cnt: "can't",
-  guessin: "guessing",
-  plz: "please",
-  pls: "please",
-  thx: "thanks",
-  thanx: "thanks",
-  cuz: "because",
-  bcuz: "because",
-  wut: "what",
-  wat: "what",
-  wen: "when",
-  whn: "when",
-  dnt: "don't",
-  dont: "don't",
-  doesnt: "doesn't",
-  didnt: "didn't",
-  wasnt: "wasn't",
-  werent: "weren't",
-  isnt: "isn't",
-  arent: "aren't",
-  wont: "won't",
-  cant: "can't",
-  shouldnt: "shouldn't",
-  wouldnt: "wouldn't",
-  couldnt: "couldn't",
-  im: "i'm",
-  ive: "i've",
-  id: "i'd",
-  youre: "you're",
-  theyre: "they're",
-  theyve: "they've",
-  weve: "we've",
-  hes: "he's",
-  shes: "she's",
-  its: "it's",
-  thats: "that's",
-  whats: "what's",
-  whos: "who's",
-  itll: "it'll",
-  youll: "you'll",
-  theyll: "they'll",
-  hell: "he'll",
-  shell: "she'll",
-  well: "we'll",
+  afta: "after", schol: "school", tomorw: "tomorrow", tomorrw: "tomorrow",
+  tmrw: "tomorrow", ur: "your", cnfirm: "confirm", cnt: "can't",
+  guessin: "guessing", plz: "please", pls: "please", thx: "thanks",
+  thanx: "thanks", cuz: "because", bcuz: "because", wut: "what",
+  wat: "what", wen: "when", whn: "when", dnt: "don't", dont: "don't",
+  doesnt: "doesn't", didnt: "didn't", wasnt: "wasn't", werent: "weren't",
+  isnt: "isn't", arent: "aren't", wont: "won't", cant: "can't",
+  shouldnt: "shouldn't", wouldnt: "wouldn't", couldnt: "couldn't",
+  im: "i'm", ive: "i've", id: "i'd", youre: "you're",
+  theyre: "they're", theyve: "they've", weve: "we've",
+  hes: "he's", shes: "she's", its: "it's", thats: "that's",
+  whats: "what's", whos: "who's", itll: "it'll", youll: "you'll",
+  theyll: "they'll", hell: "he'll", shell: "she'll", well: "we'll",
   ill: "i'll",
 };
 
@@ -152,9 +112,7 @@ export function normalizeTypos(text: string): string {
 // ── Robust "we/us/let's/our" check ──
 
 export function hasWeLanguage(text: string): boolean {
-  // Check for let's BEFORE stripping punctuation (apostrophe matters)
   if (/\blet'?s\b/i.test(text)) return true;
-  // Tokenize: split on whitespace and punctuation boundaries
   const tokens = text.replace(/[.,!?;:\-—()\[\]{}'\"]/g, " ").split(/\s+/).filter(Boolean);
   for (const t of tokens) {
     const lower = t.toLowerCase();
@@ -163,7 +121,62 @@ export function hasWeLanguage(text: string): boolean {
   return false;
 }
 
-// ── Canonical risk flags (rule 7) ──
+// ── Acknowledgment-only detection (response-mode ban) ──
+
+const ACKNOWLEDGMENT_ONLY_EXACT = new Set([
+  "received.",
+  "received your message.",
+  "noted.",
+  "understood.",
+  "okay.",
+  "ok.",
+  "thanks for letting me know.",
+]);
+
+export function isAcknowledgmentOnly(text: string): boolean {
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+  // Exact match
+  if (ACKNOWLEDGMENT_ONLY_EXACT.has(lower)) return true;
+  // Starts with "Received" or "Noted" and is very short (no real rewrite content)
+  if (/^(received|noted)\b/i.test(trimmed) && wordCount(trimmed) <= 6) return true;
+  return false;
+}
+
+// ── Question detection ──
+
+const QUESTION_STARTERS = /^(what|when|will|can|do|does|is|are)\b/i;
+const LOGISTICS_TERMS = /\b(pickup|pick[\s-]?up|drop[\s-]?off|exchange|school|doctor|schedule|time|tomorrow|friday|saturday|sunday|monday|tuesday|wednesday|thursday|appointment)\b/i;
+
+export function isLogisticsQuestion(text: string): boolean {
+  const trimmed = text.trim();
+  const endsWithQ = trimmed.endsWith("?");
+  const startsWithQWord = QUESTION_STARTERS.test(trimmed);
+  const hasLogistics = LOGISTICS_TERMS.test(trimmed);
+  return (endsWithQ || startsWithQWord) && hasLogistics;
+}
+
+// ── Topic-shift detection ──
+
+const LOGISTICS_CONTEXT_TERMS = /\b(schedule|plan|pickup|pick[\s-]?up|drop[\s-]?off|exchange|late|changed|changed the plan|tomorrow|weekend)\b/i;
+const INVENTED_TOPICS = ["schedule", "communication arrangements", "meet", "time to meet", "future communications"];
+const ALLOWED_OPERATIONAL_TERMS = new Set(["schedule", "plan", "pickup", "pick-up", "drop-off", "exchange", "time"]);
+
+// ── Past-fact trap patterns ──
+
+const PAST_TIMEFRAME_REFS = [
+  /\blast weekend\b/i,
+  /\bpreviously\b/i,
+  /\bdetails regarding\b/i,
+  /\bwhether it was followed\b/i,
+  /\bwhat happened\b/i,
+  /\bwhy it happened\b/i,
+  /\blast friday\b/i,
+  /\blast time\b/i,
+  /\bthe other day\b/i,
+];
+
+// ── Canonical risk flags ──
 
 export const CANONICAL_RISK_FLAGS = new Set([
   "Safe message",
@@ -190,7 +203,7 @@ export function canonicalizeFlag(flag: string): string | null {
   if (CANONICAL_RISK_FLAGS.has(trimmed)) return trimmed;
   const syn = FLAG_SYNONYMS[trimmed.toLowerCase()];
   if (syn) return syn;
-  return null; // unknown
+  return null;
 }
 
 // ── Pattern libraries ──
@@ -202,7 +215,6 @@ const PAST_FACT_CONDUCT_PATTERNS = [
   /\b(confirm|clarify|acknowledge|indicate)\s+.*\b(past |previous |last |prior |earlier )/i,
   /\bprovide details\s+.*(about|regarding|on)\s+.*(what happened|the incident|last|previous|prior)\b/i,
   /\b(confirm|clarify|indicate|acknowledge)\s+.*\b(noncompliance|violation|breach|failure)\b/i,
-  // Simpler: asks to confirm what happened in past tense
   /\bconfirm what (happened|occurred|took place)\b/i,
 ];
 
@@ -223,13 +235,8 @@ const ESCALATION_PHRASES: RegExp[] = [
 ];
 
 const FINANCIAL_BAN_PHRASES = [
-  "only fair",
-  "fair share",
-  "making more money",
-  "increased income",
-  "now that you make more",
-  "you need to start paying",
-  "covering more",
+  "only fair", "fair share", "making more money", "increased income",
+  "now that you make more", "you need to start paying", "covering more",
 ];
 
 const FINANCIAL_TRIGGERS = /\b(since you'?re making more money|now that you make more|pay more|fair share|only fair)\b/i;
@@ -237,7 +244,6 @@ const FINANCIAL_TRIGGERS = /\b(since you'?re making more money|now that you make
 const CONFIRMATION_TRIGGERS = /\b(confirm|cnfirm|need to know)\b/i;
 const SCHEDULE_WORDS = /\b(time|what time|pick\s*up|drop\s*off|tomorrow|today|friday|saturday|sunday|monday|tuesday|wednesday|thursday|schedule)\b/i;
 
-// Expanded category detectors
 const DENIGRATION_PATTERNS = [
   /\b(idiot|stupid|narcissist|crazy|psycho|loser|deadbeat|worthless|pathetic|incompetent|unfit)\b/i,
   /\byou('re| are) (a |an )?(bad|terrible|horrible|awful) (parent|mother|father|person)\b/i,
@@ -320,7 +326,6 @@ export function runValidator(
     typeof result.rewrite_quality_score === "number" && Number.isInteger(result.rewrite_quality_score) && result.rewrite_quality_score >= 1 && result.rewrite_quality_score <= 10,
     `rewrite_quality_score integer 1–10 — got ${result.rewrite_quality_score}`, "fail");
 
-  // score_notes must be arrays of non-empty strings
   const isNonEmptyStringArray = (v: any) => Array.isArray(v) && v.length > 0 && v.every((s: any) => typeof s === "string" && s.trim().length > 0);
   add("schema_original_score_notes",
     isNonEmptyStringArray(result.original_score_notes),
@@ -346,6 +351,16 @@ export function runValidator(
   }
 
   // ════════════════════════════════════════
+  // 2b) Response-mode ban (HARD FAIL)
+  // ════════════════════════════════════════
+  for (const rt of rewriteFields) {
+    if (!rt.text) continue;
+    const ackOnly = isAcknowledgmentOnly(rt.text);
+    add("no_acknowledgment_only", !ackOnly,
+      `No acknowledgment-only output in ${rt.label}${ackOnly ? ` — "${rt.text.slice(0, 40)}" is not a rewrite` : ""}`, "fail");
+  }
+
+  // ════════════════════════════════════════
   // 3) Escalation / leverage / intimidation bans (HARD FAIL)
   // ════════════════════════════════════════
   for (const rt of rewriteFields) {
@@ -356,20 +371,55 @@ export function runValidator(
   }
 
   // ════════════════════════════════════════
+  // 3b) Question preservation (HARD FAIL conditional)
+  // ════════════════════════════════════════
+  if (originalMessage && isLogisticsQuestion(originalMessage)) {
+    const primaryHasQ = (result.primary_rewrite ?? "").includes("?");
+    add("question_preserved", primaryHasQ,
+      `Original is logistics question — primary_rewrite must contain "?"${primaryHasQ ? "" : " — not found"}`, "fail");
+  }
+
+  // ════════════════════════════════════════
+  // 3c) Context-aware topic-shift validation (HARD FAIL)
+  // ════════════════════════════════════════
+  if (originalMessage) {
+    const origHasLogistics = LOGISTICS_CONTEXT_TERMS.test(originalMessage);
+    const primaryText = result.primary_rewrite ?? "";
+
+    if (!origHasLogistics) {
+      // Original has NO logistics context — fail if rewrite invents logistics topics
+      for (const topic of INVENTED_TOPICS) {
+        const found = matchesPhrase(normalizeText(primaryText), topic);
+        if (found) {
+          add("no_topic_shift", false,
+            `Rewrite invents topic "${topic}" not in original`, "fail");
+        }
+      }
+    }
+    // If original HAS logistics context, allow operational terms — no check needed
+  }
+
+  // ════════════════════════════════════════
   // 4) Admission-trap & past-fact bans (HARD FAIL conditional)
   // ════════════════════════════════════════
-  if (originalMessage && ADMISSION_TRAP_TRIGGERS.test(originalMessage)) {
+  const origHasAdmissionTrigger = originalMessage && ADMISSION_TRAP_TRIGGERS.test(originalMessage);
+  const isPastFactCategory = testCategory === "past_fact_trap";
+
+  if (origHasAdmissionTrigger || isPastFactCategory) {
     for (const rt of rewriteFields) {
       if (!rt.text) continue;
       const hasPastFact = PAST_FACT_CONDUCT_PATTERNS.some(p => p.test(rt.text));
       const asksAdmit = /\b(admit|acknowledge|intentionally)\b/i.test(rt.text);
-      add("no_admission_trap", !hasPastFact && !asksAdmit,
-        `No admission trap in ${rt.label}${(hasPastFact || asksAdmit) ? " — seeks admission/validation of disputed past conduct" : ""}`, "fail");
+      // Strengthened: also check past timeframe references
+      const hasPastTimeframe = PAST_TIMEFRAME_REFS.some(p => p.test(rt.text));
+      const failed = hasPastFact || asksAdmit || hasPastTimeframe;
+      add("no_admission_trap", !failed,
+        `No admission trap in ${rt.label}${failed ? " — seeks admission/validation of disputed past conduct or references past timeframes" : ""}`, "fail");
     }
   }
 
   // Category-specific: past_fact_trap requires specific risk flags
-  if (testCategory === "past_fact_trap") {
+  if (isPastFactCategory) {
     const flags = (result.risk_flags ?? []).map(f => f.toLowerCase());
     const hasRelevant = flags.some(f =>
       f.includes("admission trap") || f.includes("past-fact confirmation risk") || f.includes("past-fact") || f.includes("admission")
@@ -379,7 +429,7 @@ export function runValidator(
   }
 
   // ════════════════════════════════════════
-  // 5) Financial assumption bans (HARD in shorter/firmer, SOFT in primary)
+  // 5) Financial assumption bans
   // ════════════════════════════════════════
   if ((originalMessage && FINANCIAL_TRIGGERS.test(originalMessage)) || rules?.must_not_preserve_financial_assumptions) {
     for (const rt of rewriteFields) {
@@ -405,7 +455,7 @@ export function runValidator(
   }
 
   // ════════════════════════════════════════
-  // 7) Risk flag taxonomy (canonical flags, unknown = HARD FAIL)
+  // 7) Risk flag taxonomy
   // ════════════════════════════════════════
   if (Array.isArray(result.risk_flags)) {
     let hasUnknown = false;
@@ -420,7 +470,6 @@ export function runValidator(
     add("risk_flags_canonical", !hasUnknown,
       `All risk flags canonical${hasUnknown ? ` — unknown: [${unknowns.join(", ")}]` : ""}`, "fail");
 
-    // Category-specific flag requirements
     if (testCategory === "safe_logistics") {
       const canonFlags = result.risk_flags.map(f => canonicalizeFlag(f)).filter(Boolean);
       const onlySafe = canonFlags.length === 1 && canonFlags[0] === "Safe message";
@@ -439,14 +488,24 @@ export function runValidator(
   }
 
   // ════════════════════════════════════════
-  // 8) No new facts (typo-normalized comparison)
+  // 7b) Emotional/irrelevant: no acknowledgment-only, require boundary
+  // ════════════════════════════════════════
+  if (testCategory === "emotional_irrelevant") {
+    const primaryText = result.primary_rewrite ?? "";
+    // Must not be acknowledgment-only (already checked globally, but enforce category-specific)
+    const hasSubstance = wordCount(primaryText) >= 5 && !isAcknowledgmentOnly(primaryText);
+    add("emotional_irrelevant_substance", hasSubstance,
+      `emotional_irrelevant requires substantive output with neutral boundary${hasSubstance ? "" : " — too short or acknowledgment-only"}`, "fail");
+  }
+
+  // ════════════════════════════════════════
+  // 8) No new facts
   // ════════════════════════════════════════
   if (originalMessage) {
     const primaryText = result.primary_rewrite ?? "";
     let newFactsFound = false;
     const newFactDetails: string[] = [];
 
-    // Extract dates/times/amounts from rewrite
     const dateTimePattern = /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g;
     const timePattern = /\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi;
     const amountPattern = /\$\d+(\.\d{2})?/g;
@@ -461,7 +520,6 @@ export function runValidator(
       }
     }
 
-    // Topics not in original (after typo normalization)
     const TOPIC_WORDS = ["schedule", "school", "doctor", "appointment", "therapy", "counselor"];
     const origNormTypo = normalizeTypos(originalMessage.toLowerCase());
     for (const tw of TOPIC_WORDS) {
@@ -470,11 +528,6 @@ export function runValidator(
         newFactDetails.push(`topic:${tw}`);
       }
     }
-
-    // Politeness/grammar tokens are NOT new facts
-    const ALLOWED_NEW_TOKENS = new Set(["please", "are", "will", "would", "could", "the", "a", "an", "is", "it", "to", "for", "of", "at", "in", "on", "by"]);
-    // Filter: if all "new" items are just allowed tokens, not a real new fact
-    // This check is for topic words only; dates/amounts are always flagged
 
     add("no_new_facts", !newFactsFound,
       `No new facts/dates/amounts/topics${newFactsFound ? ` — found: [${newFactDetails.join(", ")}]` : ""}`, "fail");
@@ -543,7 +596,7 @@ export function runValidator(
       add("must_preserve_message_type", ok, `Preserve message type: ${mtype}`, "fail");
     }
 
-    // Response-mode shift
+    // Response-mode shift (per-rule, broader than acknowledgment-only)
     if (rules.must_not_shift_to_response_mode) {
       const RESPONSE_MODE_PHRASES = [
         /\bkeep communication focused\b/i,
@@ -561,7 +614,8 @@ export function runValidator(
       const hasPattern = PAST_FACT_CONDUCT_PATTERNS.some(p => p.test(text));
       const simpleCheck = /\b(confirm|clarify|indicate|acknowledge)\b/i.test(text) &&
         /\b(did|were|was|had|didn't|wasn't|weren't|failed|missed|changed|noncompliance)\b/i.test(text);
-      add("must_not_request_past_validation", !hasPattern && !simpleCheck,
+      const hasPastTimeframe = PAST_TIMEFRAME_REFS.some(p => p.test(text));
+      add("must_not_request_past_validation", !hasPattern && !simpleCheck && !hasPastTimeframe,
         "Must not request validation of disputed past conduct", "fail");
     }
 
@@ -659,17 +713,14 @@ export function runValidator(
   let adjustedScore = 10;
   const primaryText = result.primary_rewrite ?? "";
 
-  // -4 for soft violations (new-facts soft, length soft)
   const softViolations = checks.filter(c => c.severity === "warn" &&
     (c.rule === "no_new_facts" || c.rule === "word_length" || c.rule === "max_word_increase_pct" || c.rule === "max_words"));
   if (softViolations.length > 0) adjustedScore -= 4;
 
-  // -3 for vague (missing concrete ask when original had one)
   if (checks.some(c => c.severity === "warn" && c.rule === "must_preserve_terms")) {
     adjustedScore -= 3;
   }
 
-  // -3 for blame language
   if (BLAME_LANGUAGE.some(p => p.test(primaryText))) {
     adjustedScore -= 3;
   }
