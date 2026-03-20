@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import dufLogo from "@/assets/dufplatform.png";
+import fireLogo from "@/assets/fire.png";
 import commShield from "@/assets/communication_shield.png";
 import commShieldSelected from "@/assets/communication_shield_selected.png";
 import evidenceAnalyzer from "@/assets/evidence_analyzer.png";
