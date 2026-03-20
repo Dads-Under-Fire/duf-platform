@@ -379,7 +379,7 @@ describe("scoring logic", () => {
 
 describe("pass/fail decision", () => {
   it("passes fully compliant result", () => {
-    const v = runValidator(null, makeResult(), "hi");
+    const v = runValidator(null, makeResult(), "Please confirm the pickup time for tomorrow.");
     expect(v.status).toBe("pass");
   });
   it("fails on any hard fail", () => {
