@@ -46,6 +46,7 @@ interface ValidatorRules {
   must_not_preserve_leverage?: boolean;
   must_not_preserve_financial_assumptions?: boolean;
   must_not_shift_to_response_mode?: boolean;
+  must_not_deepen_nonessential_content?: boolean;
   // Length
   max_word_increase_pct?: number;
   max_words?: number;
@@ -54,6 +55,7 @@ interface ValidatorRules {
   banned_tokens?: string[];
   // Risk flags
   required_risk_flags_any_of?: string[][];
+  must_not_flag_any?: string[];
   // Severity overrides: rule name → "warn" | "fail"
   severity_overrides?: Record<string, "warn" | "fail">;
 }
