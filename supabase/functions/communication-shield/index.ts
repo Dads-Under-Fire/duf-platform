@@ -1598,9 +1598,21 @@ You MUST call the provided tool with your structured output.`;
               let semanticFailed = false;
               if (mode === "rewrite") {
                 const semanticIssues = validateRewriteSemantics(message, parsed);
-                if (semanticIssues.length > 0) {
+                const hardIssues = semanticIssues.filter(i => i.severity === "hard");
+                const softIssues = semanticIssues.filter(i => i.severity === "soft");
+                if (hardIssues.length > 0) {
                   semanticFailed = true;
-                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | ${JSON.stringify(semanticIssues)}`);
+                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | hard=${JSON.stringify(hardIssues)}`);
+                }
+                if (softIssues.length > 0) {
+                  // Apply soft semantic issues as quality deductions instead of hard-failing
+                  const softDeduction = softIssues.length;
+                  if (s.score !== null) {
+                    s.score = Math.max(1, s.score - softDeduction);
+                    s.notes.push(...softIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+                    s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
+                  }
+                  console.log(`[${FN}] Tier1 semantic_warnings: ${JSON.stringify(softIssues)}`);
                 }
               }
 
