@@ -1675,9 +1675,16 @@ You MUST call the provided tool with your structured output.`;
         let tier2SemanticOk = true;
         if (mode === "rewrite") {
           const tier2Issues = validateRewriteSemantics(message, tier2Result);
-          if (tier2Issues.length > 0) {
+          const tier2HardIssues = tier2Issues.filter(i => i.severity === "hard");
+          if (tier2HardIssues.length > 0) {
             tier2SemanticOk = false;
-            console.log(`[${FN}] Tier2 semantic issues: ${JSON.stringify(tier2Issues)}`);
+            console.log(`[${FN}] Tier2 semantic hard issues: ${JSON.stringify(tier2HardIssues)}`);
+          }
+          const tier2SoftIssues = tier2Issues.filter(i => i.severity === "soft");
+          if (tier2SoftIssues.length > 0 && s.score !== null) {
+            s.score = Math.max(1, s.score - tier2SoftIssues.length);
+            s.notes.push(...tier2SoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+            s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
           }
         }
         if (tier2SemanticOk && s.quality_score_status !== "reject") {
