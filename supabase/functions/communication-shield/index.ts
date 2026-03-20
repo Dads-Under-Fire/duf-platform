@@ -1204,7 +1204,7 @@ function validateRewriteSemantics(
       if (originalAsksOther) {
         const isDirective = /\b(you will|you are to)\b/i.test(text) && !/\b(will you|can you|could you|would you|please confirm|confirm (that |whether )?(you will|he will|she will|they will))\b/i.test(text);
         if (isDirective) {
-          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive` });
+          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive`, severity: "hard" });
         }
       }
     }
