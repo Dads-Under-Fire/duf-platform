@@ -61,7 +61,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <img src={dufLogo} alt="DUF Platform" className="h-6 shrink-0" />
+          <img src={collapsed ? fireLogo : dufLogo} alt="DUF Platform" className={collapsed ? "h-6 w-6 shrink-0" : "h-6 shrink-0"} />
         </div>
       </SidebarHeader>
 
