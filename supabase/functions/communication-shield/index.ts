@@ -1094,6 +1094,7 @@ interface SemanticIssue {
   field: string;
   type: string;
   detail: string;
+  severity: "hard" | "soft";
 }
 
 function validateRewriteSemantics(
@@ -1135,7 +1136,7 @@ function validateRewriteSemantics(
           // Allow safe forward-looking "I will" statements
           const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
           if (!isSafeCommitment) {
-            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
+            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}`, severity: "hard" });
             break;
           }
         }
@@ -1146,16 +1147,16 @@ function validateRewriteSemantics(
     if (originalDirectsAtYou && !originalHasShared) {
       for (const p of SHARED_RESPONSIBILITY_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}` });
+          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}`, severity: "hard" });
           break;
         }
       }
     }
 
-    // 3. Over-softening
+    // 3. Over-softening — soft issue, deducts from quality score but doesn't hard-reject
     for (const p of PASSIVE_WEAK_PATTERNS) {
       if (p.test(text)) {
-        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}` });
+        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}`, severity: "soft" });
         break;
       }
     }
@@ -1165,7 +1166,7 @@ function validateRewriteSemantics(
       if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
         const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
         if (!isSafeCommitment) {
-          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original` });
+          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original`, severity: "soft" });
         }
       }
     }
@@ -1174,7 +1175,7 @@ function validateRewriteSemantics(
     if (key === "firmer_version") {
       for (const p of HOSTILE_FIRMNESS_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}` });
+          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}`, severity: "hard" });
           break;
         }
       }
@@ -1192,7 +1193,7 @@ function validateRewriteSemantics(
     ];
     for (const p of controllingCloserPatterns) {
       if (p.test(text)) {
-        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}` });
+        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}`, severity: "soft" });
         break;
       }
     }
@@ -1203,7 +1204,7 @@ function validateRewriteSemantics(
       if (originalAsksOther) {
         const isDirective = /\b(you will|you are to)\b/i.test(text) && !/\b(will you|can you|could you|would you|please confirm|confirm (that |whether )?(you will|he will|she will|they will))\b/i.test(text);
         if (isDirective) {
-          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive` });
+          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive`, severity: "hard" });
         }
       }
     }
@@ -1597,9 +1598,21 @@ You MUST call the provided tool with your structured output.`;
               let semanticFailed = false;
               if (mode === "rewrite") {
                 const semanticIssues = validateRewriteSemantics(message, parsed);
-                if (semanticIssues.length > 0) {
+                const hardIssues = semanticIssues.filter(i => i.severity === "hard");
+                const softIssues = semanticIssues.filter(i => i.severity === "soft");
+                if (hardIssues.length > 0) {
                   semanticFailed = true;
-                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | ${JSON.stringify(semanticIssues)}`);
+                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | hard=${JSON.stringify(hardIssues)}`);
+                }
+                if (softIssues.length > 0) {
+                  // Apply soft semantic issues as quality deductions instead of hard-failing
+                  const softDeduction = softIssues.length;
+                  if (s.score !== null) {
+                    s.score = Math.max(1, s.score - softDeduction);
+                    s.notes.push(...softIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+                    s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
+                  }
+                  console.log(`[${FN}] Tier1 semantic_warnings: ${JSON.stringify(softIssues)}`);
                 }
               }
 
@@ -1617,9 +1630,16 @@ You MUST call the provided tool with your structured output.`;
                   let retrySemanticOk = true;
                   if (mode === "rewrite") {
                     const retryIssues = validateRewriteSemantics(message, retryResult);
-                    if (retryIssues.length > 0) {
+                    const retryHardIssues = retryIssues.filter(i => i.severity === "hard");
+                    if (retryHardIssues.length > 0) {
                       retrySemanticOk = false;
-                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryIssues)}`);
+                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryHardIssues)}`);
+                    }
+                    const retrySoftIssues = retryIssues.filter(i => i.severity === "soft");
+                    if (retrySoftIssues.length > 0 && s2.score !== null) {
+                      s2.score = Math.max(1, s2.score - retrySoftIssues.length);
+                      s2.notes.push(...retrySoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+                      s2.quality_score_status = s2.score >= 9 ? "excellent" : s2.score >= 7 ? "acceptable" : s2.score >= 5 ? "weak" : "reject";
                     }
                   }
                   if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
@@ -1655,9 +1675,16 @@ You MUST call the provided tool with your structured output.`;
         let tier2SemanticOk = true;
         if (mode === "rewrite") {
           const tier2Issues = validateRewriteSemantics(message, tier2Result);
-          if (tier2Issues.length > 0) {
+          const tier2HardIssues = tier2Issues.filter(i => i.severity === "hard");
+          if (tier2HardIssues.length > 0) {
             tier2SemanticOk = false;
-            console.log(`[${FN}] Tier2 semantic issues: ${JSON.stringify(tier2Issues)}`);
+            console.log(`[${FN}] Tier2 semantic hard issues: ${JSON.stringify(tier2HardIssues)}`);
+          }
+          const tier2SoftIssues = tier2Issues.filter(i => i.severity === "soft");
+          if (tier2SoftIssues.length > 0 && s.score !== null) {
+            s.score = Math.max(1, s.score - tier2SoftIssues.length);
+            s.notes.push(...tier2SoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
+            s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
           }
         }
         if (tier2SemanticOk && s.quality_score_status !== "reject") {
