@@ -1136,7 +1136,7 @@ function validateRewriteSemantics(
           // Allow safe forward-looking "I will" statements
           const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
           if (!isSafeCommitment) {
-            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}` });
+            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}`, severity: "hard" });
             break;
           }
         }
@@ -1147,16 +1147,16 @@ function validateRewriteSemantics(
     if (originalDirectsAtYou && !originalHasShared) {
       for (const p of SHARED_RESPONSIBILITY_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}` });
+          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}`, severity: "hard" });
           break;
         }
       }
     }
 
-    // 3. Over-softening
+    // 3. Over-softening — soft issue, deducts from quality score but doesn't hard-reject
     for (const p of PASSIVE_WEAK_PATTERNS) {
       if (p.test(text)) {
-        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}` });
+        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}`, severity: "soft" });
         break;
       }
     }
