@@ -1175,7 +1175,7 @@ function validateRewriteSemantics(
     if (key === "firmer_version") {
       for (const p of HOSTILE_FIRMNESS_PATTERNS) {
         if (p.test(text)) {
-          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}` });
+          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}`, severity: "hard" });
           break;
         }
       }
@@ -1193,7 +1193,7 @@ function validateRewriteSemantics(
     ];
     for (const p of controllingCloserPatterns) {
       if (p.test(text)) {
-        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}` });
+        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}`, severity: "soft" });
         break;
       }
     }
