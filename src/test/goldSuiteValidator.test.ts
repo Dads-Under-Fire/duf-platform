@@ -62,7 +62,7 @@ describe("canonicalizeFlag", () => {
     expect(canonicalizeFlag("Safe message")).toBe("Safe message");
     expect(canonicalizeFlag("Admission trap")).toBe("Admission trap");
   });
-  it("maps synonyms", () => expect(canonicalizeFlag("No risk flags")).toBe("Safe message"));
+  it("returns null for 'No risk flags'", () => expect(canonicalizeFlag("No risk flags")).toBeNull());
   it("returns null for unknown", () => expect(canonicalizeFlag("Some random flag")).toBeNull());
 });
 
@@ -70,12 +70,14 @@ describe("canonicalizeFlag", () => {
 
 describe("isAcknowledgmentOnly", () => {
   it("detects 'Received.'", () => expect(isAcknowledgmentOnly("Received.")).toBe(true));
+  it("detects 'Received' without period", () => expect(isAcknowledgmentOnly("Received")).toBe(true));
   it("detects 'Noted.'", () => expect(isAcknowledgmentOnly("Noted.")).toBe(true));
   it("detects 'Understood.'", () => expect(isAcknowledgmentOnly("Understood.")).toBe(true));
   it("detects 'Okay.'", () => expect(isAcknowledgmentOnly("Okay.")).toBe(true));
   it("detects 'Ok.'", () => expect(isAcknowledgmentOnly("Ok.")).toBe(true));
   it("detects 'Received your message.'", () => expect(isAcknowledgmentOnly("Received your message.")).toBe(true));
   it("detects 'Thanks for letting me know.'", () => expect(isAcknowledgmentOnly("Thanks for letting me know.")).toBe(true));
+  it("detects 'Thank you for letting me know.'", () => expect(isAcknowledgmentOnly("Thank you for letting me know.")).toBe(true));
   it("detects short 'Received' prefix", () => expect(isAcknowledgmentOnly("Received, thanks.")).toBe(true));
   it("does NOT flag real rewrite", () => expect(isAcknowledgmentOnly("Please confirm the pickup time for tomorrow.")).toBe(false));
 });
@@ -105,9 +107,50 @@ describe("schema validation", () => {
     const v = runValidator(null, makeResult({ risk_flags: [] }), "hi");
     expect(v.checks.find(c => c.rule === "schema_risk_flags")?.severity).toBe("fail");
   });
+  it("fails on >3 risk flags", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message", "Admission trap", "Emotional language detected", "Child safety concern"] }), "hi");
+    expect(v.checks.find(c => c.rule === "schema_risk_flags")?.severity).toBe("fail");
+  });
   it("fails on score out of range", () => {
     const v = runValidator(null, makeResult({ original_score: 0 }), "hi");
     expect(v.checks.find(c => c.rule === "schema_original_score")?.severity).toBe("fail");
+  });
+  it("forces adjustedScore to 1 on schema failure", () => {
+    const v = runValidator(null, makeResult({ tone_assessment: "Bad" }), "hi");
+    expect(v.adjustedScore).toBe(1);
+  });
+});
+
+// ── Risk flag taxonomy ──
+
+describe("risk flag taxonomy", () => {
+  it("fails on 'No risk flags'", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["No risk flags"] }), "test");
+    expect(v.checks.find(c => c.rule === "risk_flags_canonical")?.severity).toBe("fail");
+  });
+  it("fails on unknown flags", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Some invented flag"] }), "test");
+    expect(v.checks.find(c => c.rule === "risk_flags_canonical")?.severity).toBe("fail");
+  });
+  it("safe_logistics requires exactly Safe message", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message", "Emotional language detected"] }), "test", "safe_logistics");
+    expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("fail");
+  });
+  it("safe_logistics passes with only Safe message", () => {
+    const v = runValidator(null, makeResult(), "test", "safe_logistics");
+    expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("pass");
+  });
+  it("emotional_irrelevant requires relevant flag", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "emotional_irrelevant");
+    expect(v.checks.find(c => c.rule === "emotional_irrelevant_flags")?.severity).toBe("fail");
+  });
+  it("past_fact_trap requires admission flag", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "past_fact_trap");
+    expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("fail");
+  });
+  it("past_fact_trap passes with correct flags", () => {
+    const v = runValidator(null, makeResult({ risk_flags: ["Admission trap"] }), "test", "past_fact_trap");
+    expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("pass");
   });
 });
 
@@ -124,9 +167,9 @@ describe("shared framing bans", () => {
   });
 });
 
-// ── Response-mode ban ──
+// ── Acknowledgment-only ban ──
 
-describe("response-mode ban", () => {
+describe("acknowledgment-only ban", () => {
   it("fails on 'Received.'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "Received." }), "I changed the plan");
     expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
@@ -137,6 +180,10 @@ describe("response-mode ban", () => {
   });
   it("fails on 'Thanks for letting me know.'", () => {
     const v = runValidator(null, makeResult({ firmer_version: "Thanks for letting me know." }), "test");
+    expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
+  });
+  it("fails on 'Thank you for letting me know.'", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Thank you for letting me know." }), "test");
     expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
   });
   it("passes substantive rewrite", () => {
@@ -174,112 +221,22 @@ describe("escalation bans", () => {
 
 describe("question preservation", () => {
   it("fails if original is logistics question but rewrite is statement", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "I need the pickup time." }),
-      "What time is pickup tomorrow?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "I need the pickup time." }), "What time is pickup tomorrow?");
     expect(v.checks.find(c => c.rule === "question_preserved")?.severity).toBe("fail");
   });
   it("passes if rewrite keeps question mark", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Can you confirm the pickup time for tomorrow?" }),
-      "What time is pickup tomorrow?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Can you confirm the pickup time for tomorrow?" }), "What time is pickup tomorrow?");
     expect(v.checks.find(c => c.rule === "question_preserved")?.severity).toBe("pass");
   });
   it("does NOT trigger for non-logistics questions", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "I prefer not to discuss that." }),
-      "Are you happy with yourself?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "I prefer not to discuss that." }), "Are you happy with yourself?");
     expect(v.checks.find(c => c.rule === "question_preserved")).toBeUndefined();
   });
 });
 
-// ── Context-aware topic-shift ──
+// ── Confirm rule ──
 
-describe("context-aware topic-shift", () => {
-  it("fails if original has no logistics but rewrite invents 'schedule'", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "I would like to discuss the schedule going forward." }),
-      "You are a terrible person.",
-    );
-    expect(v.checks.some(c => c.rule === "no_topic_shift" && c.severity === "fail")).toBe(true);
-  });
-  it("passes if original already mentions schedule", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please confirm the schedule for tomorrow." }),
-      "You changed the schedule again.",
-    );
-    expect(v.checks.filter(c => c.rule === "no_topic_shift").every(c => c.severity !== "fail")).toBe(true);
-  });
-});
-
-// ── Admission trap ──
-
-describe("admission trap", () => {
-  it("fails when rewrite asks to admit after original has trap trigger", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please acknowledge that you changed the plan." }),
-      "Are you admitting you changed the schedule?",
-    );
-    expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
-  });
-  it("fails on past-timeframe reference in past_fact_trap category", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Can you clarify what happened last weekend?", risk_flags: ["Admission trap"] }),
-      "Are you admitting you changed the plan?",
-      "past_fact_trap",
-    );
-    expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
-  });
-  it("passes when rewrite asks for future confirmation", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please confirm the pickup time for tomorrow." }),
-      "Are you saying you won't be there?",
-    );
-    const trapChecks = v.checks.filter(c => c.rule === "no_admission_trap");
-    expect(trapChecks.every(c => c.severity === "pass")).toBe(true);
-  });
-});
-
-// ── past_fact_trap category flags ──
-
-describe("past_fact_trap category", () => {
-  it("requires admission/past-fact flags", () => {
-    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "past_fact_trap");
-    expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("fail");
-  });
-  it("passes with correct flags", () => {
-    const v = runValidator(null, makeResult({ risk_flags: ["Admission trap"] }), "test", "past_fact_trap");
-    expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("pass");
-  });
-});
-
-// ── Financial bans ──
-
-describe("financial assumption bans", () => {
-  it("warns on primary_rewrite financial language (soft)", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Since you are making more money, you should pay more." }),
-      "Since you're making more money, pay your fair share.",
-    );
-    const check = v.checks.find(c => c.rule === "no_financial_assumptions" && c.reason.includes("primary_rewrite"));
-    expect(check?.severity).toBe("warn");
-  });
-  it("hard fails on shorter_version financial language", () => {
-    const v = runValidator(null,
-      makeResult({ shorter_version: "It's only fair you cover more." }),
-      "Since you're making more money, pay your fair share.",
-    );
-    const check = v.checks.find(c => c.rule === "no_financial_assumptions" && c.reason.includes("shorter_version"));
-    expect(check?.severity).toBe("fail");
-  });
-});
-
-// ── Confirmation language ──
-
-describe("confirmation language", () => {
+describe("confirm rule", () => {
   it("fails when original asks to confirm but rewrite lacks 'confirm'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "What time is pickup?" }), "Can you cnfirm pickup time?");
     expect(v.checks.find(c => c.rule === "confirmation_preserved")?.severity).toBe("fail");
@@ -294,24 +251,49 @@ describe("confirmation language", () => {
   });
 });
 
-// ── Risk flag taxonomy ──
+// ── Admission trap ──
 
-describe("risk flag taxonomy", () => {
-  it("fails on unknown flags", () => {
-    const v = runValidator(null, makeResult({ risk_flags: ["Some invented flag"] }), "test");
-    expect(v.checks.find(c => c.rule === "risk_flags_canonical")?.severity).toBe("fail");
+describe("admission trap", () => {
+  it("fails when rewrite references disputed past", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Can you clarify what happened last weekend?" }), "Are you admitting you changed the plan?");
+    expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
   });
-  it("safe_logistics requires exactly Safe message", () => {
-    const v = runValidator(null, makeResult({ risk_flags: ["Safe message", "Emotional language detected"] }), "test", "safe_logistics");
-    expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("fail");
+  it("fails on 'acknowledge that you'", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please acknowledge that you changed the plan." }), "Are you admitting you changed the schedule?");
+    expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
   });
-  it("safe_logistics passes with only Safe message", () => {
-    const v = runValidator(null, makeResult(), "test", "safe_logistics");
-    expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("pass");
+  it("passes when rewrite asks for future confirmation", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please confirm the pickup time for tomorrow." }), "Are you saying you won't be there?");
+    const trapChecks = v.checks.filter(c => c.rule === "no_admission_trap");
+    expect(trapChecks.every(c => c.severity === "pass")).toBe(true);
   });
-  it("emotional_irrelevant requires relevant flag", () => {
-    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "emotional_irrelevant");
-    expect(v.checks.find(c => c.rule === "emotional_irrelevant_flags")?.severity).toBe("fail");
+});
+
+// ── Topic-shift ──
+
+describe("context-aware topic-shift", () => {
+  it("fails if original has no logistics but rewrite invents 'schedule'", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "I would like to discuss the schedule going forward." }), "You are a terrible person.");
+    expect(v.checks.some(c => c.rule === "no_topic_shift" && c.severity === "fail")).toBe(true);
+  });
+  it("passes if original already mentions schedule", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please confirm the schedule for tomorrow." }), "You changed the schedule again.");
+    expect(v.checks.filter(c => c.rule === "no_topic_shift").every(c => c.severity !== "fail")).toBe(true);
+  });
+});
+
+// ── Financial bans ──
+
+describe("financial assumption bans", () => {
+  it("warns on primary_rewrite financial language (soft)", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Since you are making more money, you should pay more." }), "Since you're making more money, pay your fair share.");
+    const check = v.checks.find(c => c.rule === "no_financial_assumptions" && c.reason.includes("primary_rewrite"));
+    expect(check?.severity).toBe("warn");
+  });
+  it("hard fails on shorter_version financial language", () => {
+    const v = runValidator(null, makeResult({ shorter_version: "It's only fair you cover more." }), "Since you're making more money, pay your fair share.");
+    const check = v.checks.find(c => c.rule === "no_financial_assumptions" && c.reason.includes("shorter_version"));
+    expect(check?.severity).toBe("fail");
   });
 });
 
@@ -319,39 +301,27 @@ describe("risk flag taxonomy", () => {
 
 describe("emotional_irrelevant substance", () => {
   it("fails on acknowledgment-only output", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Ok.", risk_flags: ["Emotional language detected"] }),
-      "You're the worst parent ever", "emotional_irrelevant",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Ok.", risk_flags: ["Emotional language detected"] }), "You're the worst parent ever", "emotional_irrelevant");
     expect(v.checks.some(c => c.rule === "emotional_irrelevant_substance" && c.severity === "fail")).toBe(true);
   });
   it("passes with substantive boundary sentence", () => {
-    const v = runValidator(null,
-      makeResult({
-        primary_rewrite: "I prefer to keep communication focused on the children's needs.",
-        risk_flags: ["Emotional language detected"],
-      }),
-      "You're the worst parent ever", "emotional_irrelevant",
-    );
+    const v = runValidator(null, makeResult({
+      primary_rewrite: "I prefer to keep communication focused on the children's needs.",
+      risk_flags: ["Emotional language detected"],
+    }), "You're the worst parent ever", "emotional_irrelevant");
     expect(v.checks.find(c => c.rule === "emotional_irrelevant_substance")?.severity).toBe("pass");
   });
 });
 
-// ── Typo normalization / no new facts ──
+// ── No new facts ──
 
-describe("no new facts with typo normalization", () => {
+describe("no new facts", () => {
   it("does NOT flag corrected typos as new facts", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please confirm tomorrow after school." }),
-      "plz cnfirm tomorw afta schol",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please confirm tomorrow after school." }), "plz cnfirm tomorw afta schol");
     expect(v.checks.find(c => c.rule === "no_new_facts")?.severity).toBe("pass");
   });
   it("flags genuinely new dates", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Pickup is at 3:00 pm on 12/15." }),
-      "What time is pickup?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Pickup is at 3:00 pm on 12/15." }), "What time is pickup?");
     expect(v.checks.find(c => c.rule === "no_new_facts")?.severity).toBe("fail");
   });
 });
@@ -366,11 +336,21 @@ describe("length controls", () => {
   });
   it("hard fails at 1.75x", () => {
     const orig = "What time?";
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please confirm what time is the scheduled pickup for tomorrow afternoon." }),
-      orig,
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please confirm what time is the scheduled pickup for tomorrow afternoon." }), orig);
     expect(v.checks.find(c => c.rule === "word_length")?.severity).toBe("fail");
+  });
+});
+
+// ── Child-as-messenger ──
+
+describe("child-as-messenger ban", () => {
+  it("fails on 'tell your mom'", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Tell your mom I said no." }), "test");
+    expect(v.checks.some(c => c.rule === "no_child_messenger" && c.severity === "fail")).toBe(true);
+  });
+  it("passes clean rewrite", () => {
+    const v = runValidator(null, makeResult(), "test");
+    expect(v.checks.filter(c => c.rule === "no_child_messenger").every(c => c.severity === "pass")).toBe(true);
   });
 });
 
@@ -381,9 +361,30 @@ describe("scoring logic", () => {
     const v = runValidator(null, makeResult(), "What time is pickup?");
     expect(v.adjustedScore).toBe(10);
   });
+  it("caps at 4 on hard fail", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "We should discuss." }), "test");
+    expect(v.adjustedScore!).toBeLessThanOrEqual(4);
+  });
   it("penalizes blame language", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "You always do this." }), "test message here");
     expect(v.adjustedScore!).toBeLessThanOrEqual(7);
+  });
+  it("forces 1 on schema failure", () => {
+    const v = runValidator(null, makeResult({ original_score: 0 }), "test");
+    expect(v.adjustedScore).toBe(1);
+  });
+});
+
+// ── Pass/fail decision ──
+
+describe("pass/fail decision", () => {
+  it("passes fully compliant result", () => {
+    const v = runValidator(null, makeResult(), "hi");
+    expect(v.status).toBe("pass");
+  });
+  it("fails on any hard fail", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Received." }), "hi");
+    expect(v.status).toBe("fail");
   });
 });
 
@@ -401,5 +402,19 @@ describe("per-test validator_rules", () => {
     const rules: ValidatorRules = { required_risk_flags_any_of: [["Escalation language detected"]] };
     const v = runValidator(rules, makeResult({ risk_flags: ["Safe message"] }), "test");
     expect(v.checks.find(c => c.rule === "required_risk_flags")?.severity).toBe("fail");
+  });
+});
+
+// ── One-sentence boundary acceptance ──
+
+describe("one-sentence boundary acceptance", () => {
+  it("accepts neutral boundary rewrite for hostile input", () => {
+    const v = runValidator(null, makeResult({
+      primary_rewrite: "Please keep messages focused on the children and logistics.",
+      shorter_version: "Please send child-related updates only.",
+      firmer_version: "Messages should focus on child logistics.",
+      risk_flags: ["Emotional language detected"],
+    }), "You are a terrible person.", "emotional_irrelevant");
+    expect(v.status === "pass" || v.status === "warn").toBe(true);
   });
 });
