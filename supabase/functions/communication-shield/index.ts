@@ -1166,7 +1166,7 @@ function validateRewriteSemantics(
       if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
         const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
         if (!isSafeCommitment) {
-          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original` });
+          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original`, severity: "soft" });
         }
       }
     }
