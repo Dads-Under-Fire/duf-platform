@@ -680,7 +680,7 @@ export default function CommunicationShield() {
                   <p className="text-muted-foreground text-sm">Generating response...</p>
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-6 text-center">
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
                 </div>
               )}

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import dufLogo from "@/assets/dufplatform.png";
+import fireLogo from "@/assets/fire.png";
 import commShield from "@/assets/communication_shield.png";
 import commShieldSelected from "@/assets/communication_shield_selected.png";
 import evidenceAnalyzer from "@/assets/evidence_analyzer.png";
@@ -61,7 +62,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <img src={dufLogo} alt="DUF Platform" className="h-6 shrink-0" />
+          <img src={collapsed ? fireLogo : dufLogo} alt="DUF Platform" className={collapsed ? "h-6 w-6 shrink-0" : "h-6 shrink-0"} />
         </div>
       </SidebarHeader>
 
@@ -100,6 +101,8 @@ export function AppSidebar() {
           <ChevronLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           {!collapsed && <span className="text-sm">Collapse</span>}
         </button>
+
+        <div className="h-px bg-sidebar-border mx-1" />
 
         {/* Usage section – mobile only */}
         {isMobile && (
