@@ -234,11 +234,11 @@ function runValidator(
 
   const overrides = rules.severity_overrides ?? {};
 
-  const add = (ruleName: string, passed: boolean, reason: string, defaultSeverity: "fail" | "warn") => {
-    const sev = overrides[ruleName] ?? defaultSeverity;
+  const add = (ruleName: string, passed: boolean, reason: string, defaultSeverity: "fail" | "warn" | "pass") => {
+    const sev = passed ? "pass" : (overrides[ruleName] ?? (defaultSeverity === "pass" ? "warn" : defaultSeverity));
     checks.push({
       rule: ruleName,
-      severity: passed ? "pass" : sev,
+      severity: passed ? "pass" : (sev as CheckSeverity),
       reason: passed ? `✓ ${reason}` : reason,
     });
   };
