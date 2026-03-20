@@ -358,7 +358,7 @@ describe("child-as-messenger ban", () => {
 
 describe("scoring logic", () => {
   it("starts at 10 for clean result", () => {
-    const v = runValidator(null, makeResult(), "What time is pickup?");
+    const v = runValidator(null, makeResult(), "Please confirm the pickup time for tomorrow.");
     expect(v.adjustedScore).toBe(10);
   });
   it("caps at 4 on hard fail", () => {
