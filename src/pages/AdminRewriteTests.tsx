@@ -35,33 +35,33 @@ interface GoldCase {
 }
 
 interface ValidatorRules {
-  must_include_any?: string[];
-  must_not_include_any?: string[];
-  must_preserve_question?: boolean;
-  must_preserve_confirmation_language?: boolean;
+  // Preservation
   must_preserve_pov?: boolean;
-  must_not_shift_to_response_mode?: boolean;
-  must_preserve_specific_terms?: string[];
+  must_preserve_message_type?: "question" | "request" | "statement" | "any";
+  must_preserve_confirmation?: boolean;
+  must_preserve_terms?: string[];
+  // Prohibitions
   must_not_introduce_we_language?: boolean;
-  must_not_introduce_i_will?: boolean;
-  max_word_count?: number;
-  must_flag_any?: string[];
-  must_not_flag_any?: string[];
-  // Safety validators
-  must_not_preserve_past_fact_validation?: boolean;
-  must_not_preserve_leverage_language?: boolean;
-  must_not_deepen_nonessential_content?: boolean;
-  should_not_expand_unnecessarily?: boolean;
-  must_not_preserve_financial_assumptions?: boolean;
-  // New validators
   must_not_request_past_validation?: boolean;
-  must_not_expand_nonessential_content?: boolean;
-  must_not_introduce_we_for_financial?: boolean;
+  must_not_preserve_leverage?: boolean;
+  must_not_preserve_financial_assumptions?: boolean;
+  must_not_shift_to_response_mode?: boolean;
+  // Length
+  max_word_increase_pct?: number;
+  max_words?: number;
+  // Phrase/token bans
+  banned_phrases?: string[];
+  banned_tokens?: string[];
+  // Risk flags
+  required_risk_flags_any_of?: string[][];
+  // Severity overrides: rule name → "warn" | "fail"
+  severity_overrides?: Record<string, "warn" | "fail">;
 }
 
 type CheckSeverity = "pass" | "warn" | "fail";
 
 interface ValidatorCheck {
+  rule: string;
   severity: CheckSeverity;
   reason: string;
 }
@@ -113,89 +113,44 @@ interface RunHistoryRow {
 // ── Normalization helpers ──
 
 function normalizeText(s: string): string {
-  // lowercase, collapse whitespace, normalize time formats, strip trailing punctuation differences
   let t = s.toLowerCase().replace(/\s+/g, " ").trim();
   // Normalize time: "3pm", "3 pm", "3:00pm", "3:00 PM" → "3:00 pm"
   t = t.replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)\b/gi, (_, h, m, ap) => `${h}:${m} ${ap.toLowerCase()}`);
   t = t.replace(/\b(\d{1,2})\s*(am|pm)\b/gi, (_, h, ap) => `${h}:00 ${ap.toLowerCase()}`);
+  // Normalize dates: "12/1", "12 / 1" → "12/1"
+  t = t.replace(/(\d{1,2})\s*\/\s*(\d{1,2})/g, "$1/$2");
+  // Strip trailing punctuation differences
+  t = t.replace(/\.{2,}/g, ".").replace(/\s*\.\s*$/, "");
   return t;
 }
 
-// Response-mode indicators
-const RESPONSE_MODE_PHRASES = [
-  /\bkeep communication focused\b/i,
-  /\bI understand\b/i,
-  /\bthank you for sharing\b/i,
-  /\bI appreciate you\b/i,
-  /\blet'?s focus on\b/i,
-];
+function wordCount(s: string): number {
+  return s.split(/\s+/).filter(Boolean).length;
+}
 
-const PAST_FACT_VALIDATION_PATTERNS = [
-  /\b(please |can you |could you |I would like you to )?(confirm|acknowledge|clarify|validate|admit|indicate)\b/i,
-];
+/** Word-boundary match — "guessin" must NOT match "guessing" */
+function matchesToken(text: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
 
-const PAST_FACT_CONDUCT_PATTERNS = [
-  /\b(confirm|clarify|acknowledge|indicate|validate|admit)\s+(whether|that|if)\s+.*\b(you |he |she )?(did|were|was|had|didn't|wasn't|weren't|failed|missed|neglected|changed|switched|moved)\b/i,
-  /\b(confirm|clarify|acknowledge|indicate)\s+.*\b(past |previous |last |prior |earlier )/i,
-  /\bprovide details\s+.*(about|regarding|on)\s+.*(what happened|the incident|last|previous|prior)\b/i,
-  /\b(confirm|clarify|indicate|acknowledge)\s+.*\b(noncompliance|violation|breach|failure)\b/i,
-];
+function matchesPhrase(textNorm: string, phrase: string): boolean {
+  return textNorm.includes(normalizeText(phrase));
+}
 
-const LEVERAGE_PHRASES = [
-  /\brecurring (pattern|issue)\b/i,
-  /\baddress this\b/i,
-  /\bresolve this\b/i,
-  /\b(requires|require|requiring) attention\b/i,
-  /\bnecessary steps\b/i,
-  /\bprepared to take action\b/i,
-  /\bescalate\b/i,
-  /\bif necessary\b/i,
-  /\bdocumenting everything\b/i,
-  /\btake action\b/i,
-  /\baddress this matter\b/i,
-  /\bresolve this matter\b/i,
-];
+// ── Risk-flag normalization ──
 
-const EMOTIONAL_DEEPENING_PATTERNS = [
-  /\bhow (do |did )?(you |we )feel/i,
-  /\btell me (more )?about your feelings\b/i,
-  /\bremember when we\b/i,
-  /\bI miss\b/i,
-  /\bour (relationship|family|love)\b/i,
-  /\byour dreams\b/i,
-  /\byour personality\b/i,
-];
-
-const NONESSENTIAL_SOFTENING_PHRASES = [
-  /\bI would like to know\b/i,
-  /\bI wanted to ask\b/i,
-  /\bI was wondering\b/i,
-  /\bI hope you don'?t mind\b/i,
-  /\bif you don'?t mind me asking\b/i,
-  /\bI just wanted to check in\b/i,
-];
-
-const FINANCIAL_ASSUMPTION_PATTERNS = [
-  /\b(making more money|income (has )?changed|earning more|afford|financial(ly)? (stable|secure|better|worse))\b/i,
-  /\b(take on|cover(ing)?) (a )?(larger|bigger|more) share\b/i,
-  /\b(you can|you should|you need to) (pay|contribute|cover)\b/i,
-];
-
-const WE_LANGUAGE_PATTERNS = [
-  /\bwe\b/i, /\bus\b/i, /\blet'?s\b/i, /\bwe will\b/i, /\bwe need to\b/i,
-  /\bwe can\b/i, /\bwe should\b/i, /\bwe both\b/i, /\bwe all\b/i,
-  /\bhow we can\b/i,
-];
-
-// Risk-flag normalization: map common full labels to canonical tokens
 const RISK_FLAG_ALIASES: Record<string, string[]> = {
   past_fact: ["past-fact", "past fact", "confirmation risk", "past-fact confirmation"],
   admission: ["admission", "admission trap", "admission risk"],
   trap: ["trap", "admission trap", "validation trap"],
-  escalation: ["escalation", "escalation risk", "leverage"],
+  escalation: ["escalation", "escalation risk", "leverage", "escalation language"],
   leverage: ["leverage", "escalation", "conflict leverage"],
   emotional: ["emotional", "emotional risk", "emotional deepening"],
-  financial: ["financial", "financial assumption", "financial risk"],
+  financial: ["financial", "financial assumption", "financial risk", "financial demand"],
+  irrelevant: ["irrelevant", "non-child-related", "non-essential"],
+  pressure: ["pressure", "demand", "coercive"],
+  threat: ["threat", "threatening"],
 };
 
 function normalizeFlag(flag: string): string[] {
@@ -209,6 +164,54 @@ function normalizeFlag(flag: string): string[] {
   return [...new Set(tokens)];
 }
 
+// ── Pattern libraries ──
+
+const RESPONSE_MODE_PHRASES = [
+  /\bkeep communication focused\b/i,
+  /\bI understand\b/i,
+  /\bthank you for sharing\b/i,
+  /\bI appreciate you\b/i,
+  /\blet'?s focus on\b/i,
+];
+
+const PAST_FACT_CONDUCT_PATTERNS = [
+  /\b(confirm|clarify|acknowledge|indicate|validate|admit)\s+(whether|that|if)\s+.*\b(you |he |she )?(did|were|was|had|didn't|wasn't|weren't|failed|missed|neglected|changed|switched|moved)\b/i,
+  /\b(confirm|clarify|acknowledge|indicate)\s+.*\b(past |previous |last |prior |earlier )/i,
+  /\bprovide details\s+.*(about|regarding|on)\s+.*(what happened|the incident|last|previous|prior)\b/i,
+  /\b(confirm|clarify|indicate|acknowledge)\s+.*\b(noncompliance|violation|breach|failure)\b/i,
+];
+
+const LEVERAGE_PHRASES = [
+  /\brecurring (pattern|issue)\b/i,
+  /\baddress this( matter)?\b/i,
+  /\bresolve this( matter)?\b/i,
+  /\b(requires?|requiring) attention\b/i,
+  /\bnecessary steps\b/i,
+  /\bprepared to take action\b/i,
+  /\bescalate\b/i,
+  /\bif necessary\b/i,
+  /\bdocumenting everything\b/i,
+  /\btake action\b/i,
+  /\bif i have to\b/i,
+];
+
+const FINANCIAL_ASSUMPTION_PATTERNS = [
+  /\b(making more money|income (has )?changed|earning more|afford|financial(ly)? (stable|secure|better|worse))\b/i,
+  /\b(take on|cover(ing)?) (a )?(larger|bigger|more) share\b/i,
+  /\b(you can|you should|you need to) (pay|contribute|cover)\b/i,
+  /\bincreased income\b/i,
+  /\bnow that you make more\b/i,
+  /\byou need to start paying\b/i,
+];
+
+const WE_LANGUAGE_PATTERNS = [
+  /\bwe\b/i, /\bus\b/i, /\blet'?s\b/i, /\bwe will\b/i, /\bwe need to\b/i,
+  /\bwe can\b/i, /\bwe should\b/i, /\bwe both\b/i, /\bwe all\b/i,
+  /\bhow we can\b/i,
+];
+
+// ── Validator engine ──
+
 function runValidator(
   rules: ValidatorRules | null,
   result: RewriteResult,
@@ -221,19 +224,21 @@ function runValidator(
   const checks: ValidatorCheck[] = [];
   const text = result.primary_rewrite;
   const textNorm = normalizeText(text);
-  const rawFlags = (result.risk_flags ?? []);
-  // Build expanded flag token set for matching
+  const rawFlags = result.risk_flags ?? [];
   const allFlagTokens = rawFlags.flatMap((f) => normalizeFlag(f));
   const origNorm = originalMessage ? normalizeText(originalMessage) : "";
-  const origWordCount = originalMessage ? originalMessage.split(/\s+/).filter(Boolean).length : 0;
-  const rewriteWordCount = text.split(/\s+/).filter(Boolean).length;
+  const origWc = originalMessage ? wordCount(originalMessage) : 0;
+  const rewriteWc = wordCount(text);
 
-  const add = (passed: boolean, reason: string, hard: boolean) => {
-    if (passed) {
-      checks.push({ severity: "pass", reason });
-    } else {
-      checks.push({ severity: hard ? "fail" : "warn", reason });
-    }
+  const overrides = rules.severity_overrides ?? {};
+
+  const add = (ruleName: string, passed: boolean, reason: string, defaultSeverity: "fail" | "warn") => {
+    const sev = overrides[ruleName] ?? defaultSeverity;
+    checks.push({
+      rule: ruleName,
+      severity: passed ? "pass" : sev,
+      reason: passed ? `✓ ${reason}` : reason,
+    });
   };
 
   // ── HARD FAIL checks ──
@@ -241,158 +246,113 @@ function runValidator(
   // POV shift
   if (rules.must_preserve_pov) {
     const hasResponseFlip = /\byou (should|need to|could|might want)\b/i.test(text) && !/\b(I|my|me)\b/i.test(text);
-    add(!hasResponseFlip, "Must preserve original POV (not flip to response)", true);
+    add("must_preserve_pov", !hasResponseFlip, "Preserve original POV", "fail");
   }
 
-  // Message type shift
+  // Message type
+  if (rules.must_preserve_message_type && rules.must_preserve_message_type !== "any") {
+    const mtype = rules.must_preserve_message_type;
+    let ok = true;
+    if (mtype === "question") ok = text.includes("?");
+    else if (mtype === "request") ok = /\b(please|could you|can you|would you|let me know)\b/i.test(text);
+    else if (mtype === "statement") ok = !text.includes("?") || /\b(I will|I am|I have|I can)\b/i.test(text);
+    add("must_preserve_message_type", ok, `Preserve message type: ${mtype}`, "fail");
+  }
+
+  // Response-mode shift
   if (rules.must_not_shift_to_response_mode) {
     const shifted = RESPONSE_MODE_PHRASES.some((p) => p.test(text));
-    add(!shifted, "Must not shift to response-mode phrasing", true);
+    add("must_not_shift_to_response_mode", !shifted, "Must not shift to response-mode phrasing", "fail");
   }
 
-  // Confirmation→directive
-  if (rules.must_preserve_question) {
-    add(text.includes("?"), "Must preserve question mark", true);
+  // Confirmation preservation
+  if (rules.must_preserve_confirmation) {
+    const hasConfirm = /\b(confirm|let me know|please (verify|acknowledge))\b/i.test(text);
+    add("must_preserve_confirmation", hasConfirm, "Preserve confirmation language", "fail");
   }
 
-  // Must keep confirmation language
-  if (rules.must_preserve_confirmation_language) {
-    const hasConfirm = /confirm|let me know|please (verify|acknowledge)/i.test(text);
-    add(hasConfirm, "Must preserve confirmation language", true);
-  }
-
-  // Past-fact validation (legacy rule)
-  if (rules.must_not_preserve_past_fact_validation) {
-    const allPatterns = [...PAST_FACT_VALIDATION_PATTERNS, ...PAST_FACT_CONDUCT_PATTERNS];
-    const hasValidation = allPatterns.some((p) => p.test(text));
-    add(!hasValidation, "Must not preserve past-fact validation language", true);
-  }
-
-  // Past-fact validation (new stricter rule)
+  // Past-fact validation
   if (rules.must_not_request_past_validation) {
-    const hasValidation = PAST_FACT_CONDUCT_PATTERNS.some((p) => p.test(text));
-    // Also check for simpler verb+past-conduct combos
+    const hasPattern = PAST_FACT_CONDUCT_PATTERNS.some((p) => p.test(text));
     const simpleCheck = /\b(confirm|clarify|indicate|acknowledge)\b/i.test(text) &&
       /\b(did|were|was|had|didn't|wasn't|weren't|failed|missed|changed|noncompliance)\b/i.test(text);
-    add(!hasValidation && !simpleCheck, "Must not request validation of disputed past conduct", true);
+    add("must_not_request_past_validation", !hasPattern && !simpleCheck,
+      "Must not request validation of disputed past conduct", "fail");
   }
 
-  // Leverage/escalation language
-  if (rules.must_not_preserve_leverage_language) {
+  // Leverage/escalation
+  if (rules.must_not_preserve_leverage) {
     const hasLeverage = LEVERAGE_PHRASES.some((p) => p.test(text));
-    add(!hasLeverage, "Must not preserve leverage/escalation framing", true);
+    add("must_not_preserve_leverage", !hasLeverage, "Must not preserve leverage/escalation framing", "fail");
   }
 
-  // We/us/let's introduction (general)
+  // We/us/let's introduction
   if (rules.must_not_introduce_we_language) {
     const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
     if (!origHasWe) {
       const rewriteHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(text));
-      add(!rewriteHasWe, "Must not introduce 'we/us/let's' language not in original", true);
-    }
-  }
-
-  // We/us/let's introduction for financial/accountability (new rule)
-  if (rules.must_not_introduce_we_for_financial) {
-    const origHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(origNorm));
-    if (!origHasWe) {
-      const rewriteHasWe = WE_LANGUAGE_PATTERNS.some((p) => p.test(text));
-      add(!rewriteHasWe, "Must not introduce collaborative 'we/us/let's' in financial context", true);
+      add("must_not_introduce_we_language", !rewriteHasWe, "Must not introduce we/us/let's language", "fail");
     }
   }
 
   // Financial assumptions
   if (rules.must_not_preserve_financial_assumptions) {
     const hasFinancial = FINANCIAL_ASSUMPTION_PATTERNS.some((p) => p.test(text));
-    add(!hasFinancial, "Must not preserve financial assumptions (income changes, ability to pay)", true);
+    add("must_not_preserve_financial_assumptions", !hasFinancial,
+      "Must not preserve financial assumptions", "fail");
   }
 
-  // I will introduction
-  if (rules.must_not_introduce_i_will) {
-    const hasIWill = /\bI will\b/i.test(text);
-    add(!hasIWill, "Must not introduce 'I will'", true);
-  }
-
-  // Nonessential deepening (legacy)
-  if (rules.must_not_deepen_nonessential_content) {
-    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
-    add(!hasDeepening, "Must not deepen emotional/nonessential content", true);
-    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.3) {
-      add(false, `Nonessential content expanded (${origWordCount}→${rewriteWordCount} words)`, true);
+  // Banned phrases (case-insensitive, normalized)
+  if (rules.banned_phrases) {
+    for (const phrase of rules.banned_phrases) {
+      const found = matchesPhrase(textNorm, phrase);
+      add("banned_phrase", !found, `Banned phrase: "${phrase}"${found ? " — found in rewrite" : ""}`, "fail");
     }
   }
 
-  // Nonessential expansion (new stricter rule)
-  if (rules.must_not_expand_nonessential_content) {
-    // Hard fail if rewrite is longer than original
-    if (origWordCount > 0 && rewriteWordCount > origWordCount) {
-      add(false, `Non-essential rewrite is longer than original (${origWordCount}→${rewriteWordCount} words)`, true);
-    } else {
-      add(true, `Non-essential length OK (${origWordCount}→${rewriteWordCount} words)`, true);
-    }
-    // Hard fail if softening phrases were added
-    const hasSoftening = NONESSENTIAL_SOFTENING_PHRASES.some((p) => p.test(text));
-    if (hasSoftening) {
-      add(false, "Non-essential rewrite added softening phrases", true);
-    }
-    // Hard fail if emotional content became more polished/inviting
-    const hasDeepening = EMOTIONAL_DEEPENING_PATTERNS.some((p) => p.test(text));
-    if (hasDeepening) {
-      add(false, "Non-essential rewrite deepened emotional content", true);
+  // Banned tokens (word-boundary match — "guessin" must NOT match "guessing")
+  if (rules.banned_tokens) {
+    for (const token of rules.banned_tokens) {
+      const found = matchesToken(text, token);
+      add("banned_token", !found, `Banned token: "${token}"${found ? " — found in rewrite" : ""}`, "fail");
     }
   }
 
-  // Blocked phrases
-  if (rules.must_not_include_any) {
-    for (const phrase of rules.must_not_include_any) {
-      const found = textNorm.includes(normalizeText(phrase));
-      add(!found, `Must not include: "${phrase}"`, true);
-    }
+  // Max words (hard cap)
+  if (rules.max_words != null) {
+    add("max_words", rewriteWc <= rules.max_words,
+      `Word limit: ${rewriteWc}/${rules.max_words}`, "fail");
   }
 
-  // Risk flag requirements — with normalized matching
-  if (rules.must_flag_any) {
-    const found = rules.must_flag_any.some((expected) => {
-      const expectedNorm = expected.toLowerCase().trim();
-      return allFlagTokens.some((token) => token.includes(expectedNorm) || expectedNorm.includes(token));
-    });
-    add(found, `Risk flags must include one of: ${rules.must_flag_any.join(", ")}`, true);
+  // Risk flag requirements (any inner set satisfies)
+  if (rules.required_risk_flags_any_of && rules.required_risk_flags_any_of.length > 0) {
+    const satisfied = rules.required_risk_flags_any_of.some((set) =>
+      set.some((expected) => {
+        const expNorm = expected.toLowerCase().trim();
+        return allFlagTokens.some((t) => t.includes(expNorm) || expNorm.includes(t));
+      })
+    );
+    add("required_risk_flags", satisfied,
+      `Risk flags must match one of: ${rules.required_risk_flags_any_of.map((s) => s.join("/")).join(" OR ")}` +
+      ` — got: [${rawFlags.join(", ")}]`, "fail");
   }
 
-  // Must not flag
-  if (rules.must_not_flag_any) {
-    for (const f of rules.must_not_flag_any) {
-      const fNorm = f.toLowerCase().trim();
-      const found = allFlagTokens.some((token) => token.includes(fNorm) || fNorm.includes(token));
-      add(!found, `Risk flags must not include: "${f}"`, true);
-    }
-  }
+  // ── WARN checks ──
 
-  // Max word count
-  if (rules.max_word_count) {
-    add(rewriteWordCount <= rules.max_word_count, `Must be ≤${rules.max_word_count} words (got ${rewriteWordCount})`, true);
-  }
-
-  // ── WARN checks (wording quality, not safety) ──
-
-  if (rules.must_include_any) {
-    const found = rules.must_include_any.some((t) => textNorm.includes(normalizeText(t)));
-    add(found, `Should include one of: ${rules.must_include_any.join(", ")}`, false);
-  }
-
-  if (rules.must_preserve_specific_terms) {
-    for (const term of rules.must_preserve_specific_terms) {
+  // Soft term preservation
+  if (rules.must_preserve_terms) {
+    for (const term of rules.must_preserve_terms) {
       const found = textNorm.includes(normalizeText(term));
-      add(found, `Should preserve term: "${term}"`, false);
+      add("must_preserve_terms", found, `Preserve term: "${term}"`, "warn");
     }
   }
 
-  if (rules.should_not_expand_unnecessarily) {
-    if (origWordCount > 0 && rewriteWordCount > origWordCount * 1.5) {
-      add(false, `Rewrite expanded significantly (${origWordCount}→${rewriteWordCount} words, >150%)`, false);
-    } else {
-      add(true, `Rewrite length acceptable (${origWordCount}→${rewriteWordCount} words)`, false);
-    }
+  // Max word increase percentage
+  if (rules.max_word_increase_pct != null && origWc > 0) {
+    const maxAllowed = Math.ceil(origWc * (1 + rules.max_word_increase_pct));
+    const ok = rewriteWc <= maxAllowed;
+    add("max_word_increase_pct", ok,
+      `Word increase: ${origWc}→${rewriteWc} (max +${Math.round(rules.max_word_increase_pct * 100)}% = ${maxAllowed})`, "warn");
   }
 
   // Determine overall status
