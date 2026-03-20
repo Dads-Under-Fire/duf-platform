@@ -152,12 +152,13 @@ export function normalizeTypos(text: string): string {
 // ── Robust "we/us/let's/our" check ──
 
 export function hasWeLanguage(text: string): boolean {
-  // Tokenize: split on whitespace and punctuation boundaries, keeping only word tokens
+  // Check for let's BEFORE stripping punctuation (apostrophe matters)
+  if (/\blet'?s\b/i.test(text)) return true;
+  // Tokenize: split on whitespace and punctuation boundaries
   const tokens = text.replace(/[.,!?;:\-—()\[\]{}'\"]/g, " ").split(/\s+/).filter(Boolean);
   for (const t of tokens) {
     const lower = t.toLowerCase();
     if (lower === "we" || lower === "us" || lower === "our") return true;
-    if (/^let'?s$/i.test(t)) return true;
   }
   return false;
 }
