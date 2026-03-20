@@ -5,11 +5,12 @@ import {
   matchesToken,
   normalizeTypos,
   canonicalizeFlag,
+  isAcknowledgmentOnly,
+  isLogisticsQuestion,
   type RewriteResult,
   type ValidatorRules,
 } from "@/lib/goldSuiteValidator";
 
-// Helper to build a minimal valid result
 function makeResult(overrides: Partial<RewriteResult> = {}): RewriteResult {
   return {
     primary_rewrite: "Please confirm the pickup time for tomorrow.",
@@ -29,55 +30,29 @@ function makeResult(overrides: Partial<RewriteResult> = {}): RewriteResult {
 // ── hasWeLanguage ──
 
 describe("hasWeLanguage", () => {
-  it("detects standalone 'we'", () => {
-    expect(hasWeLanguage("We should talk")).toBe(true);
-  });
-  it("does NOT trigger on 'Tuesday'", () => {
-    expect(hasWeLanguage("See you Tuesday")).toBe(false);
-  });
-  it("does NOT trigger on 'because'", () => {
-    expect(hasWeLanguage("because it matters")).toBe(false);
-  });
-  it("detects 'us'", () => {
-    expect(hasWeLanguage("between us")).toBe(true);
-  });
-  it("does NOT trigger on 'useful'", () => {
-    expect(hasWeLanguage("That is useful info")).toBe(false);
-  });
-  it("detects let's", () => {
-    expect(hasWeLanguage("Let's discuss")).toBe(true);
-  });
-  it("detects 'our'", () => {
-    expect(hasWeLanguage("our schedule")).toBe(true);
-  });
+  it("detects standalone 'we'", () => expect(hasWeLanguage("We should talk")).toBe(true));
+  it("does NOT trigger on 'Tuesday'", () => expect(hasWeLanguage("See you Tuesday")).toBe(false));
+  it("does NOT trigger on 'because'", () => expect(hasWeLanguage("because it matters")).toBe(false));
+  it("detects 'us'", () => expect(hasWeLanguage("between us")).toBe(true));
+  it("does NOT trigger on 'useful'", () => expect(hasWeLanguage("That is useful info")).toBe(false));
+  it("detects let's", () => expect(hasWeLanguage("Let's discuss")).toBe(true));
+  it("detects 'our'", () => expect(hasWeLanguage("our schedule")).toBe(true));
 });
 
 // ── matchesToken ──
 
 describe("matchesToken", () => {
-  it("matches exact word", () => {
-    expect(matchesToken("I am guessin about it", "guessin")).toBe(true);
-  });
-  it("does NOT match 'guessin' inside 'guessing'", () => {
-    expect(matchesToken("I am guessing about it", "guessin")).toBe(false);
-  });
-  it("matches 'escalate'", () => {
-    expect(matchesToken("I will escalate this", "escalate")).toBe(true);
-  });
+  it("matches exact word", () => expect(matchesToken("I am guessin about it", "guessin")).toBe(true));
+  it("does NOT match inside longer word", () => expect(matchesToken("I am guessing about it", "guessin")).toBe(false));
+  it("matches 'escalate'", () => expect(matchesToken("I will escalate this", "escalate")).toBe(true));
 });
 
 // ── normalizeTypos ──
 
 describe("normalizeTypos", () => {
-  it("maps common typos", () => {
-    expect(normalizeTypos("plz cnfirm tomorw")).toBe("please confirm tomorrow");
-  });
-  it("leaves correct words unchanged", () => {
-    expect(normalizeTypos("please confirm tomorrow")).toBe("please confirm tomorrow");
-  });
-  it("maps 'afta schol'", () => {
-    expect(normalizeTypos("afta schol")).toBe("after school");
-  });
+  it("maps common typos", () => expect(normalizeTypos("plz cnfirm tomorw")).toBe("please confirm tomorrow"));
+  it("leaves correct words unchanged", () => expect(normalizeTypos("please confirm tomorrow")).toBe("please confirm tomorrow"));
+  it("maps 'afta schol'", () => expect(normalizeTypos("afta schol")).toBe("after school"));
 });
 
 // ── canonicalizeFlag ──
@@ -87,15 +62,34 @@ describe("canonicalizeFlag", () => {
     expect(canonicalizeFlag("Safe message")).toBe("Safe message");
     expect(canonicalizeFlag("Admission trap")).toBe("Admission trap");
   });
-  it("maps synonyms", () => {
-    expect(canonicalizeFlag("No risk flags")).toBe("Safe message");
-  });
-  it("returns null for unknown", () => {
-    expect(canonicalizeFlag("Some random flag")).toBeNull();
-  });
+  it("maps synonyms", () => expect(canonicalizeFlag("No risk flags")).toBe("Safe message"));
+  it("returns null for unknown", () => expect(canonicalizeFlag("Some random flag")).toBeNull());
 });
 
-// ── Schema validation (rule 1) ──
+// ── isAcknowledgmentOnly ──
+
+describe("isAcknowledgmentOnly", () => {
+  it("detects 'Received.'", () => expect(isAcknowledgmentOnly("Received.")).toBe(true));
+  it("detects 'Noted.'", () => expect(isAcknowledgmentOnly("Noted.")).toBe(true));
+  it("detects 'Understood.'", () => expect(isAcknowledgmentOnly("Understood.")).toBe(true));
+  it("detects 'Okay.'", () => expect(isAcknowledgmentOnly("Okay.")).toBe(true));
+  it("detects 'Ok.'", () => expect(isAcknowledgmentOnly("Ok.")).toBe(true));
+  it("detects 'Received your message.'", () => expect(isAcknowledgmentOnly("Received your message.")).toBe(true));
+  it("detects 'Thanks for letting me know.'", () => expect(isAcknowledgmentOnly("Thanks for letting me know.")).toBe(true));
+  it("detects short 'Received' prefix", () => expect(isAcknowledgmentOnly("Received, thanks.")).toBe(true));
+  it("does NOT flag real rewrite", () => expect(isAcknowledgmentOnly("Please confirm the pickup time for tomorrow.")).toBe(false));
+});
+
+// ── isLogisticsQuestion ──
+
+describe("isLogisticsQuestion", () => {
+  it("detects question with logistics term", () => expect(isLogisticsQuestion("What time is pickup?")).toBe(true));
+  it("detects question starting with 'Will'", () => expect(isLogisticsQuestion("Will you be at the exchange tomorrow?")).toBe(true));
+  it("does NOT flag non-logistics question", () => expect(isLogisticsQuestion("Are you happy?")).toBe(false));
+  it("does NOT flag statement with logistics", () => expect(isLogisticsQuestion("The pickup is at 3pm")).toBe(false));
+});
+
+// ── Schema validation ──
 
 describe("schema validation", () => {
   it("passes with valid result", () => {
@@ -103,68 +97,125 @@ describe("schema validation", () => {
     const schemaChecks = v.checks.filter(c => c.rule.startsWith("schema_"));
     expect(schemaChecks.every(c => c.severity === "pass")).toBe(true);
   });
-
   it("fails on non-Neutral/Firm tone", () => {
     const v = runValidator(null, makeResult({ tone_assessment: "Aggressive" }), "hi");
     expect(v.checks.find(c => c.rule === "schema_tone")?.severity).toBe("fail");
   });
-
   it("fails on empty risk_flags", () => {
     const v = runValidator(null, makeResult({ risk_flags: [] }), "hi");
     expect(v.checks.find(c => c.rule === "schema_risk_flags")?.severity).toBe("fail");
   });
-
   it("fails on score out of range", () => {
     const v = runValidator(null, makeResult({ original_score: 0 }), "hi");
     expect(v.checks.find(c => c.rule === "schema_original_score")?.severity).toBe("fail");
   });
 });
 
-// ── Shared framing bans (rule 2) ──
+// ── Shared framing bans ──
 
 describe("shared framing bans", () => {
   it("fails when primary_rewrite contains 'we'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "We should discuss pickup." }), "What time?");
     expect(v.checks.find(c => c.rule === "no_shared_framing" && c.reason.includes("primary_rewrite"))?.severity).toBe("fail");
   });
-
   it("passes clean rewrite", () => {
     const v = runValidator(null, makeResult(), "What time?");
-    const framingChecks = v.checks.filter(c => c.rule === "no_shared_framing");
-    expect(framingChecks.every(c => c.severity === "pass")).toBe(true);
+    expect(v.checks.filter(c => c.rule === "no_shared_framing").every(c => c.severity === "pass")).toBe(true);
   });
 });
 
-// ── Escalation bans (rule 3) ──
+// ── Response-mode ban ──
+
+describe("response-mode ban", () => {
+  it("fails on 'Received.'", () => {
+    const v = runValidator(null, makeResult({ primary_rewrite: "Received." }), "I changed the plan");
+    expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
+  });
+  it("fails on 'Noted.'", () => {
+    const v = runValidator(null, makeResult({ shorter_version: "Noted." }), "test");
+    expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
+  });
+  it("fails on 'Thanks for letting me know.'", () => {
+    const v = runValidator(null, makeResult({ firmer_version: "Thanks for letting me know." }), "test");
+    expect(v.checks.some(c => c.rule === "no_acknowledgment_only" && c.severity === "fail")).toBe(true);
+  });
+  it("passes substantive rewrite", () => {
+    const v = runValidator(null, makeResult(), "test");
+    expect(v.checks.filter(c => c.rule === "no_acknowledgment_only").every(c => c.severity === "pass")).toBe(true);
+  });
+});
+
+// ── Escalation bans ──
 
 describe("escalation bans", () => {
   it("fails on 'take action'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "I will take action if needed." }), "test");
     expect(v.checks.some(c => c.rule === "no_escalation" && c.severity === "fail")).toBe(true);
   });
-
   it("fails on 'prepared to'", () => {
     const v = runValidator(null, makeResult({ firmer_version: "I am prepared to escalate." }), "test");
     expect(v.checks.some(c => c.rule === "no_escalation" && c.severity === "fail")).toBe(true);
   });
-
   it("fails on 'documenting'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "I am documenting everything." }), "test");
     expect(v.checks.some(c => c.rule === "no_escalation" && c.severity === "fail")).toBe(true);
   });
-
   it("fails on 'pattern'", () => {
     const v = runValidator(null, makeResult({ primary_rewrite: "This is a pattern of behavior." }), "test");
     expect(v.checks.some(c => c.rule === "no_escalation" && c.severity === "fail")).toBe(true);
   });
-
   it("fails on 'address this matter'", () => {
     const v = runValidator(null, makeResult({ shorter_version: "I need to address this matter." }), "test");
     expect(v.checks.some(c => c.rule === "no_escalation" && c.severity === "fail")).toBe(true);
   });
 });
 
-// ── Admission trap (rule 4) ──
+// ── Question preservation ──
+
+describe("question preservation", () => {
+  it("fails if original is logistics question but rewrite is statement", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "I need the pickup time." }),
+      "What time is pickup tomorrow?",
+    );
+    expect(v.checks.find(c => c.rule === "question_preserved")?.severity).toBe("fail");
+  });
+  it("passes if rewrite keeps question mark", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "Can you confirm the pickup time for tomorrow?" }),
+      "What time is pickup tomorrow?",
+    );
+    expect(v.checks.find(c => c.rule === "question_preserved")?.severity).toBe("pass");
+  });
+  it("does NOT trigger for non-logistics questions", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "I prefer not to discuss that." }),
+      "Are you happy with yourself?",
+    );
+    expect(v.checks.find(c => c.rule === "question_preserved")).toBeUndefined();
+  });
+});
+
+// ── Context-aware topic-shift ──
+
+describe("context-aware topic-shift", () => {
+  it("fails if original has no logistics but rewrite invents 'schedule'", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "I would like to discuss the schedule going forward." }),
+      "You are a terrible person.",
+    );
+    expect(v.checks.some(c => c.rule === "no_topic_shift" && c.severity === "fail")).toBe(true);
+  });
+  it("passes if original already mentions schedule", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "Please confirm the schedule for tomorrow." }),
+      "You changed the schedule again.",
+    );
+    expect(v.checks.filter(c => c.rule === "no_topic_shift").every(c => c.severity !== "fail")).toBe(true);
+  });
+});
+
+// ── Admission trap ──
 
 describe("admission trap", () => {
   it("fails when rewrite asks to admit after original has trap trigger", () => {
@@ -174,7 +225,14 @@ describe("admission trap", () => {
     );
     expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
   });
-
+  it("fails on past-timeframe reference in past_fact_trap category", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "Can you clarify what happened last weekend?", risk_flags: ["Admission trap"] }),
+      "Are you admitting you changed the plan?",
+      "past_fact_trap",
+    );
+    expect(v.checks.some(c => c.rule === "no_admission_trap" && c.severity === "fail")).toBe(true);
+  });
   it("passes when rewrite asks for future confirmation", () => {
     const v = runValidator(null,
       makeResult({ primary_rewrite: "Please confirm the pickup time for tomorrow." }),
@@ -189,23 +247,16 @@ describe("admission trap", () => {
 
 describe("past_fact_trap category", () => {
   it("requires admission/past-fact flags", () => {
-    const v = runValidator(null,
-      makeResult({ risk_flags: ["Safe message"] }),
-      "test", "past_fact_trap",
-    );
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "past_fact_trap");
     expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("fail");
   });
-
   it("passes with correct flags", () => {
-    const v = runValidator(null,
-      makeResult({ risk_flags: ["Admission trap"] }),
-      "test", "past_fact_trap",
-    );
+    const v = runValidator(null, makeResult({ risk_flags: ["Admission trap"] }), "test", "past_fact_trap");
     expect(v.checks.find(c => c.rule === "past_fact_trap_flags")?.severity).toBe("pass");
   });
 });
 
-// ── Financial bans (rule 5) ──
+// ── Financial bans ──
 
 describe("financial assumption bans", () => {
   it("warns on primary_rewrite financial language (soft)", () => {
@@ -216,7 +267,6 @@ describe("financial assumption bans", () => {
     const check = v.checks.find(c => c.rule === "no_financial_assumptions" && c.reason.includes("primary_rewrite"));
     expect(check?.severity).toBe("warn");
   });
-
   it("hard fails on shorter_version financial language", () => {
     const v = runValidator(null,
       makeResult({ shorter_version: "It's only fair you cover more." }),
@@ -227,68 +277,67 @@ describe("financial assumption bans", () => {
   });
 });
 
-// ── Confirmation language (rule 6) ──
+// ── Confirmation language ──
 
 describe("confirmation language", () => {
   it("fails when original asks to confirm but rewrite lacks 'confirm'", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "What time is pickup?" }),
-      "Can you cnfirm pickup time?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "What time is pickup?" }), "Can you cnfirm pickup time?");
     expect(v.checks.find(c => c.rule === "confirmation_preserved")?.severity).toBe("fail");
   });
-
   it("passes when rewrite includes confirm", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "Please confirm the pickup time." }),
-      "Can you confirm pickup time?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "Please confirm the pickup time." }), "Can you confirm pickup time?");
     expect(v.checks.find(c => c.rule === "confirmation_preserved")?.severity).toBe("pass");
   });
-
   it("triggers on question mark + schedule word", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "What time is the schedule change?" }),
-      "What time is pickup tomorrow?",
-    );
+    const v = runValidator(null, makeResult({ primary_rewrite: "What time is the schedule change?" }), "What time is pickup tomorrow?");
     expect(v.checks.find(c => c.rule === "confirmation_preserved")?.severity).toBe("fail");
   });
 });
 
-// ── Risk flag taxonomy (rule 7) ──
+// ── Risk flag taxonomy ──
 
 describe("risk flag taxonomy", () => {
   it("fails on unknown flags", () => {
-    const v = runValidator(null,
-      makeResult({ risk_flags: ["Some invented flag"] }),
-      "test",
-    );
+    const v = runValidator(null, makeResult({ risk_flags: ["Some invented flag"] }), "test");
     expect(v.checks.find(c => c.rule === "risk_flags_canonical")?.severity).toBe("fail");
   });
-
   it("safe_logistics requires exactly Safe message", () => {
-    const v = runValidator(null,
-      makeResult({ risk_flags: ["Safe message", "Emotional language detected"] }),
-      "test", "safe_logistics",
-    );
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message", "Emotional language detected"] }), "test", "safe_logistics");
     expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("fail");
   });
-
   it("safe_logistics passes with only Safe message", () => {
     const v = runValidator(null, makeResult(), "test", "safe_logistics");
     expect(v.checks.find(c => c.rule === "safe_logistics_flags")?.severity).toBe("pass");
   });
-
   it("emotional_irrelevant requires relevant flag", () => {
-    const v = runValidator(null,
-      makeResult({ risk_flags: ["Safe message"] }),
-      "test", "emotional_irrelevant",
-    );
+    const v = runValidator(null, makeResult({ risk_flags: ["Safe message"] }), "test", "emotional_irrelevant");
     expect(v.checks.find(c => c.rule === "emotional_irrelevant_flags")?.severity).toBe("fail");
   });
 });
 
-// ── Typo normalization / no new facts (rule 8) ──
+// ── Emotional/irrelevant substance ──
+
+describe("emotional_irrelevant substance", () => {
+  it("fails on acknowledgment-only output", () => {
+    const v = runValidator(null,
+      makeResult({ primary_rewrite: "Ok.", risk_flags: ["Emotional language detected"] }),
+      "You're the worst parent ever", "emotional_irrelevant",
+    );
+    expect(v.checks.some(c => c.rule === "emotional_irrelevant_substance" && c.severity === "fail")).toBe(true);
+  });
+  it("passes with substantive boundary sentence", () => {
+    const v = runValidator(null,
+      makeResult({
+        primary_rewrite: "I prefer to keep communication focused on the children's needs.",
+        risk_flags: ["Emotional language detected"],
+      }),
+      "You're the worst parent ever", "emotional_irrelevant",
+    );
+    expect(v.checks.find(c => c.rule === "emotional_irrelevant_substance")?.severity).toBe("pass");
+  });
+});
+
+// ── Typo normalization / no new facts ──
 
 describe("no new facts with typo normalization", () => {
   it("does NOT flag corrected typos as new facts", () => {
@@ -296,56 +345,44 @@ describe("no new facts with typo normalization", () => {
       makeResult({ primary_rewrite: "Please confirm tomorrow after school." }),
       "plz cnfirm tomorw afta schol",
     );
-    const check = v.checks.find(c => c.rule === "no_new_facts");
-    expect(check?.severity).toBe("pass");
+    expect(v.checks.find(c => c.rule === "no_new_facts")?.severity).toBe("pass");
   });
-
   it("flags genuinely new dates", () => {
     const v = runValidator(null,
       makeResult({ primary_rewrite: "Pickup is at 3:00 pm on 12/15." }),
       "What time is pickup?",
     );
-    const check = v.checks.find(c => c.rule === "no_new_facts");
-    expect(check?.severity).toBe("fail");
+    expect(v.checks.find(c => c.rule === "no_new_facts")?.severity).toBe("fail");
   });
 });
 
-// ── Length controls (rule 9) ──
+// ── Length controls ──
 
 describe("length controls", () => {
   it("passes when rewrite is same length", () => {
     const orig = "What time is the pickup tomorrow afternoon please";
     const v = runValidator(null, makeResult({ primary_rewrite: orig }), orig);
-    const check = v.checks.find(c => c.rule === "word_length");
-    expect(check?.severity).toBe("pass");
+    expect(v.checks.find(c => c.rule === "word_length")?.severity).toBe("pass");
   });
-
   it("hard fails at 1.75x", () => {
-    const orig = "What time?"; // 2 words
-    // 1.75 * 2 = 3.5 -> ceil = 4. Need > 4 words = 5+
+    const orig = "What time?";
     const v = runValidator(null,
       makeResult({ primary_rewrite: "Please confirm what time is the scheduled pickup for tomorrow afternoon." }),
       orig,
     );
-    const check = v.checks.find(c => c.rule === "word_length");
-    expect(check?.severity).toBe("fail");
+    expect(v.checks.find(c => c.rule === "word_length")?.severity).toBe("fail");
   });
 });
 
-// ── Scoring (rule 10) ──
+// ── Scoring ──
 
 describe("scoring logic", () => {
   it("starts at 10 for clean result", () => {
     const v = runValidator(null, makeResult(), "What time is pickup?");
     expect(v.adjustedScore).toBe(10);
   });
-
   it("penalizes blame language", () => {
-    const v = runValidator(null,
-      makeResult({ primary_rewrite: "You always do this." }),
-      "test message here",
-    );
-    // -3 for blame, and likely other deductions
+    const v = runValidator(null, makeResult({ primary_rewrite: "You always do this." }), "test message here");
     expect(v.adjustedScore!).toBeLessThanOrEqual(7);
   });
 });
@@ -355,23 +392,14 @@ describe("scoring logic", () => {
 describe("per-test validator_rules", () => {
   it("banned_tokens uses word boundaries", () => {
     const rules: ValidatorRules = { banned_tokens: ["guessin"] };
-    // "guessing" should NOT trigger
     const v1 = runValidator(rules, makeResult({ primary_rewrite: "I am guessing about it." }), "test");
     expect(v1.checks.filter(c => c.rule === "banned_token").every(c => c.severity === "pass")).toBe(true);
-
-    // "guessin" should trigger
     const v2 = runValidator(rules, makeResult({ primary_rewrite: "I am guessin about it." }), "test");
     expect(v2.checks.some(c => c.rule === "banned_token" && c.severity === "fail")).toBe(true);
   });
-
   it("required_risk_flags_any_of works", () => {
-    const rules: ValidatorRules = {
-      required_risk_flags_any_of: [["Escalation language detected"]],
-    };
-    const v = runValidator(rules,
-      makeResult({ risk_flags: ["Safe message"] }),
-      "test",
-    );
+    const rules: ValidatorRules = { required_risk_flags_any_of: [["Escalation language detected"]] };
+    const v = runValidator(rules, makeResult({ risk_flags: ["Safe message"] }), "test");
     expect(v.checks.find(c => c.rule === "required_risk_flags")?.severity).toBe("fail");
   });
 });
