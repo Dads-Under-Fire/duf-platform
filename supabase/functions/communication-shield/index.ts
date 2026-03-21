@@ -1754,9 +1754,7 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
-    const insertPayload = buildInsertRow(userId, message, mode, aiResult, originalScoreResult, rewriteScore!);
-    const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(insertPayload);
-    if (insertErr) console.error(`[${FN}] insert error:`, JSON.stringify(insertErr));
+    await persistToNewTables(serviceClient, userId, message, mode, aiResult, originalScoreResult, rewriteScore!);
 
     if (!isAdminBypass) {
       await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
