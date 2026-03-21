@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   runValidator,
+  runTriageValidator,
   hasWeLanguage,
   matchesToken,
   normalizeTypos,
@@ -8,6 +9,7 @@ import {
   isAcknowledgmentOnly,
   isLogisticsQuestion,
   type RewriteResult,
+  type TriageResult,
   type ValidatorRules,
 } from "@/lib/goldSuiteValidator";
 
