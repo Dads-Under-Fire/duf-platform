@@ -43,6 +43,122 @@ export interface RewriteResult {
   prompt_source?: string;
 }
 
+// ── Triage result (staged workflow) ──
+
+export interface TriageResult {
+  sendability_status: "safe" | "salvageable" | "redirect";
+  detected_intent: string;
+  detected_tone: string;
+  risk_flags: string[];
+  confidence: number;
+  suggested_goals: string[];
+  reason: string;
+}
+
+// ── Triage validation ──
+
+export interface TriageValidatorResult {
+  status: "pass" | "warn" | "fail";
+  notes: string[];
+  checks: ValidatorCheck[];
+}
+
+export function runTriageValidator(
+  result: TriageResult,
+  expectedSendability?: string,
+  expectedIntent?: string,
+  expectedOutputPath?: string,
+  expectedRiskFlags?: string[],
+): TriageValidatorResult {
+  const checks: ValidatorCheck[] = [];
+
+  const add = (rule: string, passed: boolean, reason: string) => {
+    checks.push({ rule, severity: passed ? "pass" : "fail", reason: passed ? `✓ ${reason}` : `✗ ${reason}` });
+  };
+
+  // Schema validation
+  const validStatuses = ["safe", "salvageable", "redirect"];
+  add("triage_schema_sendability",
+    validStatuses.includes(result.sendability_status),
+    `sendability_status ∈ {safe,salvageable,redirect} — got "${result.sendability_status}"`);
+
+  add("triage_schema_intent",
+    typeof result.detected_intent === "string" && result.detected_intent.trim().length > 0,
+    `detected_intent is non-empty string`);
+
+  add("triage_schema_tone",
+    typeof result.detected_tone === "string" && result.detected_tone.trim().length > 0,
+    `detected_tone is non-empty string`);
+
+  add("triage_schema_risk_flags",
+    Array.isArray(result.risk_flags) && result.risk_flags.length >= 1 && result.risk_flags.length <= 3,
+    `risk_flags array with 1–3 entries — got ${Array.isArray(result.risk_flags) ? result.risk_flags.length : "non-array"}`);
+
+  add("triage_schema_confidence",
+    typeof result.confidence === "number" && result.confidence >= 0 && result.confidence <= 1,
+    `confidence 0.0–1.0 — got ${result.confidence}`);
+
+  add("triage_schema_goals",
+    Array.isArray(result.suggested_goals) && result.suggested_goals.length >= 1,
+    `suggested_goals non-empty array`);
+
+  add("triage_schema_reason",
+    typeof result.reason === "string" && result.reason.trim().length > 0,
+    `reason is non-empty string`);
+
+  // Canonical risk flags
+  if (Array.isArray(result.risk_flags)) {
+    const unknowns: string[] = [];
+    for (const flag of result.risk_flags) {
+      if (!canonicalizeFlag(flag)) unknowns.push(flag);
+    }
+    add("triage_risk_flags_canonical", unknowns.length === 0,
+      `All risk flags canonical${unknowns.length > 0 ? ` — unknown: [${unknowns.join(", ")}]` : ""}`);
+  }
+
+  // Expected value checks
+  if (expectedSendability) {
+    add("triage_expected_sendability",
+      result.sendability_status === expectedSendability,
+      `Expected sendability "${expectedSendability}" — got "${result.sendability_status}"`);
+  }
+
+  if (expectedIntent) {
+    add("triage_expected_intent",
+      result.detected_intent.toLowerCase().includes(expectedIntent.toLowerCase()),
+      `Expected intent contains "${expectedIntent}" — got "${result.detected_intent}"`);
+  }
+
+  if (expectedOutputPath) {
+    // Output path is derived from sendability: safe/salvageable → rewrite, redirect → redirect
+    const derivedPath = result.sendability_status === "redirect" ? "redirect" : "rewrite";
+    add("triage_expected_output_path",
+      derivedPath === expectedOutputPath,
+      `Expected output_path "${expectedOutputPath}" — derived "${derivedPath}"`);
+  }
+
+  if (expectedRiskFlags && expectedRiskFlags.length > 0) {
+    const hasExpected = expectedRiskFlags.some(ef =>
+      result.risk_flags.some(rf => rf.toLowerCase().includes(ef.toLowerCase()))
+    );
+    add("triage_expected_risk_flags", hasExpected,
+      `Expected risk flags include one of [${expectedRiskFlags.join(", ")}] — got [${result.risk_flags.join(", ")}]`);
+  }
+
+  // Pass/fail decision
+  const hasFail = checks.some(c => c.severity === "fail");
+  const hasWarn = checks.some(c => c.severity === "warn");
+  const status: "pass" | "warn" | "fail" = hasFail ? "fail" : hasWarn ? "warn" : "pass";
+
+  const failedNotes = checks
+    .filter(c => c.severity === "fail" || c.severity === "warn")
+    .map(c => `✗ ${c.reason}`);
+
+  const notes = failedNotes.length > 0 ? failedNotes : ["✓ All triage validation checks passed"];
+
+  return { status, notes, checks };
+}
+
 // ── Helpers ──
 
 export function normalizeText(s: string): string {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   runValidator,
+  runTriageValidator,
   hasWeLanguage,
   matchesToken,
   normalizeTypos,
@@ -8,6 +9,7 @@ import {
   isAcknowledgmentOnly,
   isLogisticsQuestion,
   type RewriteResult,
+  type TriageResult,
   type ValidatorRules,
 } from "@/lib/goldSuiteValidator";
 
@@ -428,5 +430,63 @@ describe("per-test validator_rules", () => {
     const rules: ValidatorRules = { required_risk_flags_any_of: [["Escalation language detected"]] };
     const v = runValidator(rules, makeResult({ risk_flags: ["Safe message"] }), "test");
     expect(v.checks.find(c => c.rule === "required_risk_flags")?.severity).toBe("fail");
+  });
+});
+
+// ── Triage validation ──
+
+function makeTriageResult(overrides: Partial<TriageResult> = {}): TriageResult {
+  return {
+    sendability_status: "salvageable",
+    detected_intent: "schedule coordination",
+    detected_tone: "emotional",
+    risk_flags: ["Emotional language detected"],
+    confidence: 0.85,
+    suggested_goals: ["Narrow emotional content", "Confirm logistics"],
+    reason: "Message contains emotional language but has logistics intent.",
+    ...overrides,
+  };
+}
+
+describe("triage validation", () => {
+  it("passes valid triage result", () => {
+    const v = runTriageValidator(makeTriageResult());
+    expect(v.status).toBe("pass");
+  });
+
+  it("fails on invalid sendability_status", () => {
+    const v = runTriageValidator(makeTriageResult({ sendability_status: "unknown" as any }));
+    expect(v.checks.find(c => c.rule === "triage_schema_sendability")?.severity).toBe("fail");
+  });
+
+  it("fails on non-canonical risk flags", () => {
+    const v = runTriageValidator(makeTriageResult({ risk_flags: ["Some random flag"] }));
+    expect(v.checks.find(c => c.rule === "triage_risk_flags_canonical")?.severity).toBe("fail");
+  });
+
+  it("validates expected sendability", () => {
+    const v = runTriageValidator(makeTriageResult({ sendability_status: "redirect" }), "salvageable");
+    expect(v.checks.find(c => c.rule === "triage_expected_sendability")?.severity).toBe("fail");
+  });
+
+  it("validates expected output path for redirect", () => {
+    const v = runTriageValidator(makeTriageResult({ sendability_status: "redirect" }), undefined, undefined, "redirect");
+    expect(v.checks.find(c => c.rule === "triage_expected_output_path")?.severity).toBe("pass");
+  });
+
+  it("validates expected output path for salvageable → rewrite", () => {
+    const v = runTriageValidator(makeTriageResult({ sendability_status: "salvageable" }), undefined, undefined, "rewrite");
+    expect(v.checks.find(c => c.rule === "triage_expected_output_path")?.severity).toBe("pass");
+  });
+
+  it("validates expected risk flags", () => {
+    const v = runTriageValidator(makeTriageResult({ risk_flags: ["Safe message"] }), undefined, undefined, undefined, ["Emotional language detected"]);
+    expect(v.checks.find(c => c.rule === "triage_expected_risk_flags")?.severity).toBe("fail");
+  });
+
+  it("returns clean notes on pass", () => {
+    const v = runTriageValidator(makeTriageResult());
+    expect(v.notes).toHaveLength(1);
+    expect(v.notes[0]).toBe("✓ All triage validation checks passed");
   });
 });

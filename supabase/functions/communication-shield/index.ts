@@ -1417,20 +1417,22 @@ async function loadActivePrompt(
   featureKey: string,
   mode: "respond" | "rewrite",
   originalContext?: string,
+  stageKey: string = "generate",
 ): Promise<LoadedPrompt> {
   try {
     const { data, error } = await serviceClient
       .from("ai_system_prompts")
-      .select("prompt_text, version_label")
+      .select("prompt_text, version_label, stage_key")
       .eq("feature_key", featureKey)
       .eq("mode", mode)
+      .eq("stage_key", stageKey)
       .eq("is_active", true)
       .limit(1)
       .single();
 
     if (error || !data) {
       const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
-      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode} | stage=${stageKey}`);
       console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
       return {
         promptText: assembleHardcodedPrompt(mode, originalContext),
@@ -1450,7 +1452,7 @@ async function loadActivePrompt(
       promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", contextSentence);
     }
 
-    console.log(`[${FN}] prompt_load | source=database | feature=${featureKey} | mode=${mode} | version=${data.version_label} | length=${promptText.length}`);
+    console.log(`[${FN}] prompt_load | source=database | feature=${featureKey} | mode=${mode} | stage=${stageKey} | version=${data.version_label} | length=${promptText.length}`);
     return {
       promptText,
       versionLabel: data.version_label as string,
@@ -1458,7 +1460,7 @@ async function loadActivePrompt(
     };
   } catch (err) {
     const reason = `exception: ${String(err)}`;
-    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode}`);
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode} | stage=${stageKey}`);
     console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
     return {
       promptText: assembleHardcodedPrompt(mode, originalContext),
