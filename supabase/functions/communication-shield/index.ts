@@ -1737,10 +1737,7 @@ You MUST call the provided tool with your structured output.`;
         score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
       };
 
-      const { error: insertErr } = await serviceClient.from("communication_shield_history").insert(
-        buildInsertRow(userId, message, mode, fallback as any, originalScoreResult, fallbackScore)
-      );
-      if (insertErr) console.error(`[${FN}] Tier3 insert error:`, JSON.stringify(insertErr));
+      await persistToNewTables(serviceClient, userId, message, mode, fallback as any, originalScoreResult, fallbackScore);
 
       logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=respond | original_score=${originalScoreResult.score}` });
       return jsonResponse(fallback);
