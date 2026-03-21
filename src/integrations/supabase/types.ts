@@ -178,6 +178,7 @@ export type Database = {
           mode: string
           notes: string | null
           prompt_text: string
+          stage_key: string
           updated_at: string
           version_label: string
         }
@@ -189,6 +190,7 @@ export type Database = {
           mode: string
           notes?: string | null
           prompt_text: string
+          stage_key?: string
           updated_at?: string
           version_label?: string
         }
@@ -200,6 +202,7 @@ export type Database = {
           mode?: string
           notes?: string | null
           prompt_text?: string
+          stage_key?: string
           updated_at?: string
           version_label?: string
         }
