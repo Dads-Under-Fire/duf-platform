@@ -1370,20 +1370,7 @@ async function persistToNewTables(
 
   if (sessionErr || !sessionData) {
     console.error(`[${FN}] session insert error:`, JSON.stringify(sessionErr));
-    // Fallback: also write to legacy table for safety
-    await serviceClient.from("communication_shield_history").insert({
-      ...sessionRow,
-      primary_rewrite: (result.primary_rewrite as string) ?? null,
-      primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
-      shorter_version: (result.shorter_version as string) ?? null,
-      firmer_version: (result.firmer_version as string) ?? null,
-      risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
-      why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-      quality_score_total: null, admission_risk_score: null, escalation_safety_score: null,
-      actionability_score: null, focus_discipline_score: null, court_safe_phrasing_score: null,
-      quality_score_status: null, quality_score_notes: null,
-    });
-    return;
+    throw new Error(`Failed to persist Communication Shield session: ${sessionErr?.message ?? "no data returned"}`);
   }
 
   const resultRow = {
