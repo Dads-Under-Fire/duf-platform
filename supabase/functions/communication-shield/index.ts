@@ -1342,43 +1342,72 @@ function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] =
   return combined;
 }
 
-// ── Build DB insert row — mode-aware scoring ──
-function buildInsertRow(
+// ── Persist to normalized session + result tables ──
+async function persistToNewTables(
+  serviceClient: ReturnType<typeof createClient>,
   userId: string, message: string, mode: "respond" | "rewrite",
   result: Record<string, unknown>,
   originalScore: { score: number; notes: string[] },
   outputScore: RewriteQualityResult,
 ) {
-  const row = {
+  const sessionRow = {
     user_id: userId,
-    original_message: message,
     mode,
-    primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
-    primary_rewrite: (result.primary_rewrite as string ?? null),
-    recommendation_type: (result.recommendation_type as string) ?? null,
-    shorter_version: (result.shorter_version as string) ?? null,
-    firmer_version: (result.firmer_version as string) ?? null,
-    tone_assessment: (result.tone_assessment as string) ?? "Fallback",
-    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
-    why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    // ── Scoring: always write original_score ──
+    original_message: message,
     original_score: originalScore.score,
     original_score_notes: JSON.parse(JSON.stringify(originalScore.notes)),
-    // ── Rewrite scoring: only for rewrite mode ──
-    rewrite_quality_score: mode === "rewrite" ? outputScore.score : null as number | null,
+    rewrite_quality_score: mode === "rewrite" ? outputScore.score : null,
     rewrite_quality_notes: mode === "rewrite" ? JSON.parse(JSON.stringify(outputScore.notes)) : null,
-    // ── Legacy granular fields — leave null (not actively calculated) ──
-    quality_score_total: null as number | null,
-    admission_risk_score: null as number | null,
-    escalation_safety_score: null as number | null,
-    actionability_score: null as number | null,
-    focus_discipline_score: null as number | null,
-    court_safe_phrasing_score: null as number | null,
-    quality_score_status: null as string | null,
-    quality_score_notes: null as Record<string, unknown> | null,
+    recommendation_type: (result.recommendation_type as string) ?? null,
+    tone_assessment: (result.tone_assessment as string) ?? "Fallback",
   };
-  console.log(`[${FN}] buildInsertRow | mode=${mode} | original_score=${row.original_score} | rewrite_quality_score=${row.rewrite_quality_score}`);
-  return row;
+
+  const { data: sessionData, error: sessionErr } = await serviceClient
+    .from("communication_shield_sessions")
+    .insert(sessionRow)
+    .select("id")
+    .single();
+
+  if (sessionErr || !sessionData) {
+    console.error(`[${FN}] session insert error:`, JSON.stringify(sessionErr));
+    // Fallback: also write to legacy table for safety
+    await serviceClient.from("communication_shield_history").insert({
+      ...sessionRow,
+      primary_rewrite: (result.primary_rewrite as string) ?? null,
+      primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
+      shorter_version: (result.shorter_version as string) ?? null,
+      firmer_version: (result.firmer_version as string) ?? null,
+      risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
+      why_this_is_safer: (result.why_this_is_safer as string) ?? null,
+      quality_score_total: null, admission_risk_score: null, escalation_safety_score: null,
+      actionability_score: null, focus_discipline_score: null, court_safe_phrasing_score: null,
+      quality_score_status: null, quality_score_notes: null,
+    });
+    return;
+  }
+
+  const resultRow = {
+    session_id: sessionData.id,
+    result_type: mode === "respond" ? "respond_output" : "primary",
+    primary_rewrite: (result.primary_rewrite as string) ?? null,
+    primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
+    shorter_version: (result.shorter_version as string) ?? null,
+    firmer_version: (result.firmer_version as string) ?? null,
+    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
+    why_this_is_safer: (result.why_this_is_safer as string) ?? null,
+    generation_index: 1,
+    is_selected: true,
+  };
+
+  const { error: resultErr } = await serviceClient
+    .from("communication_shield_results")
+    .insert(resultRow);
+
+  if (resultErr) {
+    console.error(`[${FN}] result insert error:`, JSON.stringify(resultErr));
+  }
+
+  console.log(`[${FN}] persistToNewTables | session=${sessionData.id} | mode=${mode} | original_score=${sessionRow.original_score} | rewrite_quality_score=${sessionRow.rewrite_quality_score}`);
 }
 
 // ── Prompt loading from database ──
