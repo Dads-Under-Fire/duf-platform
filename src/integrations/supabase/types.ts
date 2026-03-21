@@ -205,7 +205,7 @@ export type Database = {
         }
         Relationships: []
       }
-      communication_shield_history: {
+      communication_shield_history_legacy: {
         Row: {
           actionability_score: number | null
           admission_risk_score: number | null
