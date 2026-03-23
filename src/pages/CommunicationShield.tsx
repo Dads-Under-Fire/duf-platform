@@ -1092,6 +1092,55 @@ export default function CommunicationShield() {
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════
 
+function RespondTriageCard({
+  triage,
+  onBoundaryOverride,
+  loading,
+}: {
+  triage: RespondTriageResult;
+  onBoundaryOverride: () => void;
+  loading: boolean;
+}) {
+  if (triage.recommendation_type === "do_not_respond") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldOff className="h-5 w-5 text-destructive shrink-0" />
+            <h3 className="text-sm font-semibold text-destructive">Do Not Respond</h3>
+          </div>
+          <p className="text-sm text-foreground">{triage.recommendation_reason}</p>
+          {triage.risk_flags && triage.risk_flags.length > 0 && triage.risk_flags[0] !== "No risk flags" && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Risk flags:</span> {triage.risk_flags.join(", ")}
+            </div>
+          )}
+        </div>
+        {triage.allow_boundary_override && (
+          <button
+            onClick={onBoundaryOverride}
+            disabled={loading}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 disabled:opacity-40"
+          >
+            Generate brief boundary response anyway
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // brief_boundary_response triage card (shown briefly before auto-generating)
+  return (
+    <div className="rounded-lg border border-accent bg-accent/20 px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="h-4 w-4 text-accent-foreground shrink-0" />
+        <p className="text-sm font-medium text-foreground">Brief Boundary Response Recommended</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{triage.recommendation_reason}</p>
+    </div>
+  );
+}
+
 function SingleResultBlock({ result, index, total }: { result: AIResult; index: number; total: number }) {
   const isEven = index % 2 === 0;
   const isLatest = index === total - 1;
