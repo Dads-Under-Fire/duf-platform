@@ -48,7 +48,7 @@ function getPrimaryText(result: AIResult): string {
     : (result.primary_response ?? "");
 }
 
-type Step = "input" | "select-intent" | "goal-selection" | "result";
+type Step = "input" | "select-intent" | "goal-selection" | "redirect-options" | "result";
 
 const FALLBACK_INTENTS = [
   "Set a boundary",
