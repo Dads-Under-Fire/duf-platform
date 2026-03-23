@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/account" element={<Account />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-            <Route path="/admin/rewrite-tests" element={<AdminRewriteTests />} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

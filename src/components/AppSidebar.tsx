@@ -1,4 +1,4 @@
-import { User, LogOut, ChevronLeft, FileSearch } from "lucide-react";
+import { User, LogOut, ChevronLeft } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
