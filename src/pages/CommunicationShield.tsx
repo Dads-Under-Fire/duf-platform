@@ -89,6 +89,7 @@ export default function CommunicationShield() {
   const [mode, setMode] = useState<"respond" | "rewrite">("respond");
   const [inputMessage, setInputMessage] = useState("");
   const [result, setResult] = useState<AIResult | null>(null);
+  const [allResults, setAllResults] = useState<AIResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>("input");
   const [intentOptions, setIntentOptions] = useState<string[]>([]);
@@ -117,6 +118,7 @@ export default function CommunicationShield() {
     setSubmittedMessage(msg);
     setInputMessage("");
     setResult(null);
+    setAllResults([]);
     setCommunicationContext("");
     setShowOtherInput(false);
     setOtherText("");
@@ -140,10 +142,9 @@ export default function CommunicationShield() {
 
         // Check if this is a no_message terminal result from triage
         if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
-          setResult({
-            ...aiData,
-            _noMessageNeeded: true,
-          });
+          const noMsgResult = { ...aiData, _noMessageNeeded: true };
+          setResult(noMsgResult);
+          setAllResults(prev => [...prev, noMsgResult]);
           setSessionId(aiData.session_id ?? null);
           refetchProfile();
           return;
@@ -161,6 +162,7 @@ export default function CommunicationShield() {
 
         // Final result (safe path — direct rewrite)
         setResult(aiData);
+        setAllResults(prev => [...prev, aiData]);
         setSessionId(aiData.session_id ?? null);
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
@@ -216,14 +218,16 @@ export default function CommunicationShield() {
     if (goal === "No message needed") {
       setCommunicationContext(goal);
       setStep("result");
-      setResult({
+      const noMsgResult = {
         mode: "rewrite",
         sendability_status: triageData?.sendability_status as SendabilityStatus,
         output_path: "no_message",
         primary_rewrite: "",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
         _noMessageNeeded: true,
-      } as any);
+      } as any as AIResult;
+      setResult(noMsgResult);
+      setAllResults(prev => [...prev, noMsgResult]);
       // Update session and create result row in background
       if (sessionId) {
         supabase.functions.invoke("communication-shield", {
@@ -258,6 +262,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
@@ -287,6 +292,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
@@ -309,9 +315,8 @@ export default function CommunicationShield() {
 
   const handleRegenerate = () => {
     if (mode === "rewrite" && submittedMessage) {
-      setResult(null);
       setLoading(true);
-      const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite" };
+      const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite", is_regeneration: true };
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
@@ -334,6 +339,7 @@ export default function CommunicationShield() {
             setStep("goal-selection");
           } else {
             setResult(aiData);
+            setAllResults(prev => [...prev, aiData]);
             setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
             refetchProfile();
           }
@@ -358,7 +364,7 @@ export default function CommunicationShield() {
     }
   };
 
-  const hasResult = !!result;
+  const hasResult = allResults.length > 0;
 
   // ─── MOBILE ───
   if (isMobile) {
@@ -412,50 +418,21 @@ export default function CommunicationShield() {
               />
             )}
 
-            {step === "result" && loading ? (
+            {step === "result" && loading && allResults.length === 0 ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
               </div>
-            ) : step === "result" && result ? (
+            ) : step === "result" && allResults.length > 0 ? (
               <>
-                {(result as any)._noMessageNeeded ? (
-                  <NoMessageNeededLayout />
-                ) : result.is_fallback ? (
-                  <FallbackResultLayout result={result} />
-                ) : (
-                  <>
-                    {result.mode === "respond" && result.recommendation_type && (
-                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                    )}
-
-                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                      <DoNotRespondLayout result={result} />
-                    ) : (
-                      <>
-                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
-                        <div className="h-px bg-border" />
-                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
-                        <div className="h-px bg-border" />
-                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                        {result.mode !== "rewrite" && (
-                          <>
-                            <div className="h-px bg-border" />
-                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
-                            <div>
-                              <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
-                              <ul className="space-y-1">
-                                {(result.risk_flags ?? []).map((flag, i) => (
-                                  <li key={i} className="text-foreground text-sm">• {flag}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </>
-                        )}
-                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
-                      </>
-                    )}
-                  </>
+                {allResults.map((r, idx) => (
+                  <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
+                ))}
+                {loading && (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Generating new version...
+                  </div>
                 )}
               </>
             ) : null}
@@ -815,43 +792,16 @@ export default function CommunicationShield() {
             <div className="h-px bg-border mb-3 shrink-0" />
 
             <div className="flex-1 overflow-auto min-h-0">
-              {result ? (
-                <div className="space-y-4 text-sm">
-                  {(result as any)._noMessageNeeded ? (
-                    <NoMessageNeededLayout />
-                  ) : result.is_fallback ? (
-                    <FallbackResultLayout result={result} />
-                  ) : (
-                    <>
-                      {result.mode === "respond" && result.recommendation_type && (
-                        <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                      )}
-
-                      {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                        <DoNotRespondLayout result={result} />
-                      ) : (
-                        <>
-                          <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
-                          <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
-                          <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                          {result.mode !== "rewrite" && (
-                            <>
-                              <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
-                              <div>
-                                <p className="text-muted-foreground mb-1">Risk Flags</p>
-                                <div className="h-px bg-border mb-2" />
-                                <ul className="space-y-1">
-                                  {(result.risk_flags ?? []).map((flag, i) => (
-                                    <li key={i} className="text-foreground">• {flag}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </>
-                          )}
-                          <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
-                        </>
-                      )}
-                    </>
+              {allResults.length > 0 ? (
+                <div className="space-y-0 text-sm">
+                  {allResults.map((r, idx) => (
+                    <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
+                  ))}
+                  {loading && (
+                    <div className="flex items-center gap-2 text-muted-foreground py-4 justify-center">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Generating new version...
+                    </div>
                   )}
                 </div>
               ) : loading ? (
@@ -947,6 +897,75 @@ export default function CommunicationShield() {
 // ═══════════════════════════════════════════
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════
+
+function SingleResultBlock({ result, index, total }: { result: AIResult; index: number; total: number }) {
+  const isEven = index % 2 === 0;
+  const isLatest = index === total - 1;
+
+  if ((result as any)._noMessageNeeded) {
+    return (
+      <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+        {total > 1 && (
+          <p className="text-xs text-muted-foreground mb-2 font-medium">
+            {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+          </p>
+        )}
+        <NoMessageNeededLayout />
+      </div>
+    );
+  }
+
+  if (result.is_fallback) {
+    return (
+      <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+        {total > 1 && (
+          <p className="text-xs text-muted-foreground mb-2 font-medium">
+            {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+          </p>
+        )}
+        <FallbackResultLayout result={result} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+      {total > 1 && (
+        <p className="text-xs text-muted-foreground mb-2 font-medium">
+          {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+        </p>
+      )}
+      <div className="space-y-4">
+        {result.mode === "respond" && result.recommendation_type && (
+          <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+        )}
+        {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+          <DoNotRespondLayout result={result} />
+        ) : (
+          <>
+            <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
+            <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
+            <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
+            {result.mode !== "rewrite" && (
+              <>
+                <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                <div>
+                  <p className="text-muted-foreground mb-1 text-sm font-medium">Risk Flags:</p>
+                  <ul className="space-y-1">
+                    {(result.risk_flags ?? []).map((flag, i) => (
+                      <li key={i} className="text-foreground text-sm">• {flag}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+            <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SendabilityBadge({ status }: { status: SendabilityStatus }) {
   const config: Record<SendabilityStatus, { icon: typeof ShieldCheck; label: string; className: string }> = {

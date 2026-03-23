@@ -1574,6 +1574,7 @@ serve(async (req) => {
       _no_message_terminal,
       triage_risk_flags,
       triage_sendability_reason,
+      is_regeneration: clientIsRegeneration,
     } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
@@ -1605,7 +1606,7 @@ serve(async (req) => {
     // Quota check
     // For new sessions (no session_id): always check + will charge 1
     // For regenerations (has session_id): check if this regen is free or paid
-    const isRegeneration = !!session_id && !_no_message_terminal && !selected_goal;
+    const isRegeneration = !!session_id && !_no_message_terminal && (clientIsRegeneration === true || !selected_goal);
     let regenIsFree = false;
 
     if (!isAdminBypass) {
