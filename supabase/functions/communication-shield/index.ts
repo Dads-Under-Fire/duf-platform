@@ -253,26 +253,7 @@ const TRIAGE_TOOL = {
   strict: true,
 };
 
-const REDIRECT_TOOL = {
-  type: "function" as const,
-  name: "format_redirect",
-  description: "Provide redirect guidance for a message that should not be sent",
-  parameters: {
-    type: "object",
-    properties: {
-      redirect_message: { type: "string" },
-      safe_alternative: { type: "string" },
-      alternative_1: { type: "string" },
-      alternative_2: { type: "string" },
-      alternative_3: { type: "string" },
-      risk_flags: { type: "array", items: { type: "string" } },
-      why_this_is_safer: { type: "string" },
-    },
-    required: ["redirect_message", "safe_alternative", "alternative_1", "alternative_2", "alternative_3", "risk_flags", "why_this_is_safer"],
-    additionalProperties: false,
-  },
-  strict: true,
-};
+// REDIRECT_TOOL removed — no longer used in staged workflow
 
 // ══════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
