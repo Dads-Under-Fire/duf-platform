@@ -1485,7 +1485,7 @@ serve(async (req) => {
         output_path: "no_message",
       });
       await insertResult(sc, session_id, "no_message", {
-        redirect_message: "No message recommended.",
+        primary_response: "No message recommended.",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
       }, []);
       if (!isAdminBypass) await sc.rpc("increment_message_rewrites", { p_user_id: userId });
