@@ -860,7 +860,7 @@ async function callToolFunction(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
-  tool: typeof TRIAGE_TOOL | typeof REWRITE_TOOL | typeof RESPOND_TOOL | typeof REDIRECT_TOOL,
+  tool: typeof TRIAGE_TOOL | typeof REWRITE_TOOL | typeof RESPOND_TOOL,
   model: string = MODEL_PRIMARY,
 ): Promise<Record<string, unknown> | null> {
   const body = {
@@ -962,6 +962,26 @@ async function insertResult(
   data: Record<string, unknown>,
   riskFlags: string[],
 ) {
+  // Determine next generation_index and deselect previous results
+  const { data: existingResults } = await serviceClient
+    .from("communication_shield_results")
+    .select("id, generation_index")
+    .eq("session_id", sessionId)
+    .order("generation_index", { ascending: false })
+    .limit(1);
+
+  const nextIndex = (existingResults && existingResults.length > 0)
+    ? (existingResults[0].generation_index + 1)
+    : 1;
+
+  // Deselect all previous results for this session
+  if (nextIndex > 1) {
+    await serviceClient
+      .from("communication_shield_results")
+      .update({ is_selected: false })
+      .eq("session_id", sessionId);
+  }
+
   const resultRow: Record<string, unknown> = {
     session_id: sessionId,
     result_type: resultType,
@@ -971,7 +991,7 @@ async function insertResult(
     firmer_version: data.firmer_version ?? null,
     risk_flags: riskFlags,
     why_this_is_safer: data.why_this_is_safer ?? null,
-    generation_index: 1,
+    generation_index: nextIndex,
     is_selected: true,
   };
 
