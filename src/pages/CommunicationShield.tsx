@@ -497,6 +497,12 @@ export default function CommunicationShield() {
       setStep("input");
       setResult(null);
       setLoading(false);
+    } else if (step === "respond-triage") {
+      setStep("input");
+      setResult(null);
+      setRespondTriageData(null);
+      setSessionId(null);
+      setLoading(false);
     } else {
       setStep("select-intent");
       setResult(null);
