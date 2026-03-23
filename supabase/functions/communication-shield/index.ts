@@ -1083,11 +1083,7 @@ You MUST call the provided tool with your structured output.`;
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
-  await updateSessionScoring(serviceClient, sessionId, originalScoreResult, outputScore, {
-    recommendation_type: aiResult.recommendation_type,
-    tone_assessment: aiResult.tone_assessment,
-  });
+  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
   await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
