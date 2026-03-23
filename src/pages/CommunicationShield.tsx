@@ -10,6 +10,19 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
 type SendabilityStatus = "safe" | "salvageable" | "redirect";
 
+interface RespondTriageResult {
+  recommendation_type: RecommendationType;
+  should_show_intent_picker: boolean;
+  contains_actionable_logistics: boolean;
+  actionable_logistics_summary: string;
+  recommendation_reason: string;
+  allow_boundary_override: boolean;
+  risk_flags: string[];
+  original_score: number;
+  original_score_notes: string[];
+  session_id: string;
+}
+
 interface AIResult {
   recommendation_type?: RecommendationType;
   primary_response?: string;
@@ -33,6 +46,7 @@ interface AIResult {
   selected_goal?: string | null;
   session_id?: string;
   _noMessageNeeded?: boolean;
+  _doNotRespond?: boolean;
   free_regenerations_used?: number;
 }
 
@@ -42,7 +56,7 @@ function getPrimaryText(result: AIResult): string {
     : (result.primary_response ?? "");
 }
 
-type Step = "input" | "select-intent" | "goal-selection" | "result";
+type Step = "input" | "select-intent" | "goal-selection" | "respond-triage" | "result";
 
 const FALLBACK_INTENTS = [
   "Set a boundary",
