@@ -162,6 +162,7 @@ export default function CommunicationShield() {
         // Final result (safe path — direct rewrite)
         setResult(aiData);
         setSessionId(aiData.session_id ?? null);
+        setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
