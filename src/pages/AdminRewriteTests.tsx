@@ -153,19 +153,19 @@ export default function AdminRewriteTests() {
     let firstPromptSource = "unknown";
 
     for (const tc of cases) {
-      setCurrentCase(tc.test_id);
+      setCurrentCase(tc.name);
       let caseResult: CaseRunResult;
 
       try {
         const { data, error } = await supabase.functions.invoke("communication-shield", {
-          body: { message: tc.original_message, mode: "rewrite", skip_quota: true },
+          body: { message: tc.input_message, mode: "rewrite", skip_quota: true },
         });
 
         if (error || !data) {
           caseResult = {
-            test_id: tc.test_id,
+            name: tc.name,
             category: tc.category,
-            original_message: tc.original_message,
+            input_message: tc.input_message,
             result: null,
             validatorStatus: "fail",
             validatorNotes: [error?.message ?? "No data returned"],
@@ -181,11 +181,11 @@ export default function AdminRewriteTests() {
             firstPromptVersion = pv;
             firstPromptSource = ps;
           }
-          const validation = runValidator(tc.validator_rules, result, tc.original_message, tc.category);
+          const validation = runValidator(null, result, tc.input_message, tc.category);
           caseResult = {
-            test_id: tc.test_id,
+            name: tc.name,
             category: tc.category,
-            original_message: tc.original_message,
+            input_message: tc.input_message,
             result,
             validatorStatus: validation.status,
             validatorNotes: validation.notes,
@@ -195,9 +195,9 @@ export default function AdminRewriteTests() {
         }
       } catch (e: any) {
         caseResult = {
-          test_id: tc.test_id,
+          name: tc.name,
           category: tc.category,
-          original_message: tc.original_message,
+          input_message: tc.input_message,
           result: null,
           validatorStatus: "fail",
           validatorNotes: [e.message],
