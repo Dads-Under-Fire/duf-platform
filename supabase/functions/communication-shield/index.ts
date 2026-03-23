@@ -1462,32 +1462,24 @@ You MUST call the provided tool with your structured output.`;
     },
     "completed",
   );
-  // Usage tracking: initial gen charges 1, free regen charges 0, paid regen charges 1
+  // Usage tracking
   if (!isAdminBypass) {
     if (isRegeneration && regenIsFree) {
-      // Free regen — increment the session's free_regenerations_used counter
-      await serviceClient
+      // Free regen — no usage charge, just bump session counter
+      const { data: curSess } = await serviceClient
         .from("communication_shield_sessions")
-        .update({ free_regenerations_used: serviceClient.rpc ? undefined : undefined })
-        .eq("id", existingSessionId);
-      // Use raw SQL-style increment via update
-      const { error: regenErr } = await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId }).then(() => ({ error: null })).catch((e: any) => ({ error: e }));
-      // Actually DON'T increment usage for free regens — just bump the session counter
-      // We need a direct update approach
-    } else {
+        .select("free_regenerations_used")
+        .eq("id", existingSessionId)
+        .single();
+      await updateSession(serviceClient, existingSessionId!, {
+        free_regenerations_used: (curSess?.free_regenerations_used ?? 0) + 1,
+      });
+    } else if (isRegeneration && !regenIsFree) {
+      // Paid regen — charge usage (free counter already maxed)
       await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
-    }
-  }
-  // Always update free_regenerations_used for regens
-  if (isRegeneration) {
-    const { data: currentSession } = await serviceClient
-      .from("communication_shield_sessions")
-      .select("free_regenerations_used")
-      .eq("id", existingSessionId)
-      .single();
-    const currentFreeUsed = currentSession?.free_regenerations_used ?? 0;
-    if (regenIsFree) {
-      await updateSession(serviceClient, existingSessionId!, { free_regenerations_used: currentFreeUsed + 1 });
+    } else {
+      // Initial generation — charge usage
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     }
   }
 
