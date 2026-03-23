@@ -172,11 +172,17 @@ export type Database = {
       ai_system_prompts: {
         Row: {
           created_at: string
+          deprecated_at: string | null
           feature_key: string
           id: string
           is_active: boolean
+          is_production: boolean
+          last_used_at: string | null
           mode: string
           notes: string | null
+          output_schema_key: string | null
+          prompt_name: string | null
+          prompt_purpose: string | null
           prompt_text: string
           stage_key: string
           updated_at: string
@@ -184,11 +190,17 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deprecated_at?: string | null
           feature_key: string
           id?: string
           is_active?: boolean
+          is_production?: boolean
+          last_used_at?: string | null
           mode: string
           notes?: string | null
+          output_schema_key?: string | null
+          prompt_name?: string | null
+          prompt_purpose?: string | null
           prompt_text: string
           stage_key?: string
           updated_at?: string
@@ -196,11 +208,17 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deprecated_at?: string | null
           feature_key?: string
           id?: string
           is_active?: boolean
+          is_production?: boolean
+          last_used_at?: string | null
           mode?: string
           notes?: string | null
+          output_schema_key?: string | null
+          prompt_name?: string | null
+          prompt_purpose?: string | null
           prompt_text?: string
           stage_key?: string
           updated_at?: string
