@@ -156,11 +156,12 @@ export function runStagedValidator(
     if (!hasExpected) triageScore -= 2;
   }
 
-  // 1d: needs_goal_selection match
+  // 1d: needs_goal_selection match (normalize null/undefined → false)
   if (expectations.expected_needs_goal_selection !== undefined) {
-    const match = outcome.actual_needs_goal_selection === expectations.expected_needs_goal_selection;
+    const actualGoalSelection = outcome.actual_needs_goal_selection ?? false;
+    const match = actualGoalSelection === expectations.expected_needs_goal_selection;
     add("staged_goal_selection_match", match,
-      `Expected needs_goal_selection=${expectations.expected_needs_goal_selection} — got ${outcome.actual_needs_goal_selection}`);
+      `Expected needs_goal_selection=${expectations.expected_needs_goal_selection} — got ${actualGoalSelection}`);
     if (!match) triageScore -= 3;
   }
 
