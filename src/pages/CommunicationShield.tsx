@@ -514,7 +514,7 @@ export default function CommunicationShield() {
 
   // ─── MOBILE ───
   if (isMobile) {
-    const showResultScreen = step === "result" || step === "goal-selection";
+    const showResultScreen = step === "result" || step === "goal-selection" || step === "respond-triage";
 
     if (showResultScreen) {
       return (
