@@ -32,6 +32,7 @@ interface AIResult {
   goal_options?: string[];
   selected_goal?: string | null;
   session_id?: string;
+  _noMessageNeeded?: boolean;
 }
 
 function getPrimaryText(result: AIResult): string {
