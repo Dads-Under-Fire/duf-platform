@@ -85,7 +85,7 @@ export default function AdminRewriteTests() {
   useEffect(() => {
     async function load() {
       const { data } = await (supabase.from as any)("ai_gold_suite_cases")
-        .select("id, test_id, category, original_message, expected_behavior, must_not_do, validator_rules")
+        .select("id, name, category, input_message, expected_sendability_status, expected_output_path")
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("is_active", true)
