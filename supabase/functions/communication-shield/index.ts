@@ -1337,12 +1337,9 @@ You MUST call the provided tool with your structured output.`;
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, rewriteScore, {
+  await updateSession(serviceClient, existingSessionId!, {
     output_path: outputPath,
-    rewrite_prompt_version: promptVersions.rewrite,
-    tone_assessment: aiResult.tone_assessment,
     selected_goal: selectedGoal ?? null,
-    goal_selection_source: selectedGoal ? "user_selected" : (sendabilityStatus === "safe" ? "skipped" : null),
   });
   await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
