@@ -966,36 +966,18 @@ async function createSession(
   return data.id as string;
 }
 
-async function updateSessionScoring(
+async function updateSession(
   serviceClient: any,
   sessionId: string,
-  originalScore: { score: number; notes: string[] },
-  outputScore: OutputQualityResult | null,
-  extraFields?: Record<string, unknown>,
+  fields: Record<string, unknown>,
 ) {
-  const updateData: Record<string, unknown> = {
-    original_score: originalScore.score,
-    original_score_notes: originalScore.notes,
-  };
-
-  if (outputScore) {
-    updateData.rewrite_quality_score = outputScore.score;
-    updateData.rewrite_quality_notes = outputScore.notes;
-    updateData.quality_score_status = outputScore.quality_score_status;
-    updateData.quality_score_total = outputScore.score;
-  }
-
-  if (extraFields) {
-    Object.assign(updateData, extraFields);
-  }
-
   const { error } = await serviceClient
     .from("communication_shield_sessions")
-    .update(updateData)
+    .update(fields)
     .eq("id", sessionId);
 
   if (error) {
-    console.error(`[${FN}] session scoring update error:`, JSON.stringify(error));
+    console.error(`[${FN}] session update error:`, JSON.stringify(error));
   }
 }
 
