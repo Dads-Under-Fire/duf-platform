@@ -261,6 +261,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
