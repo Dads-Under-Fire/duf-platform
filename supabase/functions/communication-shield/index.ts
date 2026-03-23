@@ -1422,13 +1422,23 @@ async function loadActivePrompt(
   try {
     const { data, error } = await serviceClient
       .from("ai_system_prompts")
-      .select("prompt_text, version_label, stage_key")
+      .select("id, prompt_text, version_label, stage_key, output_schema_key")
       .eq("feature_key", featureKey)
       .eq("mode", mode)
       .eq("stage_key", stageKey)
       .eq("is_active", true)
+      .eq("is_production", true)
       .limit(1)
       .single();
+
+    // Update last_used_at for observability (fire-and-forget)
+    if (data?.id) {
+      serviceClient
+        .from("ai_system_prompts")
+        .update({ last_used_at: new Date().toISOString() })
+        .eq("id", data.id)
+        .then(() => {});
+    }
 
     if (error || !data) {
       const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
