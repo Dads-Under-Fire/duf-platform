@@ -412,7 +412,7 @@ export default function AdminRewriteTests() {
               </p>
             )}
             {latestResults.map((r) => (
-              <Card key={r.test_id}>
+              <Card key={r.name}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
                     {r.validatorStatus === "pass" ? (
@@ -423,7 +423,7 @@ export default function AdminRewriteTests() {
                       <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-medium">{r.test_id}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{r.name}</CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Category: {r.category} · Prompt: {r.promptVersion} · Source: {r.promptSource}
                       </p>
@@ -436,7 +436,7 @@ export default function AdminRewriteTests() {
                 <CardContent className="space-y-2">
                   <div className="text-xs">
                     <span className="text-muted-foreground font-medium">Input: </span>
-                    <span className="text-foreground">{r.original_message}</span>
+                    <span className="text-foreground">{r.input_message}</span>
                   </div>
                   {r.error && <p className="text-xs text-destructive">Error: {r.error}</p>}
                   {r.result && (
