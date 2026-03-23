@@ -108,6 +108,27 @@ export default function CommunicationShield() {
   const MAX_MESSAGE_LENGTH = 10000;
   const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
 
+  const handleModeChange = (newMode: "respond" | "rewrite") => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    setInputMessage("");
+    setSubmittedMessage("");
+    setResult(null);
+    setAllResults([]);
+    setStep("input");
+    setIntentOptions([]);
+    setLoadingIntents(false);
+    setCommunicationContext("");
+    setShowOtherInput(false);
+    setOtherText("");
+    setShowDirections(false);
+    setSessionId(null);
+    setGoalOptions([]);
+    setTriageData(null);
+    setFreeRegensUsed(0);
+    setLoading(false);
+  };
+
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
     if (!msg || !user || isOverLimit) return;
