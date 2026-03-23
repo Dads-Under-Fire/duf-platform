@@ -134,7 +134,18 @@ export default function CommunicationShield() {
 
         const aiData = data as AIResult;
 
-        // Check if goal selection is needed (both salvageable AND redirect use this now)
+        // Check if this is a no_message terminal result from triage
+        if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
+          setResult({
+            ...aiData,
+            _noMessageNeeded: true,
+          });
+          setSessionId(aiData.session_id ?? null);
+          refetchProfile();
+          return;
+        }
+
+        // Check if goal selection is needed (salvageable or redirect_choice)
         if (aiData.needs_goal_selection) {
           setSessionId(aiData.session_id ?? null);
           setGoalOptions(aiData.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"]);
