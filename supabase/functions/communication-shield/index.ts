@@ -1182,6 +1182,8 @@ async function handleRewriteMode(
   selectedGoal: string | undefined,
   sessionId: string | undefined,
   isAdminBypass: boolean,
+  isRegeneration: boolean = false,
+  regenIsFree: boolean = false,
 ): Promise<Response> {
   const originalScoreResult = scoreOriginalMessage(message);
   console.log(`[${FN}] rewrite original_score: ${originalScoreResult.score}/10`);
@@ -1460,12 +1462,38 @@ You MUST call the provided tool with your structured output.`;
     },
     "completed",
   );
-  if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+  // Usage tracking
+  if (!isAdminBypass) {
+    if (isRegeneration && regenIsFree) {
+      // Free regen — no usage charge, just bump session counter
+      const { data: curSess } = await serviceClient
+        .from("communication_shield_sessions")
+        .select("free_regenerations_used")
+        .eq("id", existingSessionId)
+        .single();
+      await updateSession(serviceClient, existingSessionId!, {
+        free_regenerations_used: (curSess?.free_regenerations_used ?? 0) + 1,
+      });
+    } else if (isRegeneration && !regenIsFree) {
+      // Paid regen — charge usage (free counter already maxed)
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    } else {
+      // Initial generation — charge usage
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    }
+  }
 
   // Score asynchronously (non-blocking)
   runScoreStage(serviceClient, apiKey, existingSessionId!, message, aiResult, originalScoreResult, promptVersions).catch(e => console.error(`[${FN}] score stage error:`, e));
 
   console.log(`[${FN}] rewrite success | session=${existingSessionId} | status=${sendabilityStatus} | quality=${rewriteScore?.score}`);
+
+  // Get current free_regenerations_used for the response
+  const { data: finalSession } = await serviceClient
+    .from("communication_shield_sessions")
+    .select("free_regenerations_used")
+    .eq("id", existingSessionId)
+    .single();
 
   return jsonResponse({
     mode: "rewrite",
@@ -1484,6 +1512,7 @@ You MUST call the provided tool with your structured output.`;
     rewrite_quality_score: rewriteScore?.score ?? null,
     prompt_version: promptVersions.rewrite,
     session_id: existingSessionId,
+    free_regenerations_used: finalSession?.free_regenerations_used ?? 0,
   });
 }
 
@@ -1573,16 +1602,48 @@ serve(async (req) => {
       if (isAdminBypass) console.log(`[${FN}] admin_quota_bypass`);
     }
 
-    // Quota check (skip for admin bypass and for goal-selection continuations)
-    if (!isAdminBypass && !session_id) {
-      const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
-      if (quotaError || !quotaRows || quotaRows.length === 0) {
-        console.error("Quota check failed:", quotaError);
-        return jsonResponse({ error: "Could not verify quota" }, 500);
-      }
-      console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
-      if (!quotaRows[0].allowed) {
-        return jsonResponse({ error: "You've used all your message rewrites." }, 429);
+    // Quota check
+    // For new sessions (no session_id): always check + will charge 1
+    // For regenerations (has session_id): check if this regen is free or paid
+    const isRegeneration = !!session_id && !_no_message_terminal && !selected_goal;
+    let regenIsFree = false;
+
+    if (!isAdminBypass) {
+      if (isRegeneration) {
+        // Look up how many free regens have been used for this session
+        const { data: sessionRow } = await serviceClient
+          .from("communication_shield_sessions")
+          .select("free_regenerations_used")
+          .eq("id", session_id)
+          .single();
+        const freeUsed = sessionRow?.free_regenerations_used ?? 0;
+        const FREE_REGEN_LIMIT = 2;
+        if (freeUsed < FREE_REGEN_LIMIT) {
+          regenIsFree = true;
+          console.log(`[${FN}] regen free | session=${session_id} | free_used=${freeUsed}/${FREE_REGEN_LIMIT}`);
+        } else {
+          // Paid regen — check quota
+          const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
+          if (quotaError || !quotaRows || quotaRows.length === 0) {
+            console.error("Quota check failed:", quotaError);
+            return jsonResponse({ error: "Could not verify quota" }, 500);
+          }
+          if (!quotaRows[0].allowed) {
+            return jsonResponse({ error: "You've used all your message rewrites.", quota_exhausted: true }, 429);
+          }
+          console.log(`[${FN}] regen paid | session=${session_id} | free_used=${freeUsed} | used=${quotaRows[0].used}/${quotaRows[0].limit}`);
+        }
+      } else if (!session_id) {
+        // New session — normal quota check
+        const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
+        if (quotaError || !quotaRows || quotaRows.length === 0) {
+          console.error("Quota check failed:", quotaError);
+          return jsonResponse({ error: "Could not verify quota" }, 500);
+        }
+        console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
+        if (!quotaRows[0].allowed) {
+          return jsonResponse({ error: "You've used all your message rewrites.", quota_exhausted: true }, 429);
+        }
       }
     }
 
@@ -1627,7 +1688,7 @@ serve(async (req) => {
     }
 
     // REWRITE MODE — staged orchestration
-    const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass);
+    const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass, isRegeneration, regenIsFree);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
     return result;
 

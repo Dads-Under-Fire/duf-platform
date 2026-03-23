@@ -33,6 +33,7 @@ interface AIResult {
   selected_goal?: string | null;
   session_id?: string;
   _noMessageNeeded?: boolean;
+  free_regenerations_used?: number;
 }
 
 function getPrimaryText(result: AIResult): string {
@@ -101,6 +102,8 @@ export default function CommunicationShield() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [goalOptions, setGoalOptions] = useState<string[]>([]);
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
+  const [freeRegensUsed, setFreeRegensUsed] = useState(0);
+  const FREE_REGEN_LIMIT = 2;
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
@@ -120,6 +123,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setFreeRegensUsed(0);
 
     if (mode === "rewrite") {
       // Staged rewrite: call triage first
@@ -158,6 +162,7 @@ export default function CommunicationShield() {
         // Final result (safe path — direct rewrite)
         setResult(aiData);
         setSessionId(aiData.session_id ?? null);
+        setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
@@ -253,6 +258,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
@@ -309,10 +315,16 @@ export default function CommunicationShield() {
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
+      } else if (sessionId) {
+        body.session_id = sessionId;
       }
       supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
         if (error || data?.error) {
-          toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+          if (data?.quota_exhausted) {
+            setShowUpgradeModal(true);
+          } else {
+            toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+          }
         } else {
           const aiData = data as AIResult;
           if (aiData.needs_goal_selection) {
@@ -322,6 +334,7 @@ export default function CommunicationShield() {
             setStep("goal-selection");
           } else {
             setResult(aiData);
+            setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
             refetchProfile();
           }
         }
@@ -450,15 +463,18 @@ export default function CommunicationShield() {
 
           {/* Fixed bottom action bar */}
           {step === "result" && (
-            <div className="border-t border-border px-4 py-3 flex items-center justify-end bg-background shrink-0">
+            <div className="border-t border-border px-4 py-3 bg-background shrink-0 space-y-1">
               <button
                 onClick={handleRegenerate}
-                disabled={!hasResult || loading}
+                disabled={!hasResult || loading || (mode === "rewrite" && rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                 className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Generate again
               </button>
+              {mode === "rewrite" && hasResult && (
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+              )}
             </div>
           )}
         </div>
@@ -852,14 +868,29 @@ export default function CommunicationShield() {
                 </div>
               )}
             </div>
+
+            {/* Generate Again — fixed at bottom of the rewrite card */}
+            {step === "result" && mode === "rewrite" && hasResult && !loading && (
+              <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
+                <button
+                  onClick={handleRegenerate}
+                  disabled={loading || rewritesExhausted}
+                  className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Generate again
+                </button>
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
-        {/* Action buttons — always visible */}
-        {step === "result" && (
+        {/* Generate again — only shown here for respond mode (rewrite mode has it in the card) */}
+        {step === "result" && mode === "respond" && (
           <div className="flex items-center gap-4">
             <button
               onClick={handleRegenerate}
@@ -1141,5 +1172,32 @@ function RecommendationBanner({ type, fallback }: { type: RecommendationType; fa
         <p className="text-xs mt-0.5 opacity-80">{config.description}</p>
       </div>
     </div>
+  );
+}
+
+function RegenHelperText({
+  freeRegensUsed,
+  freeRegenLimit,
+  rewritesExhausted,
+}: {
+  freeRegensUsed: number;
+  freeRegenLimit: number;
+  rewritesExhausted: boolean;
+}) {
+  const remaining = Math.max(0, freeRegenLimit - freeRegensUsed);
+
+  let text: string;
+  if (rewritesExhausted && remaining <= 0) {
+    text = "No credits remaining. Upgrade to continue.";
+  } else if (remaining <= 0) {
+    text = "Additional regenerations will use another credit.";
+  } else if (remaining === 1) {
+    text = "1 free regeneration remaining for this message.";
+  } else {
+    text = `Includes up to ${freeRegenLimit} free regenerations for this message.`;
+  }
+
+  return (
+    <p className="text-xs text-muted-foreground">{text}</p>
   );
 }
