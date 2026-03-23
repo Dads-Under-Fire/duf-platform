@@ -1193,7 +1193,7 @@ You MUST call the provided tool with your structured output.`;
   // If redirect and no selected_goal yet, return triage data + goal options only
   if (sendabilityStatus === "redirect" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
-    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null, {
+    await updateSession(serviceClient, existingSessionId!, {
       output_path: "redirect",
     });
 
