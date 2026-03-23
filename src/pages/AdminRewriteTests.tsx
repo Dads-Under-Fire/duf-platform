@@ -22,10 +22,10 @@ import {
 import { Play, CheckCircle, XCircle, AlertTriangle, Loader2, Send, BookmarkPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
-  type ValidatorRules,
   type RewriteResult,
-  type ValidatorResult,
-  runValidator,
+  type StagedExpectations,
+  type StagedOutcome,
+  runStagedValidator,
 } from "@/lib/goldSuiteValidator";
 
 // ── Types (UI-only) ──
@@ -35,6 +35,13 @@ interface GoldCase {
   name: string;
   category: string;
   input_message: string;
+  expected_sendability_status: "safe" | "salvageable" | "redirect" | null;
+  expected_output_path: "rewrite" | "redirect_choice" | "no_message" | null;
+  expected_detected_intent: string | null;
+  expected_risk_flags: string[] | null;
+  expected_needs_goal_selection: boolean;
+  selected_goal_for_test: string | null;
+  expected_no_message_recommended: boolean;
 }
 
 interface CaseRunResult {
@@ -59,6 +66,35 @@ interface RunHistoryRow {
   warn_count: number;
   fail_count: number;
 }
+
+const normalizeOutputPath = (path: unknown): "rewrite" | "redirect_choice" | "no_message" | null => {
+  if (path === "rewrite_with_guidance") return "rewrite";
+  if (path === "rewrite" || path === "redirect_choice" || path === "no_message") return path;
+  return null;
+};
+
+const normalizeRiskFlags = (flags: unknown): string[] => {
+  if (!Array.isArray(flags)) return [];
+  const alias: Record<string, string> = {
+    "emotional language": "emotional language detected",
+    "personal attack": "denigration / disparagement",
+    accusation: "admission trap",
+    sarcasm: "emotional language detected",
+    threat: "leverage or intimidation language detected",
+    coercion: "leverage or intimidation language detected",
+    manipulation: "denigration / disparagement",
+    vague: "vague or imprecise language",
+    romantic: "irrelevant or non-child-related topic",
+    "irrelevant content": "irrelevant or non-child-related topic",
+  };
+
+  const mapped = flags
+    .map((f) => String(f ?? "").trim().toLowerCase())
+    .filter(Boolean)
+    .map((f) => alias[f] ?? f);
+
+  return [...new Set(mapped)];
+};
 
 export default function AdminRewriteTests() {
   const { user, loading: authLoading } = useAuth();
@@ -85,12 +121,24 @@ export default function AdminRewriteTests() {
   useEffect(() => {
     async function load() {
       const { data } = await (supabase.from as any)("ai_gold_suite_cases")
-        .select("id, name, category, input_message, expected_sendability_status, expected_output_path")
+        .select(`
+          id,
+          name,
+          category,
+          input_message,
+          expected_sendability_status,
+          expected_output_path,
+          expected_detected_intent,
+          expected_risk_flags,
+          expected_needs_goal_selection,
+          selected_goal_for_test,
+          expected_no_message_recommended
+        `)
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("active", true)
         .order("created_at", { ascending: true });
-      setCases(data ?? []);
+      setCases((data ?? []) as GoldCase[]);
       setLoadingCases(false);
     }
     load();
@@ -156,42 +204,191 @@ export default function AdminRewriteTests() {
       setCurrentCase(tc.name);
       let caseResult: CaseRunResult;
 
+      const expectations: StagedExpectations = {
+        expected_sendability_status: tc.expected_sendability_status ?? undefined,
+        expected_output_path: tc.expected_output_path ?? undefined,
+        expected_detected_intent: tc.expected_detected_intent ?? undefined,
+        expected_risk_flags: tc.expected_risk_flags ?? undefined,
+        expected_needs_goal_selection: tc.expected_needs_goal_selection,
+        expected_no_message_recommended: tc.expected_no_message_recommended,
+        selected_goal_for_test: tc.selected_goal_for_test ?? undefined,
+      };
+
       try {
-        const { data, error } = await supabase.functions.invoke("communication-shield", {
+        const { data: firstData, error: firstError } = await supabase.functions.invoke("communication-shield", {
           body: { message: tc.input_message, mode: "rewrite", skip_quota: true },
         });
 
-        if (error || !data) {
+        if (firstError || !firstData) {
           caseResult = {
             name: tc.name,
             category: tc.category,
             input_message: tc.input_message,
             result: null,
             validatorStatus: "fail",
-            validatorNotes: [error?.message ?? "No data returned"],
-            error: error?.message ?? "No data returned",
+            validatorNotes: [firstError?.message ?? "No data returned"],
+            error: firstError?.message ?? "No data returned",
             promptVersion: "unknown",
             promptSource: "unknown",
           };
         } else {
-          const result: RewriteResult = data;
-          const pv = (data as any).prompt_version ?? "unknown";
-          const ps = (data as any).prompt_source ?? "unknown";
+          const first = firstData as Record<string, any>;
+          const pv = first.prompt_version ?? "unknown";
+          const ps = first.prompt_source ?? "unknown";
           if (firstPromptVersion === "unknown" && pv !== "unknown") {
             firstPromptVersion = pv;
             firstPromptSource = ps;
           }
-          const validation = runValidator(null, result, tc.input_message, tc.category);
+
+          const outcome: StagedOutcome = {
+            actual_sendability_status: first.sendability_status,
+            actual_output_path: normalizeOutputPath(first.output_path) ?? undefined,
+            actual_detected_intent: first.detected_intent,
+            actual_detected_tone: first.detected_tone,
+            actual_risk_flags: normalizeRiskFlags(first.risk_flags),
+            actual_needs_goal_selection: typeof first.needs_goal_selection === "boolean" ? first.needs_goal_selection : undefined,
+            actual_redirect_message: first.redirect_message,
+            actual_no_message_recommended:
+              first._noMessageNeeded === true || normalizeOutputPath(first.output_path) === "no_message",
+            actual_primary_output:
+              first.primary_rewrite ?? first.primary_response ?? first.redirect_message ?? null,
+            primary_rewrite: first.primary_rewrite,
+            shorter_version: first.shorter_version,
+            firmer_version: first.firmer_version,
+            why_this_is_safer: first.why_this_is_safer,
+          };
+
+          const needsGoalSelection = first.needs_goal_selection === true;
+          const expectedPath = normalizeOutputPath(tc.expected_output_path);
+          const shouldContinueToGenerate =
+            needsGoalSelection &&
+            expectedPath === "rewrite" &&
+            typeof first.session_id === "string" &&
+            first.session_id.length > 0;
+
+          let displayResult: RewriteResult | null =
+            first.primary_rewrite ? (first as RewriteResult) : null;
+
+          if (shouldContinueToGenerate) {
+            const selectedGoal =
+              tc.selected_goal_for_test ??
+              (Array.isArray(first.goal_options) ? first.goal_options[0] : null) ??
+              "Refocus on logistics";
+
+            const { data: secondData, error: secondError } = await supabase.functions.invoke("communication-shield", {
+              body: {
+                message: tc.input_message,
+                mode: "rewrite",
+                skip_quota: true,
+                session_id: first.session_id,
+                selected_goal: selectedGoal,
+              },
+            });
+
+            if (secondError || !secondData) {
+              caseResult = {
+                name: tc.name,
+                category: tc.category,
+                input_message: tc.input_message,
+                result: null,
+                validatorStatus: "fail",
+                validatorNotes: [`Continuation failed: ${secondError?.message ?? "No data returned"}`],
+                error: secondError?.message ?? "No data returned",
+                promptVersion: pv,
+                promptSource: ps,
+              };
+              await (supabase.from as any)("ai_gold_suite_results").insert({
+                run_id: runId,
+                test_id: tc.name,
+                category: tc.category,
+                original_message: tc.input_message,
+                prompt_version: pv,
+                prompt_source: ps,
+                validator_pass: false,
+                validator_status: "fail",
+                validator_notes: {
+                  expected: expectations,
+                  actual: outcome,
+                  reason: `Continuation failed: ${secondError?.message ?? "No data returned"}`,
+                },
+              });
+              results.push(caseResult);
+              setLatestResults([...results]);
+              continue;
+            }
+
+            const second = secondData as Record<string, any>;
+            outcome.actual_output_path = normalizeOutputPath(second.output_path) ?? outcome.actual_output_path;
+            outcome.actual_selected_goal = selectedGoal;
+            outcome.actual_primary_output =
+              second.primary_rewrite ?? second.primary_response ?? second.redirect_message ?? outcome.actual_primary_output;
+            outcome.actual_redirect_message = second.redirect_message ?? outcome.actual_redirect_message;
+            outcome.actual_needs_goal_selection = false;
+            outcome.actual_no_message_recommended =
+              second._noMessageNeeded === true || normalizeOutputPath(second.output_path) === "no_message";
+            outcome.primary_rewrite = second.primary_rewrite;
+            outcome.shorter_version = second.shorter_version;
+            outcome.firmer_version = second.firmer_version;
+            outcome.why_this_is_safer = second.why_this_is_safer;
+            displayResult = second.primary_rewrite ? (second as RewriteResult) : displayResult;
+          }
+
+          const validation = runStagedValidator(expectations, outcome, tc.input_message, tc.category);
+          const debugLines = [
+            `Expected sendability=${expectations.expected_sendability_status ?? "—"} | Actual=${outcome.actual_sendability_status ?? "—"}`,
+            `Expected output_path=${expectations.expected_output_path ?? "—"} | Actual=${outcome.actual_output_path ?? "—"}`,
+            `Expected intent=${expectations.expected_detected_intent ?? "—"} | Actual=${outcome.actual_detected_intent ?? "—"}`,
+            `Expected needs_goal_selection=${String(expectations.expected_needs_goal_selection)} | Actual=${String(outcome.actual_needs_goal_selection)}`,
+          ];
+
           caseResult = {
             name: tc.name,
             category: tc.category,
             input_message: tc.input_message,
-            result,
+            result: displayResult,
             validatorStatus: validation.status,
-            validatorNotes: validation.notes,
+            validatorNotes: [...debugLines, ...validation.notes],
             promptVersion: pv,
             promptSource: ps,
           };
+
+          const pathForScoring = outcome.actual_output_path ?? normalizeOutputPath(tc.expected_output_path);
+
+          await (supabase.from as any)("ai_gold_suite_results").insert({
+            run_id: runId,
+            test_id: tc.name,
+            category: tc.category,
+            original_message: tc.input_message,
+            actual_sendability_status: outcome.actual_sendability_status ?? null,
+            actual_output_path: outcome.actual_output_path ?? null,
+            actual_detected_intent: outcome.actual_detected_intent ?? null,
+            actual_risk_flags: outcome.actual_risk_flags ?? null,
+            actual_needs_goal_selection: outcome.actual_needs_goal_selection ?? null,
+            actual_selected_goal: outcome.actual_selected_goal ?? null,
+            actual_primary_output: outcome.actual_primary_output ?? null,
+            actual_redirect_message: outcome.actual_redirect_message ?? null,
+            actual_no_message_recommended: outcome.actual_no_message_recommended ?? null,
+            triage_accuracy_score: validation.triageScore,
+            routing_accuracy_score: validation.routingScore,
+            goal_alignment_score: pathForScoring === "rewrite" ? validation.outcomeScore : null,
+            redirect_quality_score: pathForScoring === "redirect_choice" ? validation.outcomeScore : null,
+            no_message_quality_score: pathForScoring === "no_message" ? validation.outcomeScore : null,
+            prompt_version: pv,
+            prompt_source: ps,
+            validator_pass: validation.status === "pass",
+            validator_status: validation.status,
+            validator_notes: {
+              expected: expectations,
+              actual: outcome,
+              checks: validation.checks,
+              scores: {
+                triage: validation.triageScore,
+                routing: validation.routingScore,
+                outcome: validation.outcomeScore,
+                overall: validation.overallScore,
+              },
+            },
+          });
         }
       } catch (e: any) {
         caseResult = {
@@ -205,21 +402,17 @@ export default function AdminRewriteTests() {
           promptVersion: "unknown",
           promptSource: "unknown",
         };
-      }
 
-      // Store result in DB
-      await (supabase.from as any)("ai_gold_suite_results").insert({
-        run_id: runId,
-        test_id: caseResult.name,
-        category: caseResult.category,
-        original_message: caseResult.input_message,
-        actual_primary_output: caseResult.result?.primary_rewrite ?? null,
-        prompt_version: caseResult.promptVersion,
-        prompt_source: caseResult.promptSource,
-        validator_pass: caseResult.validatorStatus === "pass",
-        validator_status: caseResult.validatorStatus,
-        validator_notes: caseResult.validatorNotes,
-      });
+        await (supabase.from as any)("ai_gold_suite_results").insert({
+          run_id: runId,
+          test_id: tc.name,
+          category: tc.category,
+          original_message: tc.input_message,
+          validator_pass: false,
+          validator_status: "fail",
+          validator_notes: { reason: e.message },
+        });
+      }
 
       results.push(caseResult);
       setLatestResults([...results]);
