@@ -860,7 +860,7 @@ async function callToolFunction(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
-  tool: typeof TRIAGE_TOOL | typeof REWRITE_TOOL | typeof RESPOND_TOOL | typeof REDIRECT_TOOL,
+  tool: typeof TRIAGE_TOOL | typeof REWRITE_TOOL | typeof RESPOND_TOOL,
   model: string = MODEL_PRIMARY,
 ): Promise<Record<string, unknown> | null> {
   const body = {
