@@ -10,6 +10,19 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
 type SendabilityStatus = "safe" | "salvageable" | "redirect";
 
+interface RespondTriageResult {
+  recommendation_type: RecommendationType;
+  should_show_intent_picker: boolean;
+  contains_actionable_logistics: boolean;
+  actionable_logistics_summary: string;
+  recommendation_reason: string;
+  allow_boundary_override: boolean;
+  risk_flags: string[];
+  original_score: number;
+  original_score_notes: string[];
+  session_id: string;
+}
+
 interface AIResult {
   recommendation_type?: RecommendationType;
   primary_response?: string;
@@ -33,6 +46,7 @@ interface AIResult {
   selected_goal?: string | null;
   session_id?: string;
   _noMessageNeeded?: boolean;
+  _doNotRespond?: boolean;
   free_regenerations_used?: number;
 }
 
@@ -42,7 +56,7 @@ function getPrimaryText(result: AIResult): string {
     : (result.primary_response ?? "");
 }
 
-type Step = "input" | "select-intent" | "goal-selection" | "result";
+type Step = "input" | "select-intent" | "goal-selection" | "respond-triage" | "result";
 
 const FALLBACK_INTENTS = [
   "Set a boundary",
@@ -103,6 +117,7 @@ export default function CommunicationShield() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [goalOptions, setGoalOptions] = useState<string[]>([]);
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
+  const [respondTriageData, setRespondTriageData] = useState<RespondTriageResult | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
   const FREE_REGEN_LIMIT = 2;
   const MAX_MESSAGE_LENGTH = 10000;
@@ -124,6 +139,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setRespondTriageData(null);
     setFreeRegensUsed(0);
     setLoading(false);
   };
@@ -147,6 +163,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setRespondTriageData(null);
     setFreeRegensUsed(0);
 
     if (mode === "rewrite") {
@@ -197,41 +214,86 @@ export default function CommunicationShield() {
       return;
     }
 
-    // Respond mode — intent selection
-    setStep("select-intent");
+    // ── RESPOND MODE — 2-stage flow ──
+    // Stage 1: Triage
+    setStep("respond-triage");
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: { message: msg, mode: "respond" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-    if (isMobile) {
-      setIntentOptions(FALLBACK_INTENTS);
-      setLoadingIntents(false);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        const { data, error } = await supabase.functions.invoke("suggest-intents", {
-          body: { message: msg, mode },
-        });
-        clearTimeout(timeout);
-        if (!error) {
-          const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
-          if (options.length >= 2) setIntentOptions(options);
-        }
-      } catch {}
-    } else {
-      setLoadingIntents(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const { data, error } = await supabase.functions.invoke("suggest-intents", {
-          body: { message: msg, mode },
-        });
-        clearTimeout(timeout);
-        if (error) throw error;
-        const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
-        setIntentOptions(options.length >= 2 ? options : FALLBACK_INTENTS);
-      } catch {
-        setIntentOptions(FALLBACK_INTENTS);
-      } finally {
-        setLoadingIntents(false);
+      const triage = data as RespondTriageResult;
+      setRespondTriageData(triage);
+      setSessionId(triage.session_id ?? null);
+
+      if (triage.recommendation_type === "do_not_respond") {
+        // Show do_not_respond card — no generation yet
+        setStep("respond-triage");
+        setLoading(false);
+        return;
       }
+
+      if (triage.recommendation_type === "brief_boundary_response") {
+        // Auto-generate brief boundary response
+        setStep("result");
+        const { data: genData, error: genError } = await supabase.functions.invoke("communication-shield", {
+          body: {
+            message: msg,
+            mode: "respond",
+            respond_stage: "generate",
+            session_id: triage.session_id,
+            boundary_override: false,
+          },
+        });
+        if (genError) throw genError;
+        if (genData?.error) throw new Error(genData.error);
+        const aiData = genData as AIResult;
+        setResult(aiData);
+        setAllResults(prev => [...prev, aiData]);
+        setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
+        refetchProfile();
+        setLoading(false);
+        return;
+      }
+
+      // recommendation_type === "respond" — show intent picker
+      setStep("select-intent");
+      setLoading(false);
+
+      // Fetch intent suggestions
+      if (isMobile) {
+        setIntentOptions(FALLBACK_INTENTS);
+        try {
+          const { data: intentData, error: intentError } = await supabase.functions.invoke("suggest-intents", {
+            body: { message: msg, mode: "respond" },
+          });
+          if (!intentError) {
+            const options = Array.isArray(intentData?.options) ? intentData.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
+            if (options.length >= 2) setIntentOptions(options);
+          }
+        } catch {}
+      } else {
+        setLoadingIntents(true);
+        try {
+          const { data: intentData, error: intentError } = await supabase.functions.invoke("suggest-intents", {
+            body: { message: msg, mode: "respond" },
+          });
+          if (intentError) throw intentError;
+          const options = Array.isArray(intentData?.options) ? intentData.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
+          setIntentOptions(options.length >= 2 ? options : FALLBACK_INTENTS);
+        } catch {
+          setIntentOptions(FALLBACK_INTENTS);
+        } finally {
+          setLoadingIntents(false);
+        }
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to analyze message. Please try again.", variant: "destructive" });
+      setStep("input");
+      setLoading(false);
     }
   };
 
@@ -306,8 +368,9 @@ export default function CommunicationShield() {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
         body: {
           message: submittedMessage,
-          mode,
-          original_context: mode === "respond" ? submittedMessage : undefined,
+          mode: "respond",
+          respond_stage: "generate",
+          session_id: sessionId,
           communication_context: option,
         },
       });
@@ -315,10 +378,41 @@ export default function CommunicationShield() {
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
       setAllResults(prev => [...prev, data as AIResult]);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
       setStep("select-intent");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBoundaryOverride = async () => {
+    if (!submittedMessage || !sessionId) return;
+    setStep("result");
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: {
+          message: submittedMessage,
+          mode: "respond",
+          respond_stage: "generate",
+          session_id: sessionId,
+          boundary_override: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
+      refetchProfile();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+      setStep("respond-triage");
     } finally {
       setLoading(false);
     }
@@ -367,8 +461,32 @@ export default function CommunicationShield() {
           }
         }
       }).finally(() => setLoading(false));
-    } else if (communicationContext && submittedMessage) {
-      handleSelectIntent(communicationContext);
+    } else if (mode === "respond" && submittedMessage && sessionId) {
+      // Respond mode regeneration
+      setLoading(true);
+      const body: Record<string, unknown> = {
+        message: submittedMessage,
+        mode: "respond",
+        respond_stage: "generate",
+        session_id: sessionId,
+        is_regeneration: true,
+        communication_context: communicationContext || undefined,
+      };
+      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+        if (error || data?.error) {
+          if (data?.quota_exhausted) {
+            setShowUpgradeModal(true);
+          } else {
+            toast({ title: "Error", description: data?.error || "Unable to regenerate. Please try again.", variant: "destructive" });
+          }
+        } else {
+          const aiData = data as AIResult;
+          setResult(aiData);
+          setAllResults(prev => [...prev, aiData]);
+          setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
+          refetchProfile();
+        }
+      }).finally(() => setLoading(false));
     }
   };
 
@@ -378,6 +496,12 @@ export default function CommunicationShield() {
     if (step === "goal-selection") {
       setStep("input");
       setResult(null);
+      setLoading(false);
+    } else if (step === "respond-triage") {
+      setStep("input");
+      setResult(null);
+      setRespondTriageData(null);
+      setSessionId(null);
       setLoading(false);
     } else {
       setStep("select-intent");
@@ -390,7 +514,7 @@ export default function CommunicationShield() {
 
   // ─── MOBILE ───
   if (isMobile) {
-    const showResultScreen = step === "result" || step === "goal-selection";
+    const showResultScreen = step === "result" || step === "goal-selection" || step === "respond-triage";
 
     if (showResultScreen) {
       return (
@@ -404,7 +528,7 @@ export default function CommunicationShield() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">
-              {step === "goal-selection" ? "Choose Your Goal" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+              {step === "goal-selection" ? "Choose Your Goal" : step === "respond-triage" ? "Message Analysis" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
             </h1>
           </div>
 
@@ -425,6 +549,22 @@ export default function CommunicationShield() {
             )}
 
             <div className="h-px bg-border" />
+
+            {/* Respond triage result */}
+            {step === "respond-triage" && respondTriageData && !loading && (
+              <RespondTriageCard
+                triage={respondTriageData}
+                onBoundaryOverride={handleBoundaryOverride}
+                loading={loading}
+              />
+            )}
+
+            {step === "respond-triage" && loading && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Analyzing message...
+              </div>
+            )}
 
             {/* Goal selection step (handles both salvageable and redirect) */}
             {step === "goal-selection" && (
@@ -465,13 +605,13 @@ export default function CommunicationShield() {
             <div className="border-t border-border px-4 py-3 bg-background shrink-0 space-y-1">
               <button
                 onClick={handleRegenerate}
-                disabled={!hasResult || loading || (mode === "rewrite" && rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
+                disabled={!hasResult || loading || (rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                 className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Generate again
               </button>
-              {mode === "rewrite" && hasResult && (
+              {hasResult && (
                 <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
               )}
             </div>
@@ -723,6 +863,24 @@ export default function CommunicationShield() {
             </div>
           </div>
 
+          {/* Respond triage result below the card (respond mode — do_not_respond) */}
+          {step === "respond-triage" && mode === "respond" && respondTriageData && !loading && (
+            <div className="mt-4 shrink-0">
+              <RespondTriageCard
+                triage={respondTriageData}
+                onBoundaryOverride={handleBoundaryOverride}
+                loading={loading}
+              />
+            </div>
+          )}
+
+          {step === "respond-triage" && loading && (
+            <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-card rounded-md text-sm text-muted-foreground shrink-0">
+              <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
+              Analyzing message...
+            </div>
+          )}
+
           {/* Intent options below the card (respond mode) */}
           {step === "select-intent" && mode === "respond" && (
             <div className="mt-4 shrink-0">
@@ -833,9 +991,21 @@ export default function CommunicationShield() {
                 <div className="flex-1 flex items-center justify-center">
                   <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
                 </div>
+              ) : step === "respond-triage" && respondTriageData ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>
+                    {respondTriageData.recommendation_type === "do_not_respond"
+                      ? "This message does not require a response."
+                      : "Generating response..."}
+                  </p>
+                </div>
               ) : step === "goal-selection" ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>Select a goal on the left to generate your court-safe rewrite.</p>
+                </div>
+              ) : step === "select-intent" ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>Select a response intent on the left to generate your court-safe reply.</p>
                 </div>
               ) : (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
@@ -849,15 +1019,13 @@ export default function CommunicationShield() {
               <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
                 <button
                   onClick={handleRegenerate}
-                  disabled={loading || rewritesExhausted}
+                  disabled={loading || (rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                   className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Generate again
                 </button>
-                {mode === "rewrite" && (
-                  <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
-                )}
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
               </div>
             )}
           </div>
@@ -924,11 +1092,60 @@ export default function CommunicationShield() {
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════
 
+function RespondTriageCard({
+  triage,
+  onBoundaryOverride,
+  loading,
+}: {
+  triage: RespondTriageResult;
+  onBoundaryOverride: () => void;
+  loading: boolean;
+}) {
+  if (triage.recommendation_type === "do_not_respond") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldOff className="h-5 w-5 text-destructive shrink-0" />
+            <h3 className="text-sm font-semibold text-destructive">Do Not Respond</h3>
+          </div>
+          <p className="text-sm text-foreground">{triage.recommendation_reason}</p>
+          {triage.risk_flags && triage.risk_flags.length > 0 && triage.risk_flags[0] !== "No risk flags" && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Risk flags:</span> {triage.risk_flags.join(", ")}
+            </div>
+          )}
+        </div>
+        {triage.allow_boundary_override && (
+          <button
+            onClick={onBoundaryOverride}
+            disabled={loading}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 disabled:opacity-40"
+          >
+            Generate brief boundary response anyway
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // brief_boundary_response triage card (shown briefly before auto-generating)
+  return (
+    <div className="rounded-lg border border-accent bg-accent/20 px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="h-4 w-4 text-accent-foreground shrink-0" />
+        <p className="text-sm font-medium text-foreground">Brief Boundary Response Recommended</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{triage.recommendation_reason}</p>
+    </div>
+  );
+}
+
 function SingleResultBlock({ result, index, total }: { result: AIResult; index: number; total: number }) {
   const isEven = index % 2 === 0;
   const isLatest = index === total - 1;
 
-  if ((result as any)._noMessageNeeded) {
+  if ((result as any)._noMessageNeeded || (result as any)._doNotRespond) {
     return (
       <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
         {total > 1 && (
@@ -936,7 +1153,11 @@ function SingleResultBlock({ result, index, total }: { result: AIResult; index: 
             {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
           </p>
         )}
-        <NoMessageNeededLayout />
+        {(result as any)._doNotRespond ? (
+          <DoNotRespondLayout result={result} />
+        ) : (
+          <NoMessageNeededLayout />
+        )}
       </div>
     );
   }
