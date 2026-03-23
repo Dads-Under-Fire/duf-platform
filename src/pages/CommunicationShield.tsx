@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, RotateCcw } from "lucide-react";
+import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, RotateCcw, AlertTriangle, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 type RecommendationType = "respond" | "do_not_respond" | "brief_boundary_response";
+type SendabilityStatus = "safe" | "salvageable" | "redirect";
 
 interface AIResult {
   recommendation_type?: RecommendationType;
@@ -21,6 +22,22 @@ interface AIResult {
   why_this_is_safer?: string;
   mode: "respond" | "rewrite";
   is_fallback?: boolean;
+  // Staged rewrite fields
+  sendability_status?: SendabilityStatus;
+  output_path?: string;
+  detected_intent?: string;
+  detected_tone?: string;
+  sendability_reason?: string;
+  needs_goal_selection?: boolean;
+  goal_options?: string[];
+  selected_goal?: string | null;
+  session_id?: string;
+  // Redirect fields
+  redirect_message?: string;
+  safe_alternative?: string;
+  alternative_1?: string;
+  alternative_2?: string;
+  alternative_3?: string;
 }
 
 function getPrimaryText(result: AIResult): string {
@@ -29,7 +46,7 @@ function getPrimaryText(result: AIResult): string {
     : (result.primary_response ?? "");
 }
 
-type Step = "input" | "select-intent" | "result";
+type Step = "input" | "select-intent" | "goal-selection" | "result";
 
 const FALLBACK_INTENTS = [
   "Set a boundary",
@@ -85,6 +102,10 @@ export default function CommunicationShield() {
   const [otherText, setOtherText] = useState("");
   const [showDirections, setShowDirections] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // Staged rewrite state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [goalOptions, setGoalOptions] = useState<string[]>([]);
+  const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
@@ -101,8 +122,12 @@ export default function CommunicationShield() {
     setCommunicationContext("");
     setShowOtherInput(false);
     setOtherText("");
+    setSessionId(null);
+    setGoalOptions([]);
+    setTriageData(null);
 
     if (mode === "rewrite") {
+      // Staged rewrite: call triage first
       setStep("result");
       setLoading(true);
       try {
@@ -111,7 +136,22 @@ export default function CommunicationShield() {
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-        setResult(data as AIResult);
+
+        const aiData = data as AIResult;
+
+        // Check if goal selection is needed
+        if (aiData.needs_goal_selection) {
+          setSessionId(aiData.session_id ?? null);
+          setGoalOptions(aiData.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"]);
+          setTriageData(aiData);
+          setStep("goal-selection");
+          setLoading(false);
+          return;
+        }
+
+        // Final result (safe path or redirect)
+        setResult(aiData);
+        setSessionId(aiData.session_id ?? null);
         refetchProfile();
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
@@ -122,6 +162,7 @@ export default function CommunicationShield() {
       return;
     }
 
+    // Respond mode — intent selection
     setStep("select-intent");
 
     if (isMobile) {
@@ -159,6 +200,33 @@ export default function CommunicationShield() {
     }
   };
 
+  const handleSelectGoal = async (goal: string) => {
+    setCommunicationContext(goal);
+    setStep("result");
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: {
+          message: submittedMessage,
+          mode: "rewrite",
+          selected_goal: goal,
+          session_id: sessionId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIResult);
+      refetchProfile();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
+      setStep("goal-selection");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSelectIntent = async (option: string) => {
     setCommunicationContext(option);
     setShowOtherInput(false);
@@ -189,21 +257,39 @@ export default function CommunicationShield() {
 
   const handleOtherSubmit = () => {
     const text = otherText.trim();
-    if (text) handleSelectIntent(text);
+    if (text) {
+      if (step === "goal-selection") {
+        handleSelectGoal(text);
+      } else {
+        handleSelectIntent(text);
+      }
+    }
   };
 
   const handleRegenerate = () => {
     if (mode === "rewrite" && submittedMessage) {
       setResult(null);
       setLoading(true);
-      supabase.functions.invoke("communication-shield", {
-        body: { message: submittedMessage, mode: "rewrite" },
-      }).then(({ data, error }) => {
+      const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite" };
+      // If we have a session with a goal, re-send with goal
+      if (sessionId && communicationContext) {
+        body.selected_goal = communicationContext;
+        body.session_id = sessionId;
+      }
+      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
         if (error || data?.error) {
           toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
         } else {
-          setResult(data as AIResult);
-          refetchProfile();
+          const aiData = data as AIResult;
+          if (aiData.needs_goal_selection) {
+            setSessionId(aiData.session_id ?? null);
+            setGoalOptions(aiData.goal_options ?? []);
+            setTriageData(aiData);
+            setStep("goal-selection");
+          } else {
+            setResult(aiData);
+            refetchProfile();
+          }
         }
       }).finally(() => setLoading(false));
     } else if (communicationContext && submittedMessage) {
@@ -219,20 +305,30 @@ export default function CommunicationShield() {
     setIntentOptions([]);
     setShowOtherInput(false);
     setOtherText("");
+    setSessionId(null);
+    setGoalOptions([]);
+    setTriageData(null);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleBackToCompose = () => {
-    setStep("select-intent");
-    setResult(null);
-    setLoading(false);
+    if (step === "goal-selection") {
+      setStep("input");
+      setResult(null);
+      setLoading(false);
+    } else {
+      setStep("select-intent");
+      setResult(null);
+      setLoading(false);
+    }
   };
 
   const hasResult = !!result;
+  const isRedirect = result?.sendability_status === "redirect";
 
   // ─── MOBILE ───
   if (isMobile) {
-    const showResultScreen = step === "result";
+    const showResultScreen = step === "result" || step === "goal-selection";
 
     if (showResultScreen) {
       return (
@@ -245,7 +341,9 @@ export default function CommunicationShield() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h1>
+            <h1 className="text-lg font-semibold text-foreground">
+              {step === "goal-selection" ? "Choose Your Goal" : isRedirect ? "Message Redirect" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+            </h1>
           </div>
 
           {/* Scrollable content */}
@@ -257,22 +355,40 @@ export default function CommunicationShield() {
 
             {communicationContext && (
               <div>
-                <p className="text-muted-foreground text-sm font-medium mb-1">Response Intent:</p>
+                <p className="text-muted-foreground text-sm font-medium mb-1">
+                  {mode === "rewrite" ? "Goal:" : "Response Intent:"}
+                </p>
                 <p className="text-foreground text-sm">{communicationContext}</p>
               </div>
             )}
 
             <div className="h-px bg-border" />
 
-            {loading ? (
+            {/* Goal selection step */}
+            {step === "goal-selection" && (
+              <GoalSelectionPanel
+                triageData={triageData}
+                goalOptions={goalOptions}
+                onSelectGoal={handleSelectGoal}
+                showOtherInput={showOtherInput}
+                setShowOtherInput={setShowOtherInput}
+                otherText={otherText}
+                setOtherText={setOtherText}
+                onOtherSubmit={handleOtherSubmit}
+              />
+            )}
+
+            {step === "result" && loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 Generating response...
               </div>
-            ) : result ? (
+            ) : step === "result" && result ? (
               <>
                 {result.is_fallback ? (
                   <FallbackResultLayout result={result} />
+                ) : isRedirect ? (
+                  <RedirectResultLayout result={result} />
                 ) : (
                   <>
                     {result.mode === "respond" && result.recommendation_type && (
@@ -283,6 +399,9 @@ export default function CommunicationShield() {
                       <DoNotRespondLayout result={result} />
                     ) : (
                       <>
+                        {result.sendability_status && result.mode === "rewrite" && (
+                          <SendabilityBadge status={result.sendability_status} />
+                        )}
                         <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                         <div className="h-px bg-border" />
                         <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
@@ -308,24 +427,26 @@ export default function CommunicationShield() {
           </div>
 
           {/* Fixed bottom action bar */}
-          <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
-            <button
-              onClick={handleStartOver}
-              disabled={loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Start Over
-            </button>
-            <button
-              onClick={handleRegenerate}
-              disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Generate again
-            </button>
-          </div>
+          {step === "result" && (
+            <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
+              <button
+                onClick={handleStartOver}
+                disabled={loading}
+                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Start Over
+              </button>
+              <button
+                onClick={handleRegenerate}
+                disabled={!hasResult || loading}
+                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Generate again
+              </button>
+            </div>
+          )}
         </div>
       );
     }
@@ -369,7 +490,9 @@ export default function CommunicationShield() {
                 <p className="text-foreground text-sm whitespace-pre-wrap">{submittedMessage}</p>
                 {communicationContext && (
                   <div>
-                    <p className="text-muted-foreground text-xs mb-1">Response Intent</p>
+                    <p className="text-muted-foreground text-xs mb-1">
+                      {mode === "rewrite" ? "Goal" : "Response Intent"}
+                    </p>
                     <p className="text-foreground text-sm">
                       {intentOptions.includes(communicationContext)
                         ? communicationContext
@@ -530,9 +653,11 @@ export default function CommunicationShield() {
                   </div>
                   {communicationContext && (
                     <div>
-                      <p className="text-muted-foreground text-xs mb-1">Response Intent</p>
+                      <p className="text-muted-foreground text-xs mb-1">
+                        {mode === "rewrite" ? "Goal" : "Response Intent"}
+                      </p>
                       <p className="text-foreground text-sm">
-                        {intentOptions.includes(communicationContext)
+                        {(intentOptions.includes(communicationContext) || goalOptions.includes(communicationContext))
                           ? communicationContext
                           : `Custom: "${communicationContext}"`}
                       </p>
@@ -557,7 +682,7 @@ export default function CommunicationShield() {
             </div>
           </div>
 
-          {/* Intent options below the card */}
+          {/* Intent options below the card (respond mode) */}
           {step !== "input" && mode === "respond" && (
             <div className="mt-4 shrink-0">
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
@@ -628,6 +753,22 @@ export default function CommunicationShield() {
               )}
             </div>
           )}
+
+          {/* Goal selection below the card (rewrite mode) */}
+          {step === "goal-selection" && mode === "rewrite" && (
+            <div className="mt-4 shrink-0">
+              <GoalSelectionPanel
+                triageData={triageData}
+                goalOptions={goalOptions}
+                onSelectGoal={handleSelectGoal}
+                showOtherInput={showOtherInput}
+                setShowOtherInput={setShowOtherInput}
+                otherText={otherText}
+                setOtherText={setOtherText}
+                onOtherSubmit={handleOtherSubmit}
+              />
+            </div>
+          )}
         </div>
 
         {/* Arrow separator */}
@@ -638,7 +779,9 @@ export default function CommunicationShield() {
         {/* Right panel — Court-Safe Response */}
         <div className="flex-1 p-6 flex flex-col overflow-hidden">
           <div className="bg-card rounded-lg border border-primary/30 flex-1 flex flex-col p-5 overflow-hidden">
-            <h2 className="text-lg font-semibold text-primary mb-1 shrink-0">{mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}</h2>
+            <h2 className="text-lg font-semibold text-primary mb-1 shrink-0">
+              {isRedirect ? "Message Redirect" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+            </h2>
             <div className="h-px bg-border mb-3 shrink-0" />
 
             <div className="flex-1 overflow-auto min-h-0">
@@ -646,6 +789,8 @@ export default function CommunicationShield() {
                 <div className="space-y-4 text-sm">
                   {result.is_fallback ? (
                     <FallbackResultLayout result={result} />
+                  ) : isRedirect ? (
+                    <RedirectResultLayout result={result} />
                   ) : (
                     <>
                       {result.mode === "respond" && result.recommendation_type && (
@@ -656,6 +801,9 @@ export default function CommunicationShield() {
                         <DoNotRespondLayout result={result} />
                       ) : (
                         <>
+                          {result.sendability_status && result.mode === "rewrite" && (
+                            <SendabilityBadge status={result.sendability_status} />
+                          )}
                           <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                           <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                           <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
@@ -679,6 +827,10 @@ export default function CommunicationShield() {
                 <div className="flex-1 flex items-center justify-center">
                   <p className="text-muted-foreground text-sm">Generating response...</p>
                 </div>
+              ) : step === "goal-selection" ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>Select a goal on the left to generate your court-safe rewrite.</p>
+                </div>
               ) : (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
@@ -692,7 +844,7 @@ export default function CommunicationShield() {
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
         {/* Action buttons — always visible */}
-        {step === "result" && (
+        {(step === "result" || step === "goal-selection") && (
           <div className="flex items-center gap-4">
             <button
               onClick={handleStartOver}
@@ -702,14 +854,16 @@ export default function CommunicationShield() {
               <RotateCcw className="h-4 w-4" />
               Start Over
             </button>
-            <button
-              onClick={handleRegenerate}
-              disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Generate again
-            </button>
+            {step === "result" && (
+              <button
+                onClick={handleRegenerate}
+                disabled={!hasResult || loading}
+                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Generate again
+              </button>
+            )}
           </div>
         )}
 
@@ -750,6 +904,176 @@ export default function CommunicationShield() {
         onOpenChange={setShowUpgradeModal}
         lockedFeature="Communication Shield"
       />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════
+
+function SendabilityBadge({ status }: { status: SendabilityStatus }) {
+  const config: Record<SendabilityStatus, { icon: typeof ShieldCheck; label: string; className: string }> = {
+    safe: { icon: ShieldCheck, label: "Safe to Send", className: "bg-primary/10 border-primary/30 text-primary" },
+    salvageable: { icon: AlertTriangle, label: "Needs Revision", className: "bg-accent/50 border-accent text-accent-foreground" },
+    redirect: { icon: Ban, label: "Do Not Send", className: "bg-destructive/10 border-destructive/30 text-destructive" },
+  };
+  const c = config[status];
+  const Icon = c.icon;
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium ${c.className}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {c.label}
+    </div>
+  );
+}
+
+function GoalSelectionPanel({
+  triageData,
+  goalOptions,
+  onSelectGoal,
+  showOtherInput,
+  setShowOtherInput,
+  otherText,
+  setOtherText,
+  onOtherSubmit,
+}: {
+  triageData: Partial<AIResult> | null;
+  goalOptions: string[];
+  onSelectGoal: (goal: string) => void;
+  showOtherInput: boolean;
+  setShowOtherInput: (v: boolean) => void;
+  otherText: string;
+  setOtherText: (v: string) => void;
+  onOtherSubmit: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {triageData && (
+        <div className="rounded-lg border border-accent bg-accent/20 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-accent-foreground shrink-0" />
+            <p className="text-sm font-medium text-foreground">This message needs revision</p>
+          </div>
+          {triageData.sendability_reason && (
+            <p className="text-xs text-muted-foreground">{triageData.sendability_reason}</p>
+          )}
+          {triageData.detected_intent && (
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium">Detected intent:</span> {triageData.detected_intent}
+            </p>
+          )}
+          {triageData.risk_flags && triageData.risk_flags.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Risk flags:</span>{" "}
+              {triageData.risk_flags.join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <p className="text-sm font-medium text-foreground mb-2">What's your goal for this message?</p>
+        <div className="space-y-1">
+          {goalOptions.map((option) => (
+            <button
+              key={option}
+              onClick={() => onSelectGoal(option)}
+              className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+            >
+              {option}
+            </button>
+          ))}
+
+          {!showOtherInput && (
+            <button
+              onClick={() => setShowOtherInput(true)}
+              className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+            >
+              <MessageSquarePlus className="h-4 w-4 shrink-0" />
+              Other…
+            </button>
+          )}
+
+          {showOtherInput && (
+            <div className="mt-2 space-y-2">
+              <label className="text-xs text-muted-foreground">What would you like to achieve?</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => setOtherText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onOtherSubmit()}
+                  placeholder="e.g. Set a clear boundary"
+                  className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+                <button
+                  onClick={onOtherSubmit}
+                  disabled={!otherText.trim()}
+                  className="px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
+                >
+                  Go
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RedirectResultLayout({ result }: { result: AIResult }) {
+  return (
+    <div className="space-y-4">
+      <SendabilityBadge status="redirect" />
+
+      {result.redirect_message && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <p className="text-sm text-foreground">{result.redirect_message}</p>
+        </div>
+      )}
+
+      {result.safe_alternative && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-muted-foreground text-sm font-medium">Safe Alternative</p>
+            <CopyButton text={result.safe_alternative} />
+          </div>
+          <div className="h-px bg-border mb-2" />
+          <p className="text-foreground text-sm whitespace-pre-wrap">{result.safe_alternative}</p>
+        </div>
+      )}
+
+      {[result.alternative_1, result.alternative_2, result.alternative_3].map((alt, i) =>
+        alt ? (
+          <div key={i}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-muted-foreground text-sm font-medium">Alternative {i + 1}</p>
+              <CopyButton text={alt} />
+            </div>
+            <div className="h-px bg-border mb-2" />
+            <p className="text-foreground text-sm whitespace-pre-wrap">{alt}</p>
+          </div>
+        ) : null,
+      )}
+
+      {result.risk_flags && result.risk_flags.length > 0 && (
+        <div>
+          <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags</p>
+          <div className="h-px bg-border mb-2" />
+          <ul className="space-y-1">
+            {result.risk_flags.map((flag, i) => (
+              <li key={i} className="text-foreground text-sm">• {flag}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.why_this_is_safer && (
+        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer} />
+      )}
     </div>
   );
 }
@@ -801,16 +1125,6 @@ function DoNotRespondLayout({ result }: { result: AIResult }) {
   );
 }
 
-function PlaceholderSection({ label, placeholder }: { label: string; placeholder: string }) {
-  return (
-    <div>
-      <p>{label}</p>
-      <div className="h-px bg-border my-1" />
-      <p>{placeholder}</p>
-    </div>
-  );
-}
-
 const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldCheck; label: string; className: string; description: string }> = {
   respond: {
     icon: ShieldCheck,
@@ -827,8 +1141,8 @@ const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldChe
   brief_boundary_response: {
     icon: ShieldAlert,
     label: "Brief Boundary Response",
-    className: "bg-accent/30 border-accent text-accent-foreground",
-    description: "Only a brief boundary statement is needed. Keep it minimal.",
+    className: "bg-accent/50 border-accent text-accent-foreground",
+    description: "A minimal boundary-setting response is recommended.",
   },
 };
 
@@ -836,18 +1150,12 @@ function RecommendationBanner({ type, fallback }: { type: RecommendationType; fa
   const config = RECOMMENDATION_CONFIG[type];
   const Icon = config.icon;
   return (
-    <div className={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${config.className}`}>
-      <div className="flex items-center gap-2 font-semibold text-sm">
-        <Icon className="h-4 w-4 shrink-0" />
-        Recommendation: {config.label}
+    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${config.className}`}>
+      <Icon className="h-5 w-5 shrink-0 mt-0.5" />
+      <div>
+        <p className="font-medium text-sm">{config.label}</p>
+        <p className="text-xs mt-0.5 opacity-80">{config.description}</p>
       </div>
-      <p className="text-sm opacity-90">{config.description}</p>
-      {type === "do_not_respond" && fallback && (
-        <div className="mt-1 pt-2 border-t border-current/20">
-          <p className="text-xs font-medium opacity-70 mb-1">If you must reply:</p>
-          <p className="text-sm italic">{fallback}</p>
-        </div>
-      )}
     </div>
   );
 }
