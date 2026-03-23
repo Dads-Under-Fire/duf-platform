@@ -83,7 +83,7 @@ function CopyButton({ text }: { text: string }) {
 export default function CommunicationShield() {
   const { user } = useAuth();
   const { usage, limits, intendedPlan, rewritesExhausted, refetch: refetchProfile } = useProfile();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isMobile = useIsMobile();
   const [submittedMessage, setSubmittedMessage] = useState("");
   const [mode, setMode] = useState<"respond" | "rewrite">("respond");
