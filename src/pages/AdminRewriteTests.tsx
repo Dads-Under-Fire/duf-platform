@@ -260,15 +260,10 @@ export default function AdminRewriteTests() {
           actual_primary_output: outcome.actual_primary_output ?? null,
           actual_redirect_message: outcome.actual_redirect_message ?? null,
           actual_no_message_recommended: outcome.actual_no_message_recommended ?? null,
-          triage_accuracy_score: validation.triageScore,
-          routing_accuracy_score: validation.routingScore,
-          goal_alignment_score: pathForScoring === "rewrite" ? validation.outcomeScore : null,
-          redirect_quality_score: pathForScoring === "redirect_choice" ? validation.outcomeScore : null,
-          no_message_quality_score: pathForScoring === "no_message" ? validation.outcomeScore : null,
           prompt_version: pv, prompt_source: ps,
           validator_pass: validation.status === "pass",
           validator_status: validation.status,
-          validator_notes: { expected: expectations, actual: outcome, checks: validation.checks, scores: { triage: validation.triageScore, routing: validation.routingScore, outcome: validation.outcomeScore, overall: validation.overallScore } },
+          validator_notes: { expected: expectations, actual: outcome, checks: validation.checks, failReason: validation.failReason },
         });
 
         results.push(caseResult);
