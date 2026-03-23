@@ -1094,6 +1094,32 @@ function DoNotRespondLayout({ result }: { result: AIResult }) {
   );
 }
 
+function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
+  return (
+    <div className="space-y-5 py-4">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 px-5 py-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+          <h3 className="text-base font-semibold text-foreground">No message recommended</h3>
+        </div>
+        <p className="text-sm text-foreground">
+          Based on your input, it may be best not to respond at this time.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Limiting unnecessary communication can help reduce conflict.
+        </p>
+      </div>
+      <button
+        onClick={onStartOver}
+        className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors"
+      >
+        <RotateCcw className="h-4 w-4" />
+        Start a new message
+      </button>
+    </div>
+  );
+}
+
 const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldCheck; label: string; className: string; description: string }> = {
   respond: {
     icon: ShieldCheck,
