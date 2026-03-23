@@ -210,9 +210,9 @@ export default function AdminRewriteTests() {
       // Store result in DB
       await (supabase.from as any)("ai_gold_suite_results").insert({
         run_id: runId,
-        test_id: caseResult.test_id,
+        test_id: caseResult.name,
         category: caseResult.category,
-        original_message: caseResult.original_message,
+        original_message: caseResult.input_message,
         primary_rewrite: caseResult.result?.primary_rewrite ?? null,
         shorter_version: caseResult.result?.shorter_version ?? null,
         firmer_version: caseResult.result?.firmer_version ?? null,
