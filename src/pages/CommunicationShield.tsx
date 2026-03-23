@@ -528,7 +528,8 @@ export default function CommunicationShield() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">
-              {step === "goal-selection" ? "Choose Your Goal" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+              {step === "goal-selection" ? "Choose Your Goal" : step === "respond-triage" ? "Message Analysis" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+            </h1>
             </h1>
           </div>
 
