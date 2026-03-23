@@ -795,7 +795,9 @@ export default function CommunicationShield() {
             <div className="flex-1 overflow-auto min-h-0">
               {result ? (
                 <div className="space-y-4 text-sm">
-                  {result.is_fallback ? (
+                  {(result as any)._noMessageNeeded ? (
+                    <NoMessageNeededLayout onStartOver={handleStartOver} />
+                  ) : result.is_fallback ? (
                     <FallbackResultLayout result={result} />
                   ) : (
                     <>
