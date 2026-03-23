@@ -1178,7 +1178,7 @@ You MUST call the provided tool with your structured output.`;
     });
     // Create terminal result row
     await insertResult(serviceClient, existingSessionId!, "no_message", {
-      redirect_message: triageResult!.sendability_reason ?? "This message does not require a response.",
+      primary_response: triageResult!.sendability_reason ?? "This message does not require a response.",
       why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
     }, riskFlags);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
