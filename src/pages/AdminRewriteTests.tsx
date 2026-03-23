@@ -242,7 +242,6 @@ export default function AdminRewriteTests() {
         }
 
         const validation = runStagedValidator(expectations, outcome);
-        const pathForScoring = outcome.actual_output_path ?? normalizeOutputPath(tc.expected_output_path);
 
         const caseResult: CaseRunResult = {
           name: tc.name, category: tc.category, input_message: tc.input_message,
