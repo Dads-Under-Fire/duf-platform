@@ -1161,6 +1161,9 @@ You MUST call the provided tool with your structured output.`;
 
     // Create session with triage data
     existingSessionId = await createSession(serviceClient, userId, message, "rewrite", triageResult!, promptVersions);
+    // Set initial status based on triage outcome
+    const initialStatus = (triageResult!.sendability_status === "safe") ? "processing" : "awaiting_goal_selection";
+    await updateSession(serviceClient, existingSessionId, { session_status: initialStatus });
   } else {
     // Load existing session to get triage data
     const { data: existingSession } = await serviceClient
