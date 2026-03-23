@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_gold_suite_cases RENAME COLUMN is_active TO active;

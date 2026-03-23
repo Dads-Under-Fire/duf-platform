@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       ai_gold_suite_cases: {
         Row: {
+          active: boolean
           category: string
           created_at: string
           expected_detected_intent: string | null
@@ -27,13 +28,13 @@ export type Database = {
           feature_key: string
           id: string
           input_message: string
-          is_active: boolean
           mode: string
           name: string
           notes: string | null
           selected_goal_for_test: string | null
         }
         Insert: {
+          active?: boolean
           category: string
           created_at?: string
           expected_detected_intent?: string | null
@@ -45,13 +46,13 @@ export type Database = {
           feature_key: string
           id?: string
           input_message: string
-          is_active?: boolean
           mode: string
           name: string
           notes?: string | null
           selected_goal_for_test?: string | null
         }
         Update: {
+          active?: boolean
           category?: string
           created_at?: string
           expected_detected_intent?: string | null
@@ -63,7 +64,6 @@ export type Database = {
           feature_key?: string
           id?: string
           input_message?: string
-          is_active?: boolean
           mode?: string
           name?: string
           notes?: string | null
