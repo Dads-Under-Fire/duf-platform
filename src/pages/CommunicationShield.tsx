@@ -905,6 +905,10 @@ export default function CommunicationShield() {
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>Select a goal on the left to generate your court-safe rewrite.</p>
                 </div>
+              ) : step === "redirect-options" ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>Choose a next step on the left, or start a new message.</p>
+                </div>
               ) : (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
