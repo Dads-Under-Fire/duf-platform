@@ -1013,7 +1013,7 @@ async function insertResult(
   data: Record<string, unknown>,
   riskFlags: string[],
 ) {
-  // Determine next generation_index and deselect previous results (with retry)
+  // Determine next generation_index with retry + safe fallback using count
   let existingResults: any[] | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data, error } = await serviceClient
@@ -1029,15 +1029,30 @@ async function insertResult(
     console.warn(`[communication-shield] existing results query attempt ${attempt + 1} failed: ${error.message}`);
     if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
   }
-  // If all retries fail, default to index 1 (safe fallback)
-  if (existingResults === null) {
-    console.warn(`[communication-shield] all retries failed for existing results query, defaulting to generation_index=1`);
-    existingResults = [];
-  }
 
-  const nextIndex = (existingResults && existingResults.length > 0)
-    ? (existingResults[0].generation_index + 1)
-    : 1;
+  let nextIndex: number;
+  if (existingResults !== null && existingResults.length > 0) {
+    nextIndex = existingResults[0].generation_index + 1;
+  } else if (existingResults !== null) {
+    // Query succeeded, no results exist — this is the first
+    nextIndex = 1;
+  } else {
+    // All retries failed — use count-based fallback to avoid duplicate indexes
+    console.warn(`[communication-shield] all retries failed, using count fallback for generation_index`);
+    let countFallback = 1;
+    try {
+      const { count } = await serviceClient
+        .from("communication_shield_results")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId);
+      countFallback = (count ?? 0) + 1;
+    } catch (_) {
+      // Last resort: use timestamp-based high index to guarantee uniqueness
+      countFallback = Math.floor(Date.now() / 1000) % 100000;
+      console.warn(`[communication-shield] count fallback also failed, using timestamp-based index: ${countFallback}`);
+    }
+    nextIndex = countFallback;
+  }
 
   // Deselect all previous results for this session
   if (nextIndex > 1) {
