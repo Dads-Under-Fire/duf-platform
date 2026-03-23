@@ -1273,6 +1273,12 @@ You MUST call the provided tool with your structured output.`;
       why_this_is_safer: redirectResult.why_this_is_safer,
       original_score: originalScoreResult.score,
       session_id: existingSessionId,
+      next_step_options: [
+        "Refocus on logistics",
+        "Set a neutral boundary",
+        "No message needed",
+        "Start a new message",
+      ],
     });
   }
 
