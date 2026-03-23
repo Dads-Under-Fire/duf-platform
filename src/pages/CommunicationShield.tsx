@@ -1064,7 +1064,7 @@ function DoNotRespondLayout({ result }: { result: AIResult }) {
   );
 }
 
-function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
+function NoMessageNeededLayout() {
   return (
     <div className="space-y-5 py-4">
       <div className="rounded-lg border border-primary/30 bg-primary/5 px-5 py-4 space-y-3">
@@ -1079,13 +1079,6 @@ function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
           Limiting unnecessary communication can help reduce conflict.
         </p>
       </div>
-      <button
-        onClick={onStartOver}
-        className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors"
-      >
-        <RotateCcw className="h-4 w-4" />
-        Start a new message
-      </button>
     </div>
   );
 }
