@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, RotateCcw, AlertTriangle, Ban } from "lucide-react";
+import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
