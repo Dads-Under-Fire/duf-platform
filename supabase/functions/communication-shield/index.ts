@@ -180,6 +180,29 @@ CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Regenerate ALL variants following
 // TOOL SCHEMAS
 // ══════════════════════════════════════════════════════════════
 
+const RESPOND_TRIAGE_TOOL = {
+  type: "function" as const,
+  name: "classify_incoming_message",
+  description: "Classify the incoming message for response recommendation",
+  parameters: {
+    type: "object",
+    properties: {
+      recommendation_type: { type: "string", enum: ["respond", "do_not_respond", "brief_boundary_response"] },
+      should_show_intent_picker: { type: "boolean" },
+      contains_actionable_logistics: { type: "boolean" },
+      actionable_logistics_summary: { type: "string" },
+      recommendation_reason: { type: "string" },
+      allow_boundary_override: { type: "boolean" },
+      risk_flags: { type: "array", items: { type: "string" } },
+      original_score: { type: "integer" },
+      original_score_notes: { type: "array", items: { type: "string" } },
+    },
+    required: ["recommendation_type", "should_show_intent_picker", "contains_actionable_logistics", "actionable_logistics_summary", "recommendation_reason", "allow_boundary_override", "risk_flags", "original_score", "original_score_notes"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
 const RESPOND_TOOL = {
   type: "function" as const,
   name: "format_response",
@@ -198,10 +221,10 @@ const RESPOND_TOOL = {
       three_alternatives: { type: "array", items: { type: "string" } },
       original_score: { type: "integer" },
       original_score_notes: { type: "array", items: { type: "string" } },
-      rewrite_quality_score: { type: "integer" },
-      rewrite_quality_notes: { type: "array", items: { type: "string" } },
+      response_quality_score: { type: "integer" },
+      response_quality_notes: { type: "array", items: { type: "string" } },
     },
-    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "rewrite_quality_score", "rewrite_quality_notes"],
+    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "response_quality_score", "response_quality_notes"],
     additionalProperties: false,
   },
   strict: true,
