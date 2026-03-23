@@ -461,8 +461,32 @@ export default function CommunicationShield() {
           }
         }
       }).finally(() => setLoading(false));
-    } else if (communicationContext && submittedMessage) {
-      handleSelectIntent(communicationContext);
+    } else if (mode === "respond" && submittedMessage && sessionId) {
+      // Respond mode regeneration
+      setLoading(true);
+      const body: Record<string, unknown> = {
+        message: submittedMessage,
+        mode: "respond",
+        respond_stage: "generate",
+        session_id: sessionId,
+        is_regeneration: true,
+        communication_context: communicationContext || undefined,
+      };
+      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+        if (error || data?.error) {
+          if (data?.quota_exhausted) {
+            setShowUpgradeModal(true);
+          } else {
+            toast({ title: "Error", description: data?.error || "Unable to regenerate. Please try again.", variant: "destructive" });
+          }
+        } else {
+          const aiData = data as AIResult;
+          setResult(aiData);
+          setAllResults(prev => [...prev, aiData]);
+          setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
+          refetchProfile();
+        }
+      }).finally(() => setLoading(false));
     }
   };
 
