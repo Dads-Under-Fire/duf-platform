@@ -32,6 +32,7 @@ interface AIResult {
   goal_options?: string[];
   selected_goal?: string | null;
   session_id?: string;
+  _noMessageNeeded?: boolean;
 }
 
 function getPrimaryText(result: AIResult): string {
@@ -195,9 +196,17 @@ export default function CommunicationShield() {
   };
 
   const handleSelectGoal = async (goal: string) => {
-    // "No message needed" is a terminal action — just reset
+    // "No message needed" — show confirmation result, don't call backend
     if (goal === "No message needed") {
-      handleStartOver();
+      setCommunicationContext(goal);
+      setStep("result");
+      setResult({
+        mode: "rewrite",
+        sendability_status: triageData?.sendability_status as SendabilityStatus,
+        primary_rewrite: "",
+        why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+        _noMessageNeeded: true,
+      } as any);
       return;
     }
 
@@ -383,7 +392,9 @@ export default function CommunicationShield() {
               </div>
             ) : step === "result" && result ? (
               <>
-                {result.is_fallback ? (
+                {(result as any)._noMessageNeeded ? (
+                  <NoMessageNeededLayout onStartOver={handleStartOver} />
+                ) : result.is_fallback ? (
                   <FallbackResultLayout result={result} />
                 ) : (
                   <>
@@ -784,7 +795,9 @@ export default function CommunicationShield() {
             <div className="flex-1 overflow-auto min-h-0">
               {result ? (
                 <div className="space-y-4 text-sm">
-                  {result.is_fallback ? (
+                  {(result as any)._noMessageNeeded ? (
+                    <NoMessageNeededLayout onStartOver={handleStartOver} />
+                  ) : result.is_fallback ? (
                     <FallbackResultLayout result={result} />
                   ) : (
                     <>
@@ -1077,6 +1090,32 @@ function DoNotRespondLayout({ result }: { result: AIResult }) {
         <p className="font-semibold text-foreground mb-1">Why You Shouldn't Respond</p>
         <p className="text-foreground text-sm whitespace-pre-wrap">{result.why_this_is_safer}</p>
       </div>
+    </div>
+  );
+}
+
+function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
+  return (
+    <div className="space-y-5 py-4">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 px-5 py-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+          <h3 className="text-base font-semibold text-foreground">No message recommended</h3>
+        </div>
+        <p className="text-sm text-foreground">
+          Based on your input, it may be best not to respond at this time.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Limiting unnecessary communication can help reduce conflict.
+        </p>
+      </div>
+      <button
+        onClick={onStartOver}
+        className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors"
+      >
+        <RotateCcw className="h-4 w-4" />
+        Start a new message
+      </button>
     </div>
   );
 }

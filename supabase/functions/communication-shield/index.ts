@@ -946,11 +946,7 @@ async function createSession(
     sessionRow.output_path = triageData.sendability_status === "redirect" ? "redirect" : (triageData.sendability_status === "safe" ? "rewrite" : "rewrite_with_guidance");
   }
 
-  if (promptVersions) {
-    sessionRow.triage_prompt_version = promptVersions.triage ?? null;
-    sessionRow.rewrite_prompt_version = promptVersions.rewrite ?? null;
-    sessionRow.scoring_version = promptVersions.score ?? null;
-  }
+  // prompt versions are no longer stored in sessions (columns dropped)
 
   const { data, error } = await serviceClient
     .from("communication_shield_sessions")
@@ -966,36 +962,18 @@ async function createSession(
   return data.id as string;
 }
 
-async function updateSessionScoring(
+async function updateSession(
   serviceClient: any,
   sessionId: string,
-  originalScore: { score: number; notes: string[] },
-  outputScore: OutputQualityResult | null,
-  extraFields?: Record<string, unknown>,
+  fields: Record<string, unknown>,
 ) {
-  const updateData: Record<string, unknown> = {
-    original_score: originalScore.score,
-    original_score_notes: originalScore.notes,
-  };
-
-  if (outputScore) {
-    updateData.rewrite_quality_score = outputScore.score;
-    updateData.rewrite_quality_notes = outputScore.notes;
-    updateData.quality_score_status = outputScore.quality_score_status;
-    updateData.quality_score_total = outputScore.score;
-  }
-
-  if (extraFields) {
-    Object.assign(updateData, extraFields);
-  }
-
   const { error } = await serviceClient
     .from("communication_shield_sessions")
-    .update(updateData)
+    .update(fields)
     .eq("id", sessionId);
 
   if (error) {
-    console.error(`[${FN}] session scoring update error:`, JSON.stringify(error));
+    console.error(`[${FN}] session update error:`, JSON.stringify(error));
   }
 }
 
@@ -1086,8 +1064,8 @@ You MUST call the provided tool with your structured output.`;
     console.log(`[${FN}] respond Tier3 deterministic fallback`);
     const fallback = buildDeterministicFallback("respond", communicationContext);
     const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
-    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
-    await updateSessionScoring(serviceClient, sessionId, originalScoreResult, fallbackScore, { recommendation_type: "respond", tone_assessment: "Fallback" });
+    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
+    // No scoring columns to update — session created
     await insertResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse(fallback);
@@ -1105,11 +1083,7 @@ You MUST call the provided tool with your structured output.`;
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
-  await updateSessionScoring(serviceClient, sessionId, originalScoreResult, outputScore, {
-    recommendation_type: aiResult.recommendation_type,
-    tone_assessment: aiResult.tone_assessment,
-  });
+  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
   await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
@@ -1219,7 +1193,7 @@ You MUST call the provided tool with your structured output.`;
   // If redirect and no selected_goal yet, return triage data + goal options only
   if (sendabilityStatus === "redirect" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
-    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null, {
+    await updateSession(serviceClient, existingSessionId!, {
       output_path: "redirect",
     });
 
@@ -1245,20 +1219,15 @@ You MUST call the provided tool with your structured output.`;
 
   // 2A (cont): REDIRECT with goal selected — save goal, then fall through to generate
   if (sendabilityStatus === "redirect" && selectedGoal) {
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({
-        selected_goal: selectedGoal,
-        goal_selection_source: "user_selected",
-      })
-      .eq("id", existingSessionId);
+    await updateSession(serviceClient, existingSessionId!, {
+      selected_goal: selectedGoal,
+    });
   }
 
   // 2B: SALVAGEABLE — needs goal selection
   if (sendabilityStatus === "salvageable" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
-    // Update session with initial scoring
-    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null);
+    // Session already created with triage data
 
     console.log(`[${FN}] salvageable — needs goal selection | session=${existingSessionId}`);
     return jsonResponse({
@@ -1278,13 +1247,9 @@ You MUST call the provided tool with your structured output.`;
 
   // 2B (cont): SALVAGEABLE with goal selected — save goal
   if (sendabilityStatus === "salvageable" && selectedGoal) {
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({
-        selected_goal: selectedGoal,
-        goal_selection_source: "user_selected",
-      })
-      .eq("id", existingSessionId);
+    await updateSession(serviceClient, existingSessionId!, {
+      selected_goal: selectedGoal,
+    });
   }
 
   // 2C: SAFE or SALVAGEABLE with goal — GENERATE REWRITE
@@ -1372,12 +1337,9 @@ You MUST call the provided tool with your structured output.`;
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, rewriteScore, {
+  await updateSession(serviceClient, existingSessionId!, {
     output_path: outputPath,
-    rewrite_prompt_version: promptVersions.rewrite,
-    tone_assessment: aiResult.tone_assessment,
     selected_goal: selectedGoal ?? null,
-    goal_selection_source: selectedGoal ? "user_selected" : (sendabilityStatus === "safe" ? "skipped" : null),
   });
   await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
@@ -1426,11 +1388,7 @@ async function runScoreStage(
 
     // The score stage evaluates the output — we log it but don't block on it
     console.log(`[${FN}] score stage | session=${sessionId} | prompt=${scorePrompt.versionLabel}`);
-
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({ scoring_version: scorePrompt.versionLabel })
-      .eq("id", sessionId);
+    // Score stage logging only — no DB columns to update
   } catch (err) {
     console.error(`[${FN}] score stage error (non-blocking):`, err);
   }
