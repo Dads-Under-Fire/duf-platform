@@ -163,6 +163,7 @@ export default function CommunicationShield() {
 
         // Final result (safe path — direct rewrite)
         setResult(aiData);
+        setAllResults(prev => [...prev, aiData]);
         setSessionId(aiData.session_id ?? null);
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
