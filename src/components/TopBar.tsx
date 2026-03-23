@@ -2,7 +2,6 @@ import { useProfile } from "@/hooks/useProfile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Menu, X } from "lucide-react";
-import { format } from "date-fns";
 import dufLogo from "@/assets/dufplatform.png";
 
 function formatNumber(n: number): string {
@@ -87,14 +86,13 @@ export function TopBar() {
             </div>
           </div>
 
-          <span className="text-muted-foreground text-xs capitalize">{plan === "case_builder" ? "Case Builder" : plan} plan</span>
         </div>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        <span className="text-muted-foreground text-sm hidden sm:block">
-          {format(new Date(), "MMMM d, yyyy h:mma")}
+        <span className="text-muted-foreground text-sm hidden md:block">
+          Plan: {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
         </span>
 
         {isMobile && (
