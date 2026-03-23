@@ -258,6 +258,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
