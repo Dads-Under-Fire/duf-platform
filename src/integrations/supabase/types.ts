@@ -407,6 +407,7 @@ export type Database = {
           created_at: string
           detected_intent: string | null
           detected_tone: string | null
+          free_regenerations_used: number
           goal_options: Json | null
           id: string
           mode: string
@@ -425,6 +426,7 @@ export type Database = {
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
+          free_regenerations_used?: number
           goal_options?: Json | null
           id?: string
           mode?: string
@@ -443,6 +445,7 @@ export type Database = {
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
+          free_regenerations_used?: number
           goal_options?: Json | null
           id?: string
           mode?: string
