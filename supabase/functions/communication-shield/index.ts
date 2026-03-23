@@ -944,7 +944,7 @@ async function createSession(
     sessionRow.sendability_reason = triageData.sendability_reason ?? null;
     sessionRow.triage_confidence = triageData.triage_confidence ?? null;
     sessionRow.goal_options = triageData.goal_options ?? null;
-    sessionRow.output_path = triageData.sendability_status === "redirect" ? "redirect" : (triageData.sendability_status === "safe" ? "rewrite" : "rewrite_with_guidance");
+    sessionRow.output_path = triageData.output_path ?? (triageData.sendability_status === "redirect" ? "redirect_choice" : (triageData.sendability_status === "safe" ? "rewrite" : "rewrite_with_guidance"));
   }
 
   // prompt versions are no longer stored in sessions (columns dropped)
