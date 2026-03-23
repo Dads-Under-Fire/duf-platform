@@ -1186,7 +1186,7 @@ function NextStepOptionsPanel({
   );
 }
 
-
+function RedirectResultLayout({ result }: { result: AIResult }) {
   return (
     <div className="space-y-4">
       <SendabilityBadge status="redirect" />
