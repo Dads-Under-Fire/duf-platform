@@ -19,7 +19,21 @@ export function useCommunicationShieldSessions(limit = 50) {
         .limit(limit);
 
       if (error) throw error;
-      return data;
+
+      // For each session, mark the canonical (latest selected) result
+      return (data ?? []).map((session: any) => {
+        const results = session.communication_shield_results ?? [];
+        // Sort by generation_index desc, prefer is_selected=true
+        const sorted = [...results].sort((a: any, b: any) => {
+          if (a.is_selected !== b.is_selected) return a.is_selected ? -1 : 1;
+          return (b.generation_index ?? 1) - (a.generation_index ?? 1);
+        });
+        return {
+          ...session,
+          communication_shield_results: results,
+          canonical_result: sorted[0] ?? null,
+        };
+      });
     },
   });
 }
