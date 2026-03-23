@@ -416,50 +416,21 @@ export default function CommunicationShield() {
               />
             )}
 
-            {step === "result" && loading ? (
+            {step === "result" && loading && allResults.length === 0 ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
               </div>
-            ) : step === "result" && result ? (
+            ) : step === "result" && allResults.length > 0 ? (
               <>
-                {(result as any)._noMessageNeeded ? (
-                  <NoMessageNeededLayout />
-                ) : result.is_fallback ? (
-                  <FallbackResultLayout result={result} />
-                ) : (
-                  <>
-                    {result.mode === "respond" && result.recommendation_type && (
-                      <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
-                    )}
-
-                    {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
-                      <DoNotRespondLayout result={result} />
-                    ) : (
-                      <>
-                        <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
-                        <div className="h-px bg-border" />
-                        <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
-                        <div className="h-px bg-border" />
-                        <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                        {result.mode !== "rewrite" && (
-                          <>
-                            <div className="h-px bg-border" />
-                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
-                            <div>
-                              <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
-                              <ul className="space-y-1">
-                                {(result.risk_flags ?? []).map((flag, i) => (
-                                  <li key={i} className="text-foreground text-sm">• {flag}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </>
-                        )}
-                        <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
-                      </>
-                    )}
-                  </>
+                {allResults.map((r, idx) => (
+                  <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
+                ))}
+                {loading && (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Generating new version...
+                  </div>
                 )}
               </>
             ) : null}
