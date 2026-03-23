@@ -32,12 +32,9 @@ import {
 
 interface GoldCase {
   id: string;
-  test_id: string;
+  name: string;
   category: string;
-  original_message: string;
-  expected_behavior: string | null;
-  must_not_do: string | null;
-  validator_rules: ValidatorRules | null;
+  input_message: string;
 }
 
 interface CaseRunResult {
