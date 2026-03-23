@@ -108,6 +108,7 @@ export default function CommunicationShield() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [goalOptions, setGoalOptions] = useState<string[]>([]);
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
+  const [nextStepOptions, setNextStepOptions] = useState<string[]>([]);
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
