@@ -218,14 +218,16 @@ export default function CommunicationShield() {
     if (goal === "No message needed") {
       setCommunicationContext(goal);
       setStep("result");
-      setResult({
+      const noMsgResult = {
         mode: "rewrite",
         sendability_status: triageData?.sendability_status as SendabilityStatus,
         output_path: "no_message",
         primary_rewrite: "",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
         _noMessageNeeded: true,
-      } as any);
+      } as any as AIResult;
+      setResult(noMsgResult);
+      setAllResults(prev => [...prev, noMsgResult]);
       // Update session and create result row in background
       if (sessionId) {
         supabase.functions.invoke("communication-shield", {
