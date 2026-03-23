@@ -128,6 +128,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setNextStepOptions([]);
 
     if (mode === "rewrite") {
       // Staged rewrite: call triage first
