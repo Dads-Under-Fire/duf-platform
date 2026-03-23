@@ -855,14 +855,16 @@ function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) 
 // ══════════════════════════════════════════════════════════════
 
 interface LoadedPrompt {
+  promptId: string | null;
   promptText: string;
   versionLabel: string;
   source: "database" | "hardcoded_fallback";
   fallbackReason?: string;
 }
 
-function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
+function assembleHardcodedPrompt(mode: "respond" | "rewrite", stageKey: string = "generate", originalContext?: string): string {
   if (mode === "rewrite") return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
+  if (mode === "respond" && stageKey === "triage") return RESPOND_TRIAGE_PROMPT;
   return `${RESPOND_INTRO(originalContext)}\n\n${BASE_INSTRUCTIONS}\n\n${ALTERNATIVES_INSTRUCTIONS}`;
 }
 
@@ -891,8 +893,8 @@ async function loadActivePrompt(
 
     if (error || !data) {
       const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
-      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
-      return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | mode=${mode} | stage=${stageKey} | reason=${reason}`);
+      return { promptId: null, promptText: assembleHardcodedPrompt(mode, stageKey, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
     }
 
     let promptText = data.prompt_text as string;
@@ -901,12 +903,12 @@ async function loadActivePrompt(
       promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", ctx);
     }
 
-    console.log(`[${FN}] prompt_load | stage=${stageKey} | version=${data.version_label} | len=${promptText.length}`);
-    return { promptText, versionLabel: data.version_label as string, source: "database" };
+    console.log(`[${FN}] prompt_load | mode=${mode} | stage=${stageKey} | version=${data.version_label} | id=${data.id} | len=${promptText.length}`);
+    return { promptId: data.id as string, promptText, versionLabel: data.version_label as string, source: "database" };
   } catch (err) {
     const reason = `exception: ${String(err)}`;
-    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
-    return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | mode=${mode} | stage=${stageKey} | reason=${reason}`);
+    return { promptId: null, promptText: assembleHardcodedPrompt(mode, stageKey, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
   }
 }
 
