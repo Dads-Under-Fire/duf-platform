@@ -855,14 +855,16 @@ function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) 
 // ══════════════════════════════════════════════════════════════
 
 interface LoadedPrompt {
+  promptId: string | null;
   promptText: string;
   versionLabel: string;
   source: "database" | "hardcoded_fallback";
   fallbackReason?: string;
 }
 
-function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
+function assembleHardcodedPrompt(mode: "respond" | "rewrite", stageKey: string = "generate", originalContext?: string): string {
   if (mode === "rewrite") return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
+  if (mode === "respond" && stageKey === "triage") return RESPOND_TRIAGE_PROMPT;
   return `${RESPOND_INTRO(originalContext)}\n\n${BASE_INSTRUCTIONS}\n\n${ALTERNATIVES_INSTRUCTIONS}`;
 }
 
@@ -891,8 +893,8 @@ async function loadActivePrompt(
 
     if (error || !data) {
       const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
-      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
-      return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | mode=${mode} | stage=${stageKey} | reason=${reason}`);
+      return { promptId: null, promptText: assembleHardcodedPrompt(mode, stageKey, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
     }
 
     let promptText = data.prompt_text as string;
@@ -901,12 +903,12 @@ async function loadActivePrompt(
       promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", ctx);
     }
 
-    console.log(`[${FN}] prompt_load | stage=${stageKey} | version=${data.version_label} | len=${promptText.length}`);
-    return { promptText, versionLabel: data.version_label as string, source: "database" };
+    console.log(`[${FN}] prompt_load | mode=${mode} | stage=${stageKey} | version=${data.version_label} | id=${data.id} | len=${promptText.length}`);
+    return { promptId: data.id as string, promptText, versionLabel: data.version_label as string, source: "database" };
   } catch (err) {
     const reason = `exception: ${String(err)}`;
-    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
-    return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | mode=${mode} | stage=${stageKey} | reason=${reason}`);
+    return { promptId: null, promptText: assembleHardcodedPrompt(mode, stageKey, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
   }
 }
 
@@ -1176,18 +1178,19 @@ async function handleRespondTriage(
   const originalScoreResult = scoreOriginalMessage(message);
   console.log(`[${FN}] respond_triage | original_score: ${originalScoreResult.score}/10`);
 
-  // Try to load triage prompt from DB, fall back to hardcoded
-  let triagePromptText = RESPOND_TRIAGE_PROMPT;
-  try {
-    const loaded = await loadActivePrompt(serviceClient, "communication_shield", "respond", "triage");
-    if (loaded.source === "database") triagePromptText = loaded.promptText;
-  } catch {}
+  // Load triage prompt from ai_system_prompts (matches rewrite triage pattern)
+  const triagePrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "triage");
+  console.log(`[${FN}] respond_triage prompt_load | source=${triagePrompt.source} | version=${triagePrompt.versionLabel}${triagePrompt.fallbackReason ? ` | fallback_reason=${triagePrompt.fallbackReason}` : ""}`);
 
-  let triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_PRIMARY);
+  const triageSystemPrompt = `${triagePrompt.promptText}
+
+You MUST call the provided tool with your structured output.`;
+
+  let triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, RESPOND_TRIAGE_TOOL, MODEL_PRIMARY);
   let triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
   if (triageError) {
     console.warn(`[${FN}] respond_triage Tier1: ${triageError}`);
-    triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_FALLBACK);
+    triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, RESPOND_TRIAGE_TOOL, MODEL_FALLBACK);
     triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
     if (triageError) {
       console.warn(`[${FN}] respond_triage Tier2 failed: ${triageError}, defaulting to respond`);
@@ -1228,7 +1231,7 @@ async function handleRespondTriage(
     session_status: triageResult!.recommendation_type === "respond" ? "awaiting_intent_selection" : "triage_complete",
   });
 
-  console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId}`);
+  console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId} | prompt_source=${triagePrompt.source} | prompt_version=${triagePrompt.versionLabel}`);
 
   return jsonResponse({
     mode: "respond",
@@ -1243,6 +1246,8 @@ async function handleRespondTriage(
     original_score: originalScoreResult.score,
     original_score_notes: originalScoreResult.notes,
     session_id: sessionId,
+    prompt_version: triagePrompt.versionLabel,
+    prompt_source: triagePrompt.source,
   });
 }
 
@@ -1291,6 +1296,7 @@ async function handleRespondGenerate(
   const effectiveType = boundaryOverride ? "brief_boundary_response" : recommendationType;
 
   const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", message);
+  console.log(`[${FN}] respond_generate prompt_load | source=${loadedPrompt.source} | version=${loadedPrompt.versionLabel}${loadedPrompt.fallbackReason ? ` | fallback_reason=${loadedPrompt.fallbackReason}` : ""}`);
 
   const contextInstruction = communicationContext
     ? `\nThe user selected the following communication context: "${communicationContext}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
