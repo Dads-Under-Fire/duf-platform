@@ -1064,8 +1064,8 @@ You MUST call the provided tool with your structured output.`;
     console.log(`[${FN}] respond Tier3 deterministic fallback`);
     const fallback = buildDeterministicFallback("respond", communicationContext);
     const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
-    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
-    await updateSessionScoring(serviceClient, sessionId, originalScoreResult, fallbackScore, { recommendation_type: "respond", tone_assessment: "Fallback" });
+    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
+    // No scoring columns to update — session created
     await insertResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse(fallback);
