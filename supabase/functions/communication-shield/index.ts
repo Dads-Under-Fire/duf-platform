@@ -239,6 +239,7 @@ const TRIAGE_TOOL = {
     type: "object",
     properties: {
       sendability_status: { type: "string", enum: ["safe", "salvageable", "redirect"] },
+      output_path: { type: "string", enum: ["rewrite", "redirect_choice", "no_message"] },
       sendability_reason: { type: "string" },
       detected_intent: { type: "string" },
       detected_tone: { type: "string" },
@@ -246,7 +247,7 @@ const TRIAGE_TOOL = {
       triage_confidence: { type: "number" },
       goal_options: { type: "array", items: { type: "string" } },
     },
-    required: ["sendability_status", "sendability_reason", "detected_intent", "detected_tone", "risk_flags", "triage_confidence", "goal_options"],
+    required: ["sendability_status", "output_path", "sendability_reason", "detected_intent", "detected_tone", "risk_flags", "triage_confidence", "goal_options"],
     additionalProperties: false,
   },
   strict: true,
