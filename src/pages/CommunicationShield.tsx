@@ -896,6 +896,75 @@ export default function CommunicationShield() {
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════
 
+function SingleResultBlock({ result, index, total }: { result: AIResult; index: number; total: number }) {
+  const isEven = index % 2 === 0;
+  const isLatest = index === total - 1;
+
+  if ((result as any)._noMessageNeeded) {
+    return (
+      <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+        {total > 1 && (
+          <p className="text-xs text-muted-foreground mb-2 font-medium">
+            {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+          </p>
+        )}
+        <NoMessageNeededLayout />
+      </div>
+    );
+  }
+
+  if (result.is_fallback) {
+    return (
+      <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+        {total > 1 && (
+          <p className="text-xs text-muted-foreground mb-2 font-medium">
+            {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+          </p>
+        )}
+        <FallbackResultLayout result={result} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
+      {total > 1 && (
+        <p className="text-xs text-muted-foreground mb-2 font-medium">
+          {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
+        </p>
+      )}
+      <div className="space-y-4">
+        {result.mode === "respond" && result.recommendation_type && (
+          <RecommendationBanner type={result.recommendation_type} fallback={result.fallback_response} />
+        )}
+        {result.mode === "respond" && result.recommendation_type === "do_not_respond" ? (
+          <DoNotRespondLayout result={result} />
+        ) : (
+          <>
+            <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
+            <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
+            <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
+            {result.mode !== "rewrite" && (
+              <>
+                <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                <div>
+                  <p className="text-muted-foreground mb-1 text-sm font-medium">Risk Flags:</p>
+                  <ul className="space-y-1">
+                    {(result.risk_flags ?? []).map((flag, i) => (
+                      <li key={i} className="text-foreground text-sm">• {flag}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+            <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SendabilityBadge({ status }: { status: SendabilityStatus }) {
   const config: Record<SendabilityStatus, { icon: typeof ShieldCheck; label: string; className: string }> = {
     safe: { icon: ShieldCheck, label: "Safe to Send", className: "bg-primary/10 border-primary/30 text-primary" },
