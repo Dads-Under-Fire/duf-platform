@@ -163,6 +163,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setRespondTriageData(null);
     setFreeRegensUsed(0);
 
     if (mode === "rewrite") {
@@ -213,41 +214,86 @@ export default function CommunicationShield() {
       return;
     }
 
-    // Respond mode — intent selection
-    setStep("select-intent");
+    // ── RESPOND MODE — 2-stage flow ──
+    // Stage 1: Triage
+    setStep("respond-triage");
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: { message: msg, mode: "respond" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-    if (isMobile) {
-      setIntentOptions(FALLBACK_INTENTS);
-      setLoadingIntents(false);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        const { data, error } = await supabase.functions.invoke("suggest-intents", {
-          body: { message: msg, mode },
-        });
-        clearTimeout(timeout);
-        if (!error) {
-          const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
-          if (options.length >= 2) setIntentOptions(options);
-        }
-      } catch {}
-    } else {
-      setLoadingIntents(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const { data, error } = await supabase.functions.invoke("suggest-intents", {
-          body: { message: msg, mode },
-        });
-        clearTimeout(timeout);
-        if (error) throw error;
-        const options = Array.isArray(data?.options) ? data.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
-        setIntentOptions(options.length >= 2 ? options : FALLBACK_INTENTS);
-      } catch {
-        setIntentOptions(FALLBACK_INTENTS);
-      } finally {
-        setLoadingIntents(false);
+      const triage = data as RespondTriageResult;
+      setRespondTriageData(triage);
+      setSessionId(triage.session_id ?? null);
+
+      if (triage.recommendation_type === "do_not_respond") {
+        // Show do_not_respond card — no generation yet
+        setStep("respond-triage");
+        setLoading(false);
+        return;
       }
+
+      if (triage.recommendation_type === "brief_boundary_response") {
+        // Auto-generate brief boundary response
+        setStep("result");
+        const { data: genData, error: genError } = await supabase.functions.invoke("communication-shield", {
+          body: {
+            message: msg,
+            mode: "respond",
+            respond_stage: "generate",
+            session_id: triage.session_id,
+            boundary_override: false,
+          },
+        });
+        if (genError) throw genError;
+        if (genData?.error) throw new Error(genData.error);
+        const aiData = genData as AIResult;
+        setResult(aiData);
+        setAllResults(prev => [...prev, aiData]);
+        setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
+        refetchProfile();
+        setLoading(false);
+        return;
+      }
+
+      // recommendation_type === "respond" — show intent picker
+      setStep("select-intent");
+      setLoading(false);
+
+      // Fetch intent suggestions
+      if (isMobile) {
+        setIntentOptions(FALLBACK_INTENTS);
+        try {
+          const { data: intentData, error: intentError } = await supabase.functions.invoke("suggest-intents", {
+            body: { message: msg, mode: "respond" },
+          });
+          if (!intentError) {
+            const options = Array.isArray(intentData?.options) ? intentData.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
+            if (options.length >= 2) setIntentOptions(options);
+          }
+        } catch {}
+      } else {
+        setLoadingIntents(true);
+        try {
+          const { data: intentData, error: intentError } = await supabase.functions.invoke("suggest-intents", {
+            body: { message: msg, mode: "respond" },
+          });
+          if (intentError) throw intentError;
+          const options = Array.isArray(intentData?.options) ? intentData.options.filter((o: unknown) => typeof o === "string" && (o as string).trim()) : [];
+          setIntentOptions(options.length >= 2 ? options : FALLBACK_INTENTS);
+        } catch {
+          setIntentOptions(FALLBACK_INTENTS);
+        } finally {
+          setLoadingIntents(false);
+        }
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to analyze message. Please try again.", variant: "destructive" });
+      setStep("input");
+      setLoading(false);
     }
   };
 
