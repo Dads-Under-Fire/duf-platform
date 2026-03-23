@@ -368,8 +368,9 @@ export default function CommunicationShield() {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
         body: {
           message: submittedMessage,
-          mode,
-          original_context: mode === "respond" ? submittedMessage : undefined,
+          mode: "respond",
+          respond_stage: "generate",
+          session_id: sessionId,
           communication_context: option,
         },
       });
@@ -377,10 +378,41 @@ export default function CommunicationShield() {
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
       setAllResults(prev => [...prev, data as AIResult]);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
       setStep("select-intent");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBoundaryOverride = async () => {
+    if (!submittedMessage || !sessionId) return;
+    setStep("result");
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: {
+          message: submittedMessage,
+          mode: "respond",
+          respond_stage: "generate",
+          session_id: sessionId,
+          boundary_override: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
+      setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
+      refetchProfile();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
+      setStep("respond-triage");
     } finally {
       setLoading(false);
     }
