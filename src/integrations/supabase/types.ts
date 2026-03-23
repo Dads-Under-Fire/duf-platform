@@ -380,109 +380,52 @@ export type Database = {
       }
       communication_shield_sessions: {
         Row: {
-          actionability_score: number | null
-          admission_risk_score: number | null
-          court_safe_phrasing_score: number | null
           created_at: string
           detected_intent: string | null
           detected_tone: string | null
-          escalation_safety_score: number | null
-          focus_discipline_score: number | null
           goal_options: Json | null
-          goal_selection_source: string | null
           id: string
-          migrated_from_history_id: string | null
           mode: string
           original_message: string
-          original_score: number | null
-          original_score_notes: Json | null
           output_path: string | null
-          quality_score_notes: Json | null
-          quality_score_status: string | null
-          quality_score_total: number | null
-          recommendation_type: string | null
-          rewrite_prompt_version: string | null
-          rewrite_quality_notes: Json | null
-          rewrite_quality_score: number | null
-          scoring_version: string | null
           selected_goal: string | null
           sendability_reason: string | null
           sendability_status: string | null
-          tone_assessment: string | null
           triage_confidence: number | null
-          triage_prompt_version: string | null
           updated_at: string
           user_id: string
           workflow_version: string | null
         }
         Insert: {
-          actionability_score?: number | null
-          admission_risk_score?: number | null
-          court_safe_phrasing_score?: number | null
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
-          escalation_safety_score?: number | null
-          focus_discipline_score?: number | null
           goal_options?: Json | null
-          goal_selection_source?: string | null
           id?: string
-          migrated_from_history_id?: string | null
           mode?: string
           original_message: string
-          original_score?: number | null
-          original_score_notes?: Json | null
           output_path?: string | null
-          quality_score_notes?: Json | null
-          quality_score_status?: string | null
-          quality_score_total?: number | null
-          recommendation_type?: string | null
-          rewrite_prompt_version?: string | null
-          rewrite_quality_notes?: Json | null
-          rewrite_quality_score?: number | null
-          scoring_version?: string | null
           selected_goal?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
-          tone_assessment?: string | null
           triage_confidence?: number | null
-          triage_prompt_version?: string | null
           updated_at?: string
           user_id: string
           workflow_version?: string | null
         }
         Update: {
-          actionability_score?: number | null
-          admission_risk_score?: number | null
-          court_safe_phrasing_score?: number | null
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
-          escalation_safety_score?: number | null
-          focus_discipline_score?: number | null
           goal_options?: Json | null
-          goal_selection_source?: string | null
           id?: string
-          migrated_from_history_id?: string | null
           mode?: string
           original_message?: string
-          original_score?: number | null
-          original_score_notes?: Json | null
           output_path?: string | null
-          quality_score_notes?: Json | null
-          quality_score_status?: string | null
-          quality_score_total?: number | null
-          recommendation_type?: string | null
-          rewrite_prompt_version?: string | null
-          rewrite_quality_notes?: Json | null
-          rewrite_quality_score?: number | null
-          scoring_version?: string | null
           selected_goal?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
-          tone_assessment?: string | null
           triage_confidence?: number | null
-          triage_prompt_version?: string | null
           updated_at?: string
           user_id?: string
           workflow_version?: string | null
