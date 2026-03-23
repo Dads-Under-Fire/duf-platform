@@ -758,6 +758,57 @@ function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] =
 const RESPOND_FALLBACK_DEFAULT = "Thank you. I will review this and respond as needed.";
 const REWRITE_FALLBACK = "I would like to discuss the logistics. Please let me know the relevant details so we can coordinate.";
 
+const VALID_RESULT_TYPES = new Set([
+  "primary",
+  "alternative",
+  "redirect",
+  "respond_output",
+  "no_message",
+  "do_not_send",
+]);
+
+const CHILD_WELFARE_PATTERNS = [
+  /\b(child|children|kid|kids|crew|daughter|son|school|homework|doctor|medical|medicine|pickup|drop[-\s]?off|schedule|visitation|custody)\b/i,
+  /\b(crying|clinging|distress|meltdown|anxious|upset)\b/i,
+];
+
+function normalizeResultType(resultType: string): string {
+  const normalized = (resultType ?? "").toLowerCase().trim();
+  if (["no_message_needed", "do_not_respond", "do_not_send"].includes(normalized)) {
+    return "no_message";
+  }
+  return VALID_RESULT_TYPES.has(normalized) ? normalized : "primary";
+}
+
+function hasChildWelfareSignals(message: string): boolean {
+  return CHILD_WELFARE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function normalizeTriageDecision(
+  triageResult: Record<string, unknown>,
+  originalMessage: string,
+): Record<string, unknown> {
+  const sendability = triageResult.sendability_status as string;
+  let outputPath = (triageResult.output_path as string) || "rewrite";
+
+  if (sendability !== "redirect" && outputPath === "no_message") {
+    outputPath = "rewrite";
+  }
+
+  if (
+    sendability === "redirect" &&
+    outputPath === "no_message" &&
+    hasChildWelfareSignals(originalMessage)
+  ) {
+    outputPath = "redirect_choice";
+  }
+
+  return {
+    ...triageResult,
+    output_path: outputPath,
+  };
+}
+
 function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) {
   if (mode === "rewrite") {
     return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
@@ -963,12 +1014,16 @@ async function insertResult(
   riskFlags: string[],
 ) {
   // Determine next generation_index and deselect previous results
-  const { data: existingResults } = await serviceClient
+  const { data: existingResults, error: existingResultsError } = await serviceClient
     .from("communication_shield_results")
     .select("id, generation_index")
     .eq("session_id", sessionId)
     .order("generation_index", { ascending: false })
     .limit(1);
+
+  if (existingResultsError) {
+    throw new Error(`Failed to load existing results: ${existingResultsError.message}`);
+  }
 
   const nextIndex = (existingResults && existingResults.length > 0)
     ? (existingResults[0].generation_index + 1)
@@ -976,15 +1031,19 @@ async function insertResult(
 
   // Deselect all previous results for this session
   if (nextIndex > 1) {
-    await serviceClient
+    const { error: deselectError } = await serviceClient
       .from("communication_shield_results")
       .update({ is_selected: false })
       .eq("session_id", sessionId);
+
+    if (deselectError) {
+      throw new Error(`Failed to deselect previous results: ${deselectError.message}`);
+    }
   }
 
   const resultRow: Record<string, unknown> = {
     session_id: sessionId,
-    result_type: resultType,
+    result_type: normalizeResultType(resultType),
     primary_rewrite: data.primary_rewrite ?? null,
     primary_response: data.primary_response ?? data.primary_rewrite ?? null,
     shorter_version: data.shorter_version ?? null,
@@ -1001,7 +1060,24 @@ async function insertResult(
 
   if (error) {
     console.error(`[${FN}] result insert error:`, JSON.stringify(error));
+    throw new Error(`Failed to persist result: ${error.message}`);
   }
+}
+
+async function finalizeSessionWithResult(
+  serviceClient: any,
+  sessionId: string,
+  resultType: string,
+  resultData: Record<string, unknown>,
+  riskFlags: string[],
+  sessionFields: Record<string, unknown> = {},
+  sessionStatus: "completed" | "no_message_needed" = "completed",
+) {
+  await insertResult(serviceClient, sessionId, resultType, resultData, riskFlags);
+  await updateSession(serviceClient, sessionId, {
+    ...sessionFields,
+    session_status: sessionStatus,
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1058,8 +1134,7 @@ You MUST call the provided tool with your structured output.`;
     const fallback = buildDeterministicFallback("respond", communicationContext);
     const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
     const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
-    await updateSession(serviceClient, sessionId, { session_status: "completed" });
-    await insertResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
+    await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse(fallback);
   }
@@ -1077,8 +1152,7 @@ You MUST call the provided tool with your structured output.`;
 
   // Persist
   const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
-  await updateSession(serviceClient, sessionId, { session_status: "completed" });
-  await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
+  await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
   console.log(`[${FN}] respond success | prompt=${loadedPrompt.versionLabel} | orig_score=${originalScoreResult.score} | quality=${outputScore.score}`);
@@ -1152,6 +1226,8 @@ You MUST call the provided tool with your structured output.`;
       }
     }
 
+    triageResult = normalizeTriageDecision(triageResult!, message);
+
     console.log(`[${FN}] triage result | status=${triageResult!.sendability_status} | intent=${triageResult!.detected_intent} | confidence=${triageResult!.triage_confidence}`);
 
     // Create session with triage data
@@ -1176,6 +1252,7 @@ You MUST call the provided tool with your structured output.`;
         triage_confidence: existingSession.triage_confidence,
         risk_flags: [],
         goal_options: existingSession.goal_options,
+        output_path: existingSession.output_path,
       };
     } else {
       triageResult = { sendability_status: "salvageable", detected_intent: "unknown", detected_tone: "unknown", sendability_reason: "Session not found", risk_flags: [], triage_confidence: 0, goal_options: [] };
@@ -1191,16 +1268,21 @@ You MUST call the provided tool with your structured output.`;
   // 2A-i: NO_MESSAGE — terminal state, no goal selection needed
   if (sendabilityStatus === "redirect" && triageOutputPath === "no_message" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
-    await updateSession(serviceClient, existingSessionId!, {
-      output_path: "no_message",
-      session_status: "no_message_needed",
-      selected_goal: "No message needed",
-    });
-    // Create terminal result row
-    await insertResult(serviceClient, existingSessionId!, "no_message", {
-      primary_response: triageResult!.sendability_reason ?? "This message does not require a response.",
-      why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
-    }, riskFlags);
+    await finalizeSessionWithResult(
+      serviceClient,
+      existingSessionId!,
+      "no_message",
+      {
+        primary_response: triageResult!.sendability_reason ?? "This message does not require a response.",
+        why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+      },
+      riskFlags,
+      {
+        output_path: "no_message",
+        selected_goal: "No message needed",
+      },
+      "no_message_needed",
+    );
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
     console.log(`[${FN}] no_message — terminal | session=${existingSessionId}`);
@@ -1366,12 +1448,18 @@ You MUST call the provided tool with your structured output.`;
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  await updateSession(serviceClient, existingSessionId!, {
-    output_path: outputPath,
-    selected_goal: selectedGoal ?? null,
-    session_status: "completed",
-  });
-  await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
+  await finalizeSessionWithResult(
+    serviceClient,
+    existingSessionId!,
+    "primary",
+    aiResult,
+    riskFlags,
+    {
+      output_path: outputPath,
+      selected_goal: selectedGoal ?? null,
+    },
+    "completed",
+  );
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
   // Score asynchronously (non-blocking)
@@ -1446,7 +1534,18 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { message, mode, original_context, communication_context, skip_quota, selected_goal, session_id, _no_message_terminal } = body;
+    const {
+      message,
+      mode,
+      original_context,
+      communication_context,
+      skip_quota,
+      selected_goal,
+      session_id,
+      _no_message_terminal,
+      triage_risk_flags,
+      triage_sendability_reason,
+    } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
@@ -1499,15 +1598,29 @@ serve(async (req) => {
     // Handle "No message needed" terminal from redirect_choice
     if (_no_message_terminal && session_id && mode === "rewrite") {
       const { serviceClient: sc } = auth;
-      await updateSession(sc, session_id, {
-        session_status: "no_message_needed",
-        selected_goal: "No message needed",
-        output_path: "no_message",
-      });
-      await insertResult(sc, session_id, "no_message", {
-        primary_response: "No message recommended.",
-        why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
-      }, []);
+      const scoreSnapshot = scoreOriginalMessage(message);
+      const terminalRiskFlags = normalizeRiskFlags(
+        Array.isArray(triage_risk_flags) ? triage_risk_flags as string[] : [],
+        extractServerFlags(scoreSnapshot.notes),
+      );
+
+      await finalizeSessionWithResult(
+        sc,
+        session_id,
+        "no_message",
+        {
+          primary_response: typeof triage_sendability_reason === "string" && triage_sendability_reason.trim()
+            ? triage_sendability_reason.trim()
+            : "No message recommended.",
+          why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+        },
+        terminalRiskFlags,
+        {
+          selected_goal: "No message needed",
+          output_path: "no_message",
+        },
+        "no_message_needed",
+      );
       if (!isAdminBypass) await sc.rpc("increment_message_rewrites", { p_user_id: userId });
       logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
       return jsonResponse({ mode: "rewrite", output_path: "no_message", _noMessageNeeded: true, session_id });
