@@ -886,8 +886,8 @@ export default function CommunicationShield() {
 
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
-        {/* Action buttons — always visible */}
-        {step === "result" && (
+        {/* Generate again — only shown here for respond mode (rewrite mode has it in the card) */}
+        {step === "result" && mode === "respond" && (
           <div className="flex items-center gap-4">
             <button
               onClick={handleRegenerate}
