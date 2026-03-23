@@ -88,7 +88,7 @@ export default function AdminRewriteTests() {
         .select("id, name, category, input_message, expected_sendability_status, expected_output_path")
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
-        .eq("is_active", true)
+        .eq("active", true)
         .order("created_at", { ascending: true });
       setCases(data ?? []);
       setLoadingCases(false);
@@ -273,7 +273,7 @@ export default function AdminRewriteTests() {
       category: adHocCategory.trim() || "ad_hoc",
       input_message: adHocMessage.trim(),
       notes: adHocNotes.trim() || "Saved from ad hoc test",
-      is_active: false,
+      active: false,
     });
     setAdHocSaving(false);
     if (error) {
