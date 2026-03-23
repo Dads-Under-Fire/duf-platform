@@ -1140,31 +1140,171 @@ async function finalizeSessionWithResult(
 }
 
 // ══════════════════════════════════════════════════════════════
-// RESPOND MODE ORCHESTRATION
+// RESPOND MODE — 2-STAGE ORCHESTRATION
 // ══════════════════════════════════════════════════════════════
 
-async function handleRespondMode(
+const RESPOND_TRIAGE_PROMPT = `You are a custody communication triage specialist.
+
+Analyze the incoming message from the other co-parent and classify it.
+
+CLASSIFICATION RULES:
+- "do_not_respond": The message is PURELY insulting, baiting, manipulative, or hostile with ZERO actionable logistics (schedules, pickups, health, school). Examples: "I hate you", "You're pathetic", "You'll regret this". The user should NOT respond.
+- "brief_boundary_response": The message is mostly hostile/baiting BUT contains a minor logistical element buried in hostility, OR is a boundary-testing message that warrants a brief neutral acknowledgment. A short boundary-focused reply is appropriate.
+- "respond": The message contains actionable logistics or reasonable communication that warrants a full response. Show the intent picker so the user can choose how to respond.
+
+RULES:
+- should_show_intent_picker = true ONLY when recommendation_type = "respond"
+- contains_actionable_logistics = true if ANY child logistics are present (schedules, pickup, dropoff, health, school, activities)
+- actionable_logistics_summary = brief summary of logistics found, or "None" if none
+- allow_boundary_override = true for do_not_respond (allows user to override with a brief boundary response)
+- risk_flags = list of risks in the original message
+- original_score = 1-10 safety score of the incoming message (1 = very dangerous, 10 = safe)
+- original_score_notes = list of issues found
+
+For PURELY insulting messages with no logistics: ALWAYS return do_not_respond.
+For messages that mix insults with logistics: return brief_boundary_response or respond based on logistics density.
+
+You MUST call the provided tool with your structured output.`;
+
+async function handleRespondTriage(
   serviceClient: any,
   apiKey: string,
   userId: string,
   message: string,
-  originalContext: string | undefined,
-  communicationContext: string | undefined,
   isAdminBypass: boolean,
 ): Promise<Response> {
   const originalScoreResult = scoreOriginalMessage(message);
-  console.log(`[${FN}] original_score: ${originalScoreResult.score}/10`);
+  console.log(`[${FN}] respond_triage | original_score: ${originalScoreResult.score}/10`);
 
-  const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", originalContext);
+  // Try to load triage prompt from DB, fall back to hardcoded
+  let triagePromptText = RESPOND_TRIAGE_PROMPT;
+  try {
+    const loaded = await loadActivePrompt(serviceClient, "communication_shield", "respond", "triage");
+    if (loaded.source === "database") triagePromptText = loaded.promptText;
+  } catch {}
+
+  let triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_PRIMARY);
+  let triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
+  if (triageError) {
+    console.warn(`[${FN}] respond_triage Tier1: ${triageError}`);
+    triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_FALLBACK);
+    triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
+    if (triageError) {
+      console.warn(`[${FN}] respond_triage Tier2 failed: ${triageError}, defaulting to respond`);
+      triageResult = {
+        recommendation_type: "respond",
+        should_show_intent_picker: true,
+        contains_actionable_logistics: true,
+        actionable_logistics_summary: "Unable to classify — defaulting to respond",
+        recommendation_reason: "Unable to classify the message. Showing response options.",
+        allow_boundary_override: false,
+        risk_flags: ["Unclassified"],
+        original_score: originalScoreResult.score,
+        original_score_notes: originalScoreResult.notes,
+      };
+    }
+  }
+
+  // Merge server-side scoring
+  const aiOrigScore = typeof triageResult!.original_score === "number" ? triageResult!.original_score : null;
+  if (aiOrigScore !== null && aiOrigScore >= 1 && aiOrigScore <= 10) {
+    originalScoreResult.score = Math.min(originalScoreResult.score, aiOrigScore);
+  }
+  const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+
+  // Create session
+  const sessionId = await createSession(serviceClient, userId, message, "respond", {
+    detected_intent: triageResult!.recommendation_type,
+    detected_tone: triageResult!.recommendation_reason,
+    sendability_status: triageResult!.recommendation_type === "do_not_respond" ? "redirect" : "safe",
+    sendability_reason: triageResult!.recommendation_reason,
+    triage_confidence: 1.0,
+    risk_flags: riskFlags,
+    goal_options: null,
+    output_path: triageResult!.recommendation_type,
+  }, {});
+
+  await updateSession(serviceClient, sessionId, {
+    session_status: triageResult!.recommendation_type === "respond" ? "awaiting_intent_selection" : "triage_complete",
+  });
+
+  console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId}`);
+
+  return jsonResponse({
+    mode: "respond",
+    stage: "triage",
+    recommendation_type: triageResult!.recommendation_type,
+    should_show_intent_picker: triageResult!.should_show_intent_picker,
+    contains_actionable_logistics: triageResult!.contains_actionable_logistics,
+    actionable_logistics_summary: triageResult!.actionable_logistics_summary,
+    recommendation_reason: triageResult!.recommendation_reason,
+    allow_boundary_override: triageResult!.allow_boundary_override,
+    risk_flags: riskFlags,
+    original_score: originalScoreResult.score,
+    original_score_notes: originalScoreResult.notes,
+    session_id: sessionId,
+  });
+}
+
+async function handleRespondGenerate(
+  serviceClient: any,
+  apiKey: string,
+  userId: string,
+  message: string,
+  sessionId: string,
+  communicationContext: string | undefined,
+  boundaryOverride: boolean,
+  isAdminBypass: boolean,
+  isRegeneration: boolean = false,
+  regenIsFree: boolean = false,
+): Promise<Response> {
+  const originalScoreResult = scoreOriginalMessage(message);
+
+  // Load existing session triage data
+  const { data: existingSession } = await serviceClient
+    .from("communication_shield_sessions")
+    .select("output_path, sendability_reason")
+    .eq("id", sessionId)
+    .single();
+
+  const recommendationType = existingSession?.output_path as string || "respond";
+
+  // For do_not_respond without boundary override — return explanation only
+  if (recommendationType === "do_not_respond" && !boundaryOverride) {
+    const riskFlags = normalizeRiskFlags([], extractServerFlags(originalScoreResult.notes));
+    await finalizeSessionWithResult(serviceClient, sessionId, "no_message", {
+      primary_response: existingSession?.sendability_reason ?? "This message does not require a response.",
+      why_this_is_safer: "Not responding to hostile or baiting messages protects your legal position and reduces conflict.",
+    }, riskFlags, {}, "no_message_needed");
+    if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    return jsonResponse({
+      mode: "respond",
+      stage: "generate",
+      recommendation_type: "do_not_respond",
+      _doNotRespond: true,
+      why_this_is_safer: "Not responding to hostile or baiting messages protects your legal position and reduces conflict.",
+      session_id: sessionId,
+    });
+  }
+
+  // Determine effective recommendation type (boundary override → brief_boundary_response)
+  const effectiveType = boundaryOverride ? "brief_boundary_response" : recommendationType;
+
+  const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", message);
 
   const contextInstruction = communicationContext
     ? `\nThe user selected the following communication context: "${communicationContext}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
+    : "";
+
+  const typeInstruction = effectiveType === "brief_boundary_response"
+    ? "\nIMPORTANT: Generate a brief boundary-setting response only. Keep it to 1-2 sentences. No need for multiple alternatives."
     : "";
 
   const systemPrompt = `You are a custody communication specialist trained in court-admissible co-parent messaging.
 
 ${loadedPrompt.promptText}
 ${contextInstruction}
+${typeInstruction}
 
 You MUST call the provided tool with your structured output.`;
 
@@ -1172,60 +1312,78 @@ You MUST call the provided tool with your structured output.`;
   let aiResult = await callToolFunction(apiKey, systemPrompt, message, RESPOND_TOOL, MODEL_PRIMARY);
   let validationError = aiResult ? validateRespondResult(aiResult) : "no result";
   if (validationError) {
-    console.warn(`[${FN}] respond Tier1 validation: ${validationError}`);
+    console.warn(`[${FN}] respond_generate Tier1 validation: ${validationError}`);
     aiResult = null;
   }
 
   // Try fallback model
   if (!aiResult) {
-    console.log(`[${FN}] respond Tier2 fallback model`);
+    console.log(`[${FN}] respond_generate Tier2 fallback`);
     aiResult = await callToolFunction(apiKey, systemPrompt, message, RESPOND_TOOL, MODEL_FALLBACK);
     validationError = aiResult ? validateRespondResult(aiResult) : "no result";
     if (validationError) {
-      console.warn(`[${FN}] respond Tier2 validation: ${validationError}`);
+      console.warn(`[${FN}] respond_generate Tier2 validation: ${validationError}`);
       aiResult = null;
     }
   }
 
-  // Try deterministic fallback
+  // Deterministic fallback
   if (!aiResult) {
-    console.log(`[${FN}] respond Tier3 deterministic fallback`);
     const fallback = buildDeterministicFallback("respond", communicationContext);
-    const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
-    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
     await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
-    return jsonResponse(fallback);
+    return jsonResponse({ ...fallback, session_id: sessionId, stage: "generate" });
   }
 
-  // Score the output
   const outputScore = scoreOutputQuality(aiResult, "respond");
-
-  // Merge AI original score
-  const aiOrigScore = typeof aiResult.original_score === "number" ? aiResult.original_score : null;
-  if (aiOrigScore !== null && aiOrigScore >= 1 && aiOrigScore <= 10) {
-    originalScoreResult.score = Math.min(originalScoreResult.score, aiOrigScore);
-  }
-
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
   // Persist
-  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
-  await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
-  if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+  await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags, {
+    selected_goal: communicationContext ?? (boundaryOverride ? "boundary_override" : null),
+  });
 
-  console.log(`[${FN}] respond success | prompt=${loadedPrompt.versionLabel} | orig_score=${originalScoreResult.score} | quality=${outputScore.score}`);
+  // Usage tracking
+  if (!isAdminBypass) {
+    if (isRegeneration && regenIsFree) {
+      const { data: curSess } = await serviceClient
+        .from("communication_shield_sessions")
+        .select("free_regenerations_used")
+        .eq("id", sessionId)
+        .single();
+      await updateSession(serviceClient, sessionId, {
+        free_regenerations_used: (curSess?.free_regenerations_used ?? 0) + 1,
+      });
+    } else if (isRegeneration && !regenIsFree) {
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    } else {
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    }
+  }
+
+  // Get final free_regenerations_used
+  const { data: finalSession } = await serviceClient
+    .from("communication_shield_sessions")
+    .select("free_regenerations_used")
+    .eq("id", sessionId)
+    .single();
+
+  console.log(`[${FN}] respond_generate success | session=${sessionId} | type=${effectiveType} | quality=${outputScore.score}`);
 
   return jsonResponse({
     ...aiResult,
     mode: "respond",
+    stage: "generate",
+    recommendation_type: effectiveType,
     risk_flags: riskFlags,
     original_score: originalScoreResult.score,
     primary_response: aiResult.primary_rewrite,
     three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
     prompt_version: loadedPrompt.versionLabel,
     prompt_source: loadedPrompt.source,
-    rewrite_quality_score: outputScore.score,
+    response_quality_score: outputScore.score,
+    session_id: sessionId,
+    free_regenerations_used: finalSession?.free_regenerations_used ?? 0,
   });
 }
 
