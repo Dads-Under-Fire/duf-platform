@@ -1688,7 +1688,7 @@ serve(async (req) => {
     }
 
     // REWRITE MODE — staged orchestration
-    const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass);
+    const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass, isRegeneration, regenIsFree);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
     return result;
 
