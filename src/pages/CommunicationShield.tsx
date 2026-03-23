@@ -863,6 +863,24 @@ export default function CommunicationShield() {
             </div>
           </div>
 
+          {/* Respond triage result below the card (respond mode — do_not_respond) */}
+          {step === "respond-triage" && mode === "respond" && respondTriageData && !loading && (
+            <div className="mt-4 shrink-0">
+              <RespondTriageCard
+                triage={respondTriageData}
+                onBoundaryOverride={handleBoundaryOverride}
+                loading={loading}
+              />
+            </div>
+          )}
+
+          {step === "respond-triage" && loading && (
+            <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-card rounded-md text-sm text-muted-foreground shrink-0">
+              <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
+              Analyzing message...
+            </div>
+          )}
+
           {/* Intent options below the card (respond mode) */}
           {step === "select-intent" && mode === "respond" && (
             <div className="mt-4 shrink-0">
