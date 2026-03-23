@@ -379,7 +379,7 @@ export default function CommunicationShield() {
             {step === "result" && loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                Generating response...
+                {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
               </div>
             ) : step === "result" && result ? (
               <>
@@ -395,18 +395,24 @@ export default function CommunicationShield() {
                       <DoNotRespondLayout result={result} />
                     ) : (
                       <>
-                        {result.sendability_status && result.mode === "rewrite" && (
-                          <SendabilityBadge status={result.sendability_status} />
-                        )}
                         <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                         <div className="h-px bg-border" />
                         <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                         <div className="h-px bg-border" />
                         <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                        <div className="h-px bg-border" />
-                        <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                        {result.mode !== "rewrite" && (
+                          <>
+                            <div className="h-px bg-border" />
+                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          </>
+                        )}
                         <div>
-                          <p className="text-muted-foreground text-sm font-medium mb-1">Risk Flags:</p>
+                          <p className="text-muted-foreground text-sm font-medium mb-1">
+                            {result.mode === "rewrite" ? "Original Message Risks:" : "Risk Flags:"}
+                          </p>
+                          <p className="text-muted-foreground text-xs mb-1">
+                            {result.mode === "rewrite" ? "These risks were found in your original message — not in the rewrite above." : ""}
+                          </p>
                           <ul className="space-y-1">
                             {(result.risk_flags ?? []).map((flag, i) => (
                               <li key={i} className="text-foreground text-sm">• {flag}</li>
@@ -795,16 +801,20 @@ export default function CommunicationShield() {
                         <DoNotRespondLayout result={result} />
                       ) : (
                         <>
-                          {result.sendability_status && result.mode === "rewrite" && (
-                            <SendabilityBadge status={result.sendability_status} />
-                          )}
                           <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                           <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                           <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                          <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          {result.mode !== "rewrite" && (
+                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          )}
                           <div>
-                            <p className="text-muted-foreground mb-1">Risk Flags</p>
+                            <p className="text-muted-foreground mb-1">
+                              {result.mode === "rewrite" ? "Original Message Risks" : "Risk Flags"}
+                            </p>
                             <div className="h-px bg-border mb-2" />
+                            {result.mode === "rewrite" && (
+                              <p className="text-muted-foreground text-xs mb-2">These risks were found in your original message — not in the rewrite above.</p>
+                            )}
                             <ul className="space-y-1">
                               {(result.risk_flags ?? []).map((flag, i) => (
                                 <li key={i} className="text-foreground">• {flag}</li>
@@ -819,7 +829,7 @@ export default function CommunicationShield() {
                 </div>
               ) : loading ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <p className="text-muted-foreground text-sm">Generating response...</p>
+                  <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
                 </div>
               ) : step === "goal-selection" ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
