@@ -739,17 +739,8 @@ export default function CommunicationShield() {
                     return (
                       <button
                         key={option}
-                        onClick={() => {
-                          if (step === "select-intent") handleSelectIntent(option);
-                        }}
-                        disabled={step === "result"}
-                        className={`w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : step === "result"
-                            ? "bg-card text-muted-foreground cursor-default"
-                            : "bg-card text-foreground hover:bg-secondary"
-                        }`}
+                        onClick={() => handleSelectIntent(option)}
+                        className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
                       >
                         {isSelected && <Check className="h-4 w-4 shrink-0" />}
                         {option}
