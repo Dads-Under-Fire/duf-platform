@@ -800,22 +800,19 @@ export default function CommunicationShield() {
                           <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                           <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
                           {result.mode !== "rewrite" && (
-                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                            <>
+                              <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                              <div>
+                                <p className="text-muted-foreground mb-1">Risk Flags</p>
+                                <div className="h-px bg-border mb-2" />
+                                <ul className="space-y-1">
+                                  {(result.risk_flags ?? []).map((flag, i) => (
+                                    <li key={i} className="text-foreground">• {flag}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </>
                           )}
-                          <div>
-                            <p className="text-muted-foreground mb-1">
-                              {result.mode === "rewrite" ? "Original Message Risks" : "Risk Flags"}
-                            </p>
-                            <div className="h-px bg-border mb-2" />
-                            {result.mode === "rewrite" && (
-                              <p className="text-muted-foreground text-xs mb-2">These risks were found in your original message — not in the rewrite above.</p>
-                            )}
-                            <ul className="space-y-1">
-                              {(result.risk_flags ?? []).map((flag, i) => (
-                                <li key={i} className="text-foreground">• {flag}</li>
-                              ))}
-                            </ul>
-                          </div>
                           <ResponseSection label="Why This Is Safer" content={result.why_this_is_safer ?? ""} />
                         </>
                       )}
