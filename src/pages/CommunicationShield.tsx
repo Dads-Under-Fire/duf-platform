@@ -305,19 +305,7 @@ export default function CommunicationShield() {
     }
   };
 
-  const handleStartOver = () => {
-    setStep("input");
-    setSubmittedMessage("");
-    setResult(null);
-    setCommunicationContext("");
-    setIntentOptions([]);
-    setShowOtherInput(false);
-    setOtherText("");
-    setSessionId(null);
-    setGoalOptions([]);
-    setTriageData(null);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
+  // Reset state is handled inline in handleSubmitMessage
 
   const handleBackToCompose = () => {
     if (step === "goal-selection") {
