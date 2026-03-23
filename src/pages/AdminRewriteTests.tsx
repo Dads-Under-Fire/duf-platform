@@ -426,9 +426,9 @@ export default function AdminRewriteTests() {
                     ))}
                   </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    Scores: triage={r.validation.triageScore} routing={r.validation.routingScore} outcome={r.validation.outcomeScore} overall={r.validation.overallScore}
-                  </div>
+                  {r.validation.failReason && (
+                    <p className="text-xs text-destructive mt-1">Fail: {r.validation.failReason}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}
