@@ -569,7 +569,7 @@ export default function AdminRewriteTests() {
                                 )}
                               </TableCell>
                               <TableCell className="text-xs">
-                                {r.original_score ?? "—"}/{r.rewrite_quality_score ?? "—"}
+                                {r.triage_accuracy_score ?? "—"}/{r.routing_accuracy_score ?? "—"}
                               </TableCell>
                               <TableCell className="text-xs">{r.prompt_version ?? "—"}</TableCell>
                             </TableRow>
