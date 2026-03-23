@@ -501,7 +501,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Fixed bottom action bar */}
-          {step === "result" && (
+          {(step === "result" || step === "redirect-options") && (
             <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
               <button
                 onClick={handleStartOver}
