@@ -313,9 +313,8 @@ export default function CommunicationShield() {
 
   const handleRegenerate = () => {
     if (mode === "rewrite" && submittedMessage) {
-      setResult(null);
       setLoading(true);
-      const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite" };
+      const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite", is_regeneration: true };
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
@@ -338,6 +337,7 @@ export default function CommunicationShield() {
             setStep("goal-selection");
           } else {
             setResult(aiData);
+            setAllResults(prev => [...prev, aiData]);
             setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
             refetchProfile();
           }
