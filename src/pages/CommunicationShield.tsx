@@ -89,6 +89,7 @@ export default function CommunicationShield() {
   const [mode, setMode] = useState<"respond" | "rewrite">("respond");
   const [inputMessage, setInputMessage] = useState("");
   const [result, setResult] = useState<AIResult | null>(null);
+  const [allResults, setAllResults] = useState<AIResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>("input");
   const [intentOptions, setIntentOptions] = useState<string[]>([]);
