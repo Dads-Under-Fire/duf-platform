@@ -108,6 +108,27 @@ export default function CommunicationShield() {
   const MAX_MESSAGE_LENGTH = 10000;
   const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
 
+  const handleModeChange = (newMode: "respond" | "rewrite") => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    setInputMessage("");
+    setSubmittedMessage("");
+    setResult(null);
+    setAllResults([]);
+    setStep("input");
+    setIntentOptions([]);
+    setLoadingIntents(false);
+    setCommunicationContext("");
+    setShowOtherInput(false);
+    setOtherText("");
+    setShowDirections(false);
+    setSessionId(null);
+    setGoalOptions([]);
+    setTriageData(null);
+    setFreeRegensUsed(0);
+    setLoading(false);
+  };
+
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
     if (!msg || !user || isOverLimit) return;
@@ -590,11 +611,11 @@ export default function CommunicationShield() {
         {/* Fixed bottom: Mode toggle + Input */}
         <div className="border-t border-border bg-background px-4 py-3 space-y-3 shrink-0">
           <div className="flex items-center gap-4">
-            <button onClick={() => setMode("respond")} className="flex items-center gap-2">
+            <button onClick={() => handleModeChange("respond")} className="flex items-center gap-2">
               <div className={`h-4 w-4 rounded-full border-2 ${mode === "respond" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
               <span className="text-sm text-foreground">Respond to message</span>
             </button>
-            <button onClick={() => setMode("rewrite")} className="flex items-center gap-2">
+            <button onClick={() => handleModeChange("rewrite")} className="flex items-center gap-2">
               <div className={`h-4 w-4 rounded-full border-2 ${mode === "rewrite" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
               <span className="text-sm text-foreground">Rewrite my message</span>
             </button>
@@ -868,11 +889,11 @@ export default function CommunicationShield() {
         )}
 
         <div className="flex items-center gap-4">
-          <button onClick={() => setMode("respond")} className="flex items-center gap-2">
+          <button onClick={() => handleModeChange("respond")} className="flex items-center gap-2">
             <div className={`h-4 w-4 rounded-full border-2 ${mode === "respond" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
             <span className="text-sm text-foreground">Respond to message</span>
           </button>
-          <button onClick={() => setMode("rewrite")} className="flex items-center gap-2">
+          <button onClick={() => handleModeChange("rewrite")} className="flex items-center gap-2">
             <div className={`h-4 w-4 rounded-full border-2 ${mode === "rewrite" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
             <span className="text-sm text-foreground">Rewrite my message</span>
           </button>
