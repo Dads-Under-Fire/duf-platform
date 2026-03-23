@@ -833,26 +833,16 @@ export default function CommunicationShield() {
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
         {/* Action buttons — always visible */}
-        {(step === "result" || step === "goal-selection") && (
+        {step === "result" && (
           <div className="flex items-center gap-4">
             <button
-              onClick={handleStartOver}
-              disabled={loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
+              onClick={handleRegenerate}
+              disabled={!hasResult || loading}
+              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <RotateCcw className="h-4 w-4" />
-              Start Over
+              <RefreshCw className="h-4 w-4" />
+              Generate again
             </button>
-            {step === "result" && (
-              <button
-                onClick={handleRegenerate}
-                disabled={!hasResult || loading}
-                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Generate again
-              </button>
-            )}
           </div>
         )}
 
