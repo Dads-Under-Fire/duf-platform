@@ -1182,6 +1182,8 @@ async function handleRewriteMode(
   selectedGoal: string | undefined,
   sessionId: string | undefined,
   isAdminBypass: boolean,
+  isRegeneration: boolean = false,
+  regenIsFree: boolean = false,
 ): Promise<Response> {
   const originalScoreResult = scoreOriginalMessage(message);
   console.log(`[${FN}] rewrite original_score: ${originalScoreResult.score}/10`);
