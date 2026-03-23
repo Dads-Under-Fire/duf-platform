@@ -436,6 +436,23 @@ export default function CommunicationShield() {
               />
             )}
 
+            {/* Redirect next-step options */}
+            {step === "redirect-options" && result && (
+              <>
+                <RedirectResultLayout result={result} />
+                <div className="h-px bg-border" />
+                <NextStepOptionsPanel
+                  options={nextStepOptions}
+                  onSelect={handleSelectNextStep}
+                  showOtherInput={showOtherInput}
+                  setShowOtherInput={setShowOtherInput}
+                  otherText={otherText}
+                  setOtherText={setOtherText}
+                  onOtherSubmit={handleOtherSubmit}
+                />
+              </>
+            )}
+
             {step === "result" && loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
