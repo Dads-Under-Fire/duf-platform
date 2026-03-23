@@ -437,12 +437,8 @@ export default function AdminRewriteTests() {
                         {r.result.primary_rewrite}
                       </p>
                       <p>
-                        <span className="text-muted-foreground font-medium">Scores: </span>
-                        original={r.result.original_score}, rewrite_quality={r.result.rewrite_quality_score}
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground font-medium">Risk flags: </span>
-                        {r.result.risk_flags.join(", ") || "none"}
+                        <span className="text-muted-foreground font-medium">Why safer: </span>
+                        {r.result.why_this_is_safer ?? "—"}
                       </p>
                     </div>
                   )}
