@@ -730,12 +730,7 @@ function validateTriageResult(r: Record<string, unknown>): string | null {
   return null;
 }
 
-function validateRedirectResult(r: Record<string, unknown>): string | null {
-  if (!isNonEmptyString(r.redirect_message)) return "missing redirect_message";
-  if (!isNonEmptyString(r.safe_alternative)) return "missing safe_alternative";
-  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
-  return null;
-}
+// validateRedirectResult removed — legacy redirect columns dropped
 
 // ══════════════════════════════════════════════════════════════
 // HELPERS
