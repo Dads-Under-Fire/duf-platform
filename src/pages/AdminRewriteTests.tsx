@@ -103,7 +103,7 @@ export default function AdminRewriteTests() {
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("active", true)
-        .order("created_at", { ascending: true });
+        .order("category", { ascending: true });
       setCases((data ?? []) as GoldCase[]);
       setLoadingCases(false);
     }
