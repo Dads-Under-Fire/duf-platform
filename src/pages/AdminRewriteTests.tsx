@@ -169,7 +169,7 @@ export default function AdminRewriteTests() {
       const failResult = (err: string): CaseRunResult => ({
         name: tc.name, category: tc.category, input_message: tc.input_message,
         expected: expectations, actual: emptyOutcome,
-        validation: { status: "fail", checks: [{ rule: "error", severity: "fail", reason: err }], triageScore: 0, routingScore: 0, outcomeScore: 0, overallScore: 0 },
+        validation: { status: "fail", checks: [{ rule: "error", severity: "fail", reason: err }], failReason: err },
         error: err, promptVersion: "unknown", promptSource: "unknown",
       });
 
