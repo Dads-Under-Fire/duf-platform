@@ -401,7 +401,6 @@ export default function CommunicationShield() {
             <h1 className="text-lg font-semibold text-foreground">
               {step === "goal-selection" ? "Choose Your Goal" : step === "redirect-options" ? "What Would You Like to Do?" : isRedirect ? "Message Redirect" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
             </h1>
-            </h1>
           </div>
 
           {/* Scrollable content */}
