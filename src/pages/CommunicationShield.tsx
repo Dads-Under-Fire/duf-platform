@@ -1174,3 +1174,30 @@ function RecommendationBanner({ type, fallback }: { type: RecommendationType; fa
     </div>
   );
 }
+
+function RegenHelperText({
+  freeRegensUsed,
+  freeRegenLimit,
+  rewritesExhausted,
+}: {
+  freeRegensUsed: number;
+  freeRegenLimit: number;
+  rewritesExhausted: boolean;
+}) {
+  const remaining = Math.max(0, freeRegenLimit - freeRegensUsed);
+
+  let text: string;
+  if (rewritesExhausted && remaining <= 0) {
+    text = "No credits remaining. Upgrade to continue.";
+  } else if (remaining <= 0) {
+    text = "Additional regenerations will use another credit.";
+  } else if (remaining === 1) {
+    text = "1 free regeneration remaining for this message.";
+  } else {
+    text = `Includes up to ${freeRegenLimit} free regenerations for this message.`;
+  }
+
+  return (
+    <p className="text-xs text-muted-foreground">{text}</p>
+  );
+}
