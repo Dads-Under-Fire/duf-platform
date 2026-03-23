@@ -153,7 +153,19 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Final result (safe path or redirect)
+        // Check if redirect with next-step options
+        if (aiData.sendability_status === "redirect" && aiData.next_step_options?.length) {
+          setResult(aiData);
+          setSessionId(aiData.session_id ?? null);
+          setNextStepOptions(aiData.next_step_options);
+          setTriageData(aiData);
+          setStep("redirect-options");
+          setLoading(false);
+          refetchProfile();
+          return;
+        }
+
+        // Final result (safe path or normal redirect)
         setResult(aiData);
         setSessionId(aiData.session_id ?? null);
         refetchProfile();
