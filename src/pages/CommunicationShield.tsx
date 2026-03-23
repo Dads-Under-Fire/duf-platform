@@ -530,7 +530,6 @@ export default function CommunicationShield() {
             <h1 className="text-lg font-semibold text-foreground">
               {step === "goal-selection" ? "Choose Your Goal" : step === "respond-triage" ? "Message Analysis" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
             </h1>
-            </h1>
           </div>
 
           {/* Scrollable content */}
