@@ -139,6 +139,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setRespondTriageData(null);
     setFreeRegensUsed(0);
     setLoading(false);
   };
