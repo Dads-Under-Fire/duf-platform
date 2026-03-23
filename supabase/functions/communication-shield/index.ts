@@ -1454,7 +1454,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { message, mode, original_context, communication_context, skip_quota, selected_goal, session_id } = body;
+    const { message, mode, original_context, communication_context, skip_quota, selected_goal, session_id, _no_message_terminal } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
