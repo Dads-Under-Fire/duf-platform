@@ -1294,6 +1294,7 @@ async function handleRespondGenerate(
   const effectiveType = boundaryOverride ? "brief_boundary_response" : recommendationType;
 
   const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", message);
+  console.log(`[${FN}] respond_generate prompt_load | source=${loadedPrompt.source} | version=${loadedPrompt.versionLabel}${loadedPrompt.fallbackReason ? ` | fallback_reason=${loadedPrompt.fallbackReason}` : ""}`);
 
   const contextInstruction = communicationContext
     ? `\nThe user selected the following communication context: "${communicationContext}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
