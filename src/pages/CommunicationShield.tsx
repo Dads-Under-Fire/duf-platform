@@ -362,7 +362,7 @@ export default function CommunicationShield() {
     }
   };
 
-  const hasResult = !!result;
+  const hasResult = allResults.length > 0;
 
   // ─── MOBILE ───
   if (isMobile) {
