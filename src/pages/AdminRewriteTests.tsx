@@ -38,9 +38,9 @@ interface GoldCase {
 }
 
 interface CaseRunResult {
-  test_id: string;
+  name: string;
   category: string;
-  original_message: string;
+  input_message: string;
   result: RewriteResult | null;
   validatorStatus: "pass" | "warn" | "fail";
   validatorNotes: string[];
