@@ -864,7 +864,9 @@ export default function CommunicationShield() {
                   <RefreshCw className="h-4 w-4" />
                   Generate again
                 </button>
-                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+                {mode === "rewrite" && (
+                  <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+                )}
               </div>
             )}
           </div>
@@ -873,19 +875,6 @@ export default function CommunicationShield() {
 
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
-        {/* Generate again — only shown here for respond mode (rewrite mode has it in the card) */}
-        {step === "result" && mode === "respond" && (
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleRegenerate}
-              disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Generate again
-            </button>
-          </div>
-        )}
 
         <div className="flex items-center gap-4">
           <button onClick={() => handleModeChange("respond")} className="flex items-center gap-2">
