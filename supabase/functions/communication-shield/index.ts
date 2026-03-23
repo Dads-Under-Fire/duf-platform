@@ -741,6 +741,7 @@ function validateRewriteResult(r: Record<string, unknown>): string | null {
 
 function validateTriageResult(r: Record<string, unknown>): string | null {
   if (!["safe", "salvageable", "redirect"].includes(r.sendability_status as string)) return "invalid sendability_status";
+  if (!["rewrite", "redirect_choice", "no_message"].includes(r.output_path as string)) return "invalid output_path";
   if (!isNonEmptyString(r.sendability_reason)) return "missing sendability_reason";
   if (!isNonEmptyString(r.detected_intent)) return "missing detected_intent";
   if (!isNonEmptyString(r.detected_tone)) return "missing detected_tone";
