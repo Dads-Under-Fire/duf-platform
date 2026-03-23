@@ -13,8 +13,12 @@ const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 const MODEL_PRIMARY = "gpt-4o-mini";
 const MODEL_FALLBACK = "gpt-4o";
+const WORKFLOW_VERSION = "staged-v1";
 
-// ── Prompts (server-side only) ──
+// ══════════════════════════════════════════════════════════════
+// PROMPTS (server-side hardcoded fallbacks)
+// ══════════════════════════════════════════════════════════════
+
 const LEGAL_SAFETY_RULES = `LEGAL SAFETY — ABSOLUTE RULES:
 Never:
 - Admit fault, guilt, abuse, wrongdoing, or liability
@@ -75,122 +79,22 @@ const SCORING_INSTRUCTIONS = `DUAL SCORING — You MUST provide TWO separate sco
    - 8-9 = mostly safe (minor issues only)
    - 10 = already clean, neutral, and court-safe
    
-   Deduction rules for original_score (start at 10):
-   - -3 if threats or intimidation
-   - -3 if admission of fault (sorry, my fault, I forgot, I should have)
-   - -3 if strong accusations (you always, you never, your fault, you caused)
-   - -2 if emotional language (upset, frustrated, hurt, angry, disappointed)
-   - -2 if hostile or aggressive tone
-   - -2 if passive aggression or sarcasm
-   - -2 if over-explaining or justification
-   - -2 if apology language (sorry, I apologize)
-   - -1 if vague phrasing (maybe, kind of, hopefully)
-   - -1 if escalation risk
-   
-   HARD RULES for original_score:
-   - If admissions, threats, or strong accusations exist → must score 1-4
-   - If emotional or vague language exists → must not exceed 7-8
-   - Only score 9-10 if message is already fully neutral and concise
-
    Also provide "original_score_notes" — array of strings describing each issue found.
 
 2. "rewrite_quality_score" (integer 1-10): Evaluate ONLY your rewritten/generated output quality.
    A score of 10 should be EXCEPTIONALLY RARE — reserved only for rewrites that require zero improvement.
    
-   Score the rewrite quality:
-   - 1-3 = poor rewrite (unsafe, emotional, or unusable)
-   - 4-5 = weak rewrite (multiple flaws, needs significant revision)
-   - 6-7 = acceptable but noticeably flawed
-   - 8-9 = strong rewrite with minor issues
-   - 10 = near-perfect — NO meaningful improvement possible
-   
-   Deduction rules for rewrite_quality_score (start at 10, apply ALL that match):
-    - -3 if accusatory language remains in output
-    - -3 if admission of fault or apology language exists in output
-    - -2 if emotional language remains
-    - -2 if vague phrasing exists (maybe, hopefully, kind of, sometime soon)
-    - -2 if defensive tone or justification appears (because, due to, let me explain)
-    - -2 if overly formal or unnatural phrasing (hereby, pursuant to, please be advised, kindly be informed)
-    - -2 if unnecessarily verbose (more than 2-3 sentences when fewer would suffice)
-    - -2 if too passive or weak (perhaps we could, if that's okay, I was wondering)
-    - -2 if adds meaning, context, or framing not clearly present in original message
-    - -2 if the original contained specific logistics (times, dates, actions) but the rewrite replaced them with generic phrases like "the agreed schedule" or "moving forward"
-    - -1 if generic or bland wording when a more specific/clear phrasing was possible
-    - -1 if indirect or unclear intent (so we can discuss, let me know your thoughts)
-    - -1 if slightly controlling or patronizing tone
-    - -1 if the original was already clean and the rewrite made it MORE formal or wordy without improving safety
-    
-    HARD CAPS for rewrite_quality_score (these override all other scoring):
-    - If ANY admission trap language remains in the rewrite (asks for confirmation of past events, restates wrongdoing, includes questions that create legal exposure like "Can you confirm...?", "Do you agree...?", "Were you late...?") → MAX score = 6
-    - If ANY threat language remains in the rewrite → MAX score = 7
-    - If the rewrite introduces NEW legal risk not present in the original → MAX score = 5
-    - If ANY emotional, vague, or apologetic language exists → must not exceed 8
-    - If 2+ issue categories apply → score must be 6-7 range
-    - If 3+ issue categories apply → score must be 5-6 range
-    - A rewrite being safer than the original does NOT automatically make it a 10
-    - If the original message was already clean/safe, do NOT reward unnecessary rewriting — if the rewrite adds formality or wording without improving safety, reduce score
-    
-    REQUIREMENTS for 9-10 score (ALL must be true):
-    - Fully neutral tone — no emotional, accusatory, or defensive language
-    - Zero admission risk — no confirmation questions, no restating of past conduct
-    - Zero escalation potential — nothing that could provoke further conflict
-    - Preserves logistics cleanly — specific details retained without introducing risk
-    - Concise, natural-sounding, and would require zero meaningful improvement
-    - DEFAULT assumption: most rewrites have at least minor room for improvement → default to 8-9 for good rewrites
-   
-   Also provide "rewrite_quality_notes" — array of strings describing each deduction. If you give 10, you MUST justify it with "none — rewrite is concise, neutral, natural, and requires no improvement".
+   Also provide "rewrite_quality_notes" — array of strings describing each deduction.
 
 RISK FLAGS RULES:
 - risk_flags MUST list every issue found in the ORIGINAL message
-- Risk flags describe the ORIGINAL message only, NOT the rewrite quality
-- If the original input is already perfectly neutral with no issues, set risk_flags to ["No risk flags"]
-- NEVER return an empty array for risk_flags
-- NEVER return "No risk flags" if the message contains ANY emotional, reactive, accusatory, or manipulative language — even in a single word
-- SHORT MESSAGES: A message being short does NOT make it neutral. Single words like "Unbelievable", "Seriously?", "Whatever", "Fine." are emotional and MUST be flagged.
-- Use SPECIFIC, ACCURATE flag labels. Choose from this taxonomy:
-
-  SEVERE (threats/hostility):
-  - "Threat or intimidation" — only if message contains actual threats, ultimatums, or intimidating language
-  - "Hostile or aggressive tone" — only if message contains insults, name-calling, or overtly aggressive language
-  - "Controlling or coercive language" — only if message attempts to dictate, demand, or manipulate behavior
-  - "Direct confrontation" — only if message directly challenges, provokes, or picks a fight
-
-  MODERATE (emotional/accusatory/manipulative):
-  - "Accusatory tone" — blaming, finger-pointing ("you always", "you never", "your fault")
-  - "Emotional language detected" — frustration, anger, hurt, exasperation, disbelief expressed openly — INCLUDING short reactive messages like "Unbelievable", "Seriously?", "Ridiculous", "Wow"
-  - "Passive-aggressive tone" — indirect hostility, sarcasm, backhanded comments
-  - "Defensive tone" — justifying, explaining away, protecting oneself
-  - "Admission of fault" — apologies, self-blame, accepting responsibility in a legally risky way
-  - "Admission trap" — when the message tries to force agreement, confirmation, or admission of past conduct (e.g. "So you agree that...", "You admit that...", "So basically you're saying...", "Then you acknowledge...")
-
-  MINOR (style/clarity):
-  - "Over-explaining or justification" — providing unnecessary reasons, backstory, or explanations (e.g. "I was late because traffic was bad")
-  - "Uncertainty in commitment" — hedging, vague promises ("maybe", "I'll try", "hopefully")
-  - "Vague or imprecise language" — unclear references, ambiguous phrasing
-  - "Unnecessarily verbose" — message is longer than needed for its content
-  - "Apology language" — sorry/apologize without full admission
-
-  DO NOT USE these overly broad labels:
-  - ❌ "Escalation risk" — too vague
-  - ❌ "Potentially problematic" — always specify the problem
-  - ❌ "Could be misinterpreted" — name the actual issue
-   - ❌ "No risk flags" when ANY emotional, reactive, or manipulative language exists
-
-  REWRITE-MODE ADDITIONAL FLAGS (use these when mode is rewrite):
-  - "Past-fact confirmation risk" — when the original message tries to get the other party to agree with a disputed prior event, characterization, or version of what happened (e.g. "So you admit you were late", "You agree that you canceled", "Last time you said...")
-  - "Financial demand or assumption" — when the message relies on an asserted or assumed change in finances, money responsibility, expense expectations, or income (e.g. "You're making more money now", "You should be paying more", "Since your raise...", "You owe me for...")
-  - "Irrelevant or non-child-related topic" — when the message is primarily emotional, nostalgic, personal-property related, relationship-processing, or otherwise outside core co-parenting logistics or child-related communication (e.g. "I miss our family", "Remember when we used to...", "I want my couch back", "You hurt me deeply")
-
-  EDGE CASE RULES:
-  - Single-word or very short emotional messages (e.g. "Unbelievable", "Seriously?", "Ridiculous") → MUST flag as "Emotional language detected" and score 5-6
-  - Messages attempting to force agreement or admission (e.g. "So you agree that you were late last week") → MUST flag as "Admission trap" AND "Past-fact confirmation risk" and score 3-5
-  - Messages containing BOTH logistics AND emotional language → flag the emotional language AND address the logistics`;
+- Use SPECIFIC, ACCURATE flag labels
+- If original is perfectly neutral, set risk_flags to ["No risk flags"]
+- NEVER return an empty array for risk_flags`;
 
 const PERSPECTIVE_RULES = `PERSPECTIVE PRESERVATION — ABSOLUTE RULES:
 - NEVER change the speaker's perspective. If the user wrote "I will pick up", do NOT rewrite as "You will pick up" or "The children will be picked up."
 - NEVER assume commitments or actions on behalf of either party that were not in the original message.
-- The rewritten message MUST preserve who is making the request, who is performing the action, and who is being addressed.
-- If the original says "I" → the rewrite says "I". If it says "you" → handle carefully to avoid accusatory tone, but do NOT flip perspective.
 
 TONE CONTROL — FIRM, NOT SUBMISSIVE:
 - NEVER use passive or weak phrasing. Specifically BANNED phrases:
@@ -203,14 +107,7 @@ TONE CONTROL — FIRM, NOT SUBMISSIVE:
   • "I just wanted to" / "I just think"
   • "It seems like" / "It appears that"
 - Tone must be FIRM, NEUTRAL, and PROFESSIONAL — never submissive, pleading, or apologetic.
-- Use direct statements: "I will", "Please confirm", "The schedule is", "Drop-off is at 5pm."
-
-CLARITY AND SPECIFICITY:
-- Where possible, add clarity by specifying time, date, location, or required action.
-- Outputs must be direct and actionable, not vague.
-- Prefer "Drop-off is at 5pm today at [location]" over "We should coordinate drop-off."
-- If the original message contains specific details, preserve AND clarify them.
-- If the original is vague, make the rewrite MORE specific where context allows.`;
+- Use direct statements: "I will", "Please confirm", "The schedule is", "Drop-off is at 5pm."`;
 
 const ALTERNATIVES_INSTRUCTIONS = `THREE ALTERNATIVES REQUIREMENT:
 You MUST provide exactly 3 alternative versions in "three_alternatives" (array of 3 strings):
@@ -229,21 +126,6 @@ const BASE_INSTRUCTIONS = `All responses must:
 - Ignore inflammatory language from the other parent
 - De-escalate conflict
 - Sound appropriate for review by a judge or custody evaluator
-- Reference the parenting plan or custody agreement when relevant
-- Acknowledge ONLY what is necessary — do not over-explain
-
-NEVER use open-ended phrasing such as:
-- "so we can discuss"
-- "let me know your thoughts"
-- "we can talk about this further"
-- "I'd like to discuss"
-- "perhaps we could"
-
-Instead prefer responses that:
-- Confirm logistics with finality
-- State facts without inviting debate
-- Set clear boundaries without aggression
-- Close the conversation loop rather than opening it
 
 ${PERSPECTIVE_RULES}
 
@@ -260,53 +142,12 @@ const RESPOND_INTRO = (originalContext?: string) =>
   `The user received a message from the other parent.${originalContext ? ` The original message received was: "${originalContext}"` : ""}
 
 IMPORTANT — RECOMMENDATION LAYER:
-Before drafting a response, FIRST evaluate whether responding is actually the safest choice. This evaluation must be based on communication strategy and legal positioning — NOT on system availability or technical issues.
+Before drafting a response, FIRST evaluate whether responding is actually the safest choice.
 
 Analyze the incoming message carefully. Set "recommendation_type" to one of:
-
-- "respond" — The message contains ANY actionable logistics, scheduling, custody coordination, pickup/drop-off times, agreements, arrangements, or threats related to arrangements (e.g. keeping a child longer, changing plans unilaterally). Even if the tone is hostile, insulting, or emotionally charged — if there is ANY logistical or custody-relevant content, you MUST respond to the actionable portion and ignore the emotional bait. Provide full response variants (primary_rewrite, shorter_version, firmer_version).
-
-- "do_not_respond" — The safest action is NOT to reply. Choose this ONLY when the incoming message:
-  • Is PURELY insulting, baiting, or emotionally provocative with ZERO logistical content
-  • Contains ONLY character attacks, mockery, or emotional venting
-  • Has absolutely NO actionable co-parenting issue, schedule reference, or custody matter
-  • Would likely escalate conflict if engaged with
-  • Is designed solely to provoke a reaction rather than coordinate parenting
-  Examples that qualify for do_not_respond: "You're a terrible father." / "No one wants you around." / "You disgust me."
-  IMPORTANT: Do NOT select do_not_respond if the message mentions ANY of: times, dates, pickup, drop-off, schedule, custody, keeping the child, arrangements, school, health, or agreements — even buried in hostility.
-  When choosing do_not_respond:
-  • Set "primary_rewrite" to a clear 1-2 sentence explanation of WHY no response is recommended, from a communication/legal strategy perspective. Example: "This message contains no logistical content and is designed to provoke a reaction. Responding would create unnecessary conflict in the record."
-  • Set "shorter_version" and "firmer_version" to empty strings ""
-  • Optionally set "fallback_response" to a very short neutral message ONLY if the user feels they absolutely must reply (e.g. "Received.")
-
-- "brief_boundary_response" — A very short neutral boundary statement is appropriate, but engaging further is not. The message may contain a minor logistical element buried in hostility. Provide a minimal response in "primary_rewrite" (1 sentence max). "shorter_version" can match. "firmer_version" should set a firmer boundary.
-
-CRITICAL DECISION RULES:
-- Never recommend "do_not_respond" for technical or system reasons.
-- Never recommend "do_not_respond" when there is ANY logistical, scheduling, or custody-relevant content in the message — regardless of hostile tone.
-- When the message is hostile BUT contains logistics: select "respond", address ONLY the logistics, completely ignore insults and emotional content.
-- When the message contains accusations or legal traps: select "respond" but do NOT explain past events, do NOT justify actions, do NOT admit or deny claims. Redirect to forward-looking, neutral language. Example: "I will follow the agreed schedule moving forward."
-- When the message is an ADMISSION TRAP (tries to force agreement about past conduct): the response MUST be entirely forward-looking. NEVER confirm, deny, restate, or ask about past events. NEVER output questions like "Can you confirm...?", "Do you agree...?", or "Were you late...?" — these create legal exposure for the user.
-
-RESPONSE STYLE FOR ACCUSATIONS AND LEGAL TRAPS:
-- NEVER explain what happened in the past
-- NEVER justify or defend past actions
-- NEVER clarify misunderstandings by narrating events
-- NEVER give reasons for absence, lateness, missed events, or prior conduct
-- NEVER apologize or express regret unless the user explicitly instructs you to
-- Instead: redirect to the agreed plan, state forward-looking intent, and close the loop
-- Bad examples (NEVER generate these):
-  • "I was late because traffic was bad" → WRONG
-  • "My absence was due to a scheduling conflict" → WRONG
-  • "I apologize for the confusion" → WRONG
-  • "I'm sorry about the miscommunication" → WRONG
-  • "I regret that this happened" → WRONG
-- Good examples (use these patterns, preserving specific context when available):
-  • "I will be at the scheduled pickup location today." (context-specific)
-  • "Drop-off will be at 5pm per the agreement." (context-specific)
-  • "I will follow the agreed schedule moving forward." (only when no specific logistics in original)
-  • "I do not agree with that characterization." (for accusations without logistics)
-  • "Please refer to the agreed parenting plan." (for general disputes)
+- "respond" — Contains ANY actionable logistics. Provide full response variants.
+- "do_not_respond" — PURELY insulting/baiting with ZERO logistical content.
+- "brief_boundary_response" — Minor logistical element buried in hostility.
 
 Always prioritize protecting the user from unnecessary engagement and legal risk.`;
 
@@ -315,179 +156,50 @@ const REWRITE_INTRO = `The user wants to REWRITE their own drafted outgoing co-p
 PURPOSE:
 - Preserve the user's SAFEST FUNCTIONAL INTENT while reducing legal risk, emotional language, escalation, and ambiguity.
 - The output must read as something the user could copy-paste and send immediately.
-- The goal is NOT to preserve every emotional nuance. The goal is to preserve the safest functional intent in a neutral, disciplined way.
-
-CRITICAL RULES — PERSPECTIVE AND ACCOUNTABILITY:
-- NEVER change the speaker's perspective. If the user wrote "I" → rewrite says "I". If "you" → handle carefully but do NOT flip perspective.
-- NEVER speak on behalf of the other party.
-- NEVER convert a request into a statement of action. If the original asks the other party to confirm, act, or clarify, the rewrite MUST remain a request.
-- NEVER generate "I will" unless the original clearly states the sender is making that commitment.
-- Preserve accountability direction. Do not reframe the issue as shared responsibility unless that is explicitly appropriate from the original.
-
-CONFIRMATION REQUEST PRESERVATION:
-- If the original asks the other party to confirm a future action (e.g. "Can you confirm you'll be there Saturday?"), the rewrite MUST remain a confirmation request.
-- Do NOT convert "Can you confirm..." or "Will you..." into a directive like "Be there Saturday" or "You will be there Saturday."
-- Do NOT convert a confirmation request into a statement of the sender's own action.
-- Acceptable: "Please confirm the Saturday pickup time." / "Will you be at the pickup location at 3pm?"
-- Unacceptable: "I will be at the pickup location at 3pm." (when the original asked the OTHER party to confirm)
-
-ASSUMPTION-TO-FACT PROHIBITION:
-- Do NOT assert that the other party's finances, motives, intentions, compliance history, or circumstances have changed unless that fact is ALREADY clearly established in the original AND is safe to preserve.
-- Do NOT harden soft language ("I think you might be..." → "You are...").
-- Do NOT infer or state reasons for the other party's behavior.
-- If the original contains speculation or assumptions, the rewrite should NARROW or REMOVE them — never strengthen them into stated facts.
-- Especially avoid asserting anything about: money, income changes, new partners, mental health, substance use, compliance history, or intent.
-
-EMOTIONAL CONTENT NARROWING:
-- If the original message is primarily emotional, nostalgic, relational, or not materially related to co-parenting logistics, parenting issues, or necessary communication:
-  - The rewrite should NARROW it to the functional core or NEUTRALIZE it — not polish it into a deeper or more articulate emotional discussion.
-  - Strip sentimental, guilt-tripping, or relationship-processing language.
-  - If there is NO functional intent beneath the emotion, the rewrite should be extremely brief and logistics-focused.
-- The goal is NOT to preserve every emotional nuance. The goal is to preserve the SAFEST FUNCTIONAL INTENT in a neutral, disciplined way.
-
-CONTROLLING/PATRONIZING LANGUAGE PROHIBITION:
-- Do NOT add controlling or patronizing closing language to any variant.
-- Specifically BANNED closing phrases:
-  • "Please confirm you understand this change."
-  • "Please confirm you understand."
-  • "I expect you to..."
-  • "You need to..."
-  • "I trust you will..."
-  • "I assume you will..."
-  • "Make sure you..."
-  • "Ensure that you..."
-  • "See to it that..."
-- Firmer phrasing must still remain court-safe and non-controlling. Assertive ≠ controlling.
-- Acceptable firm closers: "Please confirm the pickup time." / "The schedule is as agreed." / "I will follow the parenting plan."
-
-SHARED RESPONSIBILITY RULE:
-- Avoid "we," "us," "let's," or other mutual framing unless clearly necessary and explicitly supported by the original.
-- Do NOT turn "you need to follow the schedule" into "we need to follow the schedule."
-- Do NOT turn a directed request into a collaborative suggestion.
-
-TONE RULES — FIRM, NOT SUBMISSIVE:
-- Neutral, factual, composed, professional, court-safe.
-- Firm when needed, never aggressive.
-- NEVER use passive or submissive phrasing. Specifically BANNED:
-  • "I would appreciate" / "I would appreciate it if"
-  • "I feel" / "I feel like" / "I feel that"
-  • "I was hoping" / "I was wondering"
-  • "If that's okay" / "If you don't mind"
-  • "Perhaps we could" / "Maybe we should"
-  • "Would it be possible" / "Could you possibly"
-  • "I just wanted to" / "I just think"
-  • "It seems like" / "It appears that"
-- Use direct statements: "Please confirm", "The schedule is", "Drop-off is at 5pm."
-
-CLARITY RULES:
-- Improve clarity and actionability where possible.
-- Add time/date/location/action ONLY when present or clearly implied in the original.
-- Reduce vagueness without inventing facts.
-- Preserve and clarify specific logistical details from the original (times, dates, locations, actions).
-- NEVER replace specific details with generic phrases like "the agreed schedule" or "moving forward" when the original contained concrete information.
-
-CONTEXT PRESERVATION RULES:
-- If the original says "today" → the rewrite MUST say "today"
-- If the original mentions "pickup" → the rewrite MUST mention "pickup"
-- If the original mentions a specific time like "3pm" → the rewrite MUST include "3pm"
-- If the original references a specific action → the rewrite MUST reference that action
-- "I will follow the agreed schedule" is only acceptable when the original message itself was vague and contained no specific logistics
-
-ADMISSION TRAP REWRITE RULES (overrides context preservation):
-If the original message attempts to force an admission, confirm past wrongdoing, or reference past violations in a yes/no format:
-- The rewrite MUST NOT ask for confirmation of past events
-- The rewrite MUST NOT restate or imply wrongdoing
-- The rewrite MUST NOT include questions that create legal exposure
-- Convert the entire message to FORWARD-LOOKING language only
-- Focus on schedule adherence, expectations, or logistics
-- Remove ALL references to past behavior, past violations, or past events
-- Examples:
-  INPUT: "So you're admitting you didn't follow the schedule last weekend?"
-  CORRECT: "Please follow the agreed schedule moving forward."
-  WRONG: "Please confirm the schedule was not followed."
-  INPUT: "So you agree that you were late to pickup last Tuesday?"
-  CORRECT: "I will be at the scheduled pickup time going forward."
-  WRONG: "Can you confirm you were late last Tuesday?"
-
-LEGAL SAFETY CONSTRAINTS:
-- No admissions of fault
-- No emotional language
-- No escalation, threats, or sarcasm
-- No apologies or expressions of regret
-
-ALL THREE VARIANTS (primary_rewrite, shorter_version, firmer_version) must follow ALL rules above. They should differ in tone/length but NOT in specificity or safety.
-
-OUTPUT FIELDS:
-- primary_rewrite = best overall rewrite — neutral, clear, firm, legally safe, actionable
-- shorter_version = shorter safe rewrite, 1 sentence max
-- firmer_version = more assertive but still court-safe rewrite
-- why_this_is_safer = brief explanation of why the rewrite is safer
-- tone_assessment = short label like "Neutral", "Firm", "Calm"
-- risk_flags = array of issues found in the ORIGINAL message
-- original_score = score for how risky the original message is (1=very risky, 10=already safe)
-- rewrite_quality_score = score for how strong and safe the rewrite is (1=poor, 10=excellent)
-- original_score_notes = notes explaining original score deductions
-- rewrite_quality_notes = notes explaining rewrite score deductions
-
-REWRITE QUALITY SCORING — ADDITIONAL DEDUCTIONS:
-Apply these deductions to rewrite_quality_score in ADDITION to standard deductions:
-- -2 if a confirmation request was converted into a directive or self-commitment
-- -2 if an assumption or speculation was hardened into an asserted fact
-- -2 if emotional content was polished/articulated instead of narrowed/neutralized
-- -2 if controlling or patronizing closing language was introduced
-- -1 if the rewrite preserves emotional nuance that has no functional purpose
-
-VALIDATION — SELF-CHECK BEFORE OUTPUTTING:
-- If the rewrite changes perspective → regenerate
-- If the rewrite turns a request into a statement of action → regenerate
-- If the rewrite introduces shared responsibility improperly → regenerate
-- If the rewrite adds admissions, escalation, or unnecessary softness → regenerate
-- If the rewrite uses any BANNED passive phrases → regenerate
-- If a confirmation request became a directive → regenerate
-- If an assumption became an asserted fact → regenerate
-- If emotional bait was polished instead of narrowed → regenerate
-- If controlling/patronizing closing language was added → regenerate
 
 REWRITE MODE RULES:
 - Never recommend "do not respond" — rewrite mode always produces a rewritten message
-- Never return system/failure-style language like "retry shortly" or "guidance unavailable"
+- Never return system/failure-style language
 - Never return placeholder text — always produce a real, complete rewrite`;
 
 const STRICTER_RETRY_ADDENDUM = `
-
 CRITICAL RETRY INSTRUCTION: Your previous output was scored as legally unsafe. This time you MUST:
-- Produce ZERO apology language (no "sorry", "apologize", "regret")
-- Produce ZERO backward-looking explanations (no "because", "due to", "reason was")
+- Produce ZERO apology language
+- Produce ZERO backward-looking explanations
 - Keep response under 3 sentences
-- Focus ONLY on forward-looking logistics
-- If unsure, use: "I will follow the agreed schedule moving forward."`;
+- Focus ONLY on forward-looking logistics`;
 
+const SEMANTIC_RETRY_ADDENDUM = `
+CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Regenerate ALL variants following these rules strictly:
+1. NEVER convert a request into "I will"
+2. NEVER reframe directed responsibility as "we need to"
+3. NEVER soften with passive phrases
+4. firmer_version must be assertive but NEVER hostile or controlling`;
 
-// ── Mode-specific tool schemas ──
+// ══════════════════════════════════════════════════════════════
+// TOOL SCHEMAS
+// ══════════════════════════════════════════════════════════════
+
 const RESPOND_TOOL = {
   type: "function" as const,
   name: "format_response",
-  description: "Return the structured court-safe response with recommendation on whether to respond",
+  description: "Return the structured court-safe response with recommendation",
   parameters: {
     type: "object",
     properties: {
-      recommendation_type: {
-        type: "string",
-        enum: ["respond", "do_not_respond", "brief_boundary_response"],
-        description: "Whether the user should respond, not respond, or send only a brief boundary statement",
-      },
-      primary_rewrite: { type: "string", description: "The court-safe response, or explanation of why not to respond" },
-      shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
-      firmer_version: { type: "string", description: "Neutral but more boundaried and direct" },
-      fallback_response: { type: "string", description: "Optional very short fallback if user must reply despite do_not_respond recommendation" },
-      tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / De-escalated" },
-      risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
-      why_this_is_safer: { type: "string", description: "1-2 sentences on why this recommendation is safer" },
-      three_alternatives: { type: "array", items: { type: "string" }, description: "Exactly 3 alternatives: [more direct, slightly softer, highly structured/formal]" },
-      original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
-      original_score_notes: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−3: accusatory language'. Use ['none'] if clean." },
-      rewrite_quality_score: { type: "integer", description: "Quality score of YOUR generated output only (1=poor, 10=excellent)" },
-      rewrite_quality_notes: { type: "array", items: { type: "string" }, description: "Deductions on your output quality, e.g. '−2: slightly verbose'. Use ['none'] if perfect." },
+      recommendation_type: { type: "string", enum: ["respond", "do_not_respond", "brief_boundary_response"] },
+      primary_rewrite: { type: "string" },
+      shorter_version: { type: "string" },
+      firmer_version: { type: "string" },
+      fallback_response: { type: "string" },
+      tone_assessment: { type: "string" },
+      risk_flags: { type: "array", items: { type: "string" } },
+      why_this_is_safer: { type: "string" },
+      three_alternatives: { type: "array", items: { type: "string" } },
+      original_score: { type: "integer" },
+      original_score_notes: { type: "array", items: { type: "string" } },
+      rewrite_quality_score: { type: "integer" },
+      rewrite_quality_notes: { type: "array", items: { type: "string" } },
     },
     required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "rewrite_quality_score", "rewrite_quality_notes"],
     additionalProperties: false,
@@ -502,16 +214,16 @@ const REWRITE_TOOL = {
   parameters: {
     type: "object",
     properties: {
-      primary_rewrite: { type: "string", description: "The best court-safe rewrite of the user's message — neutral, clear, firm, legally safe, actionable" },
-      shorter_version: { type: "string", description: "Shortest neutral version, 1 sentence" },
-      firmer_version: { type: "string", description: "More assertive but still court-safe rewrite" },
-      tone_assessment: { type: "string", description: "Brief tone label e.g. Neutral / Firm / Calm" },
-      risk_flags: { type: "array", items: { type: "string" }, description: "Issues found in the ORIGINAL message. Use ['No risk flags'] if original was already neutral." },
-      why_this_is_safer: { type: "string", description: "1-2 sentences on why this rewrite is safer" },
-      original_score: { type: "integer", description: "Risk score of the ORIGINAL message only (1=very risky, 10=already safe)" },
-      original_score_notes: { type: "array", items: { type: "string" }, description: "Issues found in original message, e.g. '−2: emotional language'. Use ['none'] if clean." },
-      rewrite_quality_score: { type: "integer", description: "Quality score of YOUR rewritten output only (1=poor, 10=excellent)" },
-      rewrite_quality_notes: { type: "array", items: { type: "string" }, description: "Deductions on your rewrite quality, e.g. '−1: slightly verbose'. Use ['none'] if perfect." },
+      primary_rewrite: { type: "string" },
+      shorter_version: { type: "string" },
+      firmer_version: { type: "string" },
+      tone_assessment: { type: "string" },
+      risk_flags: { type: "array", items: { type: "string" } },
+      why_this_is_safer: { type: "string" },
+      original_score: { type: "integer" },
+      original_score_notes: { type: "array", items: { type: "string" } },
+      rewrite_quality_score: { type: "integer" },
+      rewrite_quality_notes: { type: "array", items: { type: "string" } },
     },
     required: ["primary_rewrite", "shorter_version", "firmer_version", "tone_assessment", "risk_flags", "why_this_is_safer", "original_score", "original_score_notes", "rewrite_quality_score", "rewrite_quality_notes"],
     additionalProperties: false,
@@ -519,49 +231,64 @@ const REWRITE_TOOL = {
   strict: true,
 };
 
-// ── Validation helpers ──
-const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
+const TRIAGE_TOOL = {
+  type: "function" as const,
+  name: "classify_draft",
+  description: "Classify the pasted draft message for safety and intent",
+  parameters: {
+    type: "object",
+    properties: {
+      sendability_status: { type: "string", enum: ["safe", "salvageable", "redirect"] },
+      sendability_reason: { type: "string" },
+      detected_intent: { type: "string" },
+      detected_tone: { type: "string" },
+      risk_flags: { type: "array", items: { type: "string" } },
+      triage_confidence: { type: "number" },
+      goal_options: { type: "array", items: { type: "string" } },
+    },
+    required: ["sendability_status", "sendability_reason", "detected_intent", "detected_tone", "risk_flags", "triage_confidence", "goal_options"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const REDIRECT_TOOL = {
+  type: "function" as const,
+  name: "format_redirect",
+  description: "Provide redirect guidance for a message that should not be sent",
+  parameters: {
+    type: "object",
+    properties: {
+      redirect_message: { type: "string" },
+      safe_alternative: { type: "string" },
+      alternative_1: { type: "string" },
+      alternative_2: { type: "string" },
+      alternative_3: { type: "string" },
+      risk_flags: { type: "array", items: { type: "string" } },
+      why_this_is_safer: { type: "string" },
+    },
+    required: ["redirect_message", "safe_alternative", "alternative_1", "alternative_2", "alternative_3", "risk_flags", "why_this_is_safer"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+// ══════════════════════════════════════════════════════════════
+// VALIDATION HELPERS
+// ══════════════════════════════════════════════════════════════
+
 const PLACEHOLDER_PATTERN = /\[.*?\]/;
+const VALID_RECOMMENDATION_TYPES = ["respond", "do_not_respond", "brief_boundary_response"];
 
 const APOLOGY_PATTERNS = [
-  /\bi('m| am) sorry\b/i,
-  /\bi apologize\b/i,
-  /\bi regret\b/i,
-  /\bany confusion i caused\b/i,
+  /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bi regret\b/i, /\bany confusion i caused\b/i,
 ];
-
 const ADMISSION_PATTERNS = [
-  /\bmy absence was due to\b/i,
-  /\bi missed .{0,30} because\b/i,
-  /\bi was late because\b/i,
-  /\bit happened because\b/i,
-  /\bthe reason was\b/i,
-  /\bwhat actually happened\b/i,
-  /\bi didn'?t do that because\b/i,
-  /\bi forgot to\b/i,
-  /\bi should have\b/i,
-  /\bi failed to\b/i,
-  /\bi acknowledge that i\b/i,
-  /\bi admit\b/i,
+  /\bmy absence was due to\b/i, /\bi missed .{0,30} because\b/i, /\bi was late because\b/i,
+  /\bit happened because\b/i, /\bthe reason was\b/i, /\bwhat actually happened\b/i,
+  /\bi didn'?t do that because\b/i, /\bi forgot to\b/i, /\bi should have\b/i,
+  /\bi failed to\b/i, /\bi acknowledge that i\b/i, /\bi admit\b/i,
 ];
-
-const ESCALATION_PATTERNS = [
-  /\byou always\b/i,
-  /\byou never\b/i,
-  /\bthat's a lie\b/i,
-  /\byou('re| are) (wrong|lying)\b/i,
-  /\bhow dare you\b/i,
-  /\bunbelievable\b/i,
-  /\byou have no right\b/i,
-];
-
-const INSULT_ENGAGEMENT_PATTERNS = [
-  /\bthat's unfair\b/i,
-  /\bthat hurts\b/i,
-  /\bi can't believe you\b/i,
-  /\byou('re| are) being (difficult|unreasonable|impossible)\b/i,
-];
-
 const ALL_UNSAFE_PATTERNS = [...APOLOGY_PATTERNS, ...ADMISSION_PATTERNS];
 
 function containsUnsafeLanguage(val: unknown): string | null {
@@ -580,15 +307,28 @@ function isNonEmptyString(val: unknown): val is string {
   return typeof val === "string" && val.trim().length > 0;
 }
 
-// ── Scoring: Original Message (server-side verification) ──
+// ══════════════════════════════════════════════════════════════
+// SCORING: ORIGINAL MESSAGE
+// ══════════════════════════════════════════════════════════════
+
+const ESCALATION_PATTERNS = [
+  /\byou always\b/i, /\byou never\b/i, /\bthat's a lie\b/i,
+  /\byou('re| are) (wrong|lying)\b/i, /\bhow dare you\b/i,
+  /\bunbelievable\b/i, /\byou have no right\b/i,
+];
+
+const INSULT_ENGAGEMENT_PATTERNS = [
+  /\bthat's unfair\b/i, /\bthat hurts\b/i, /\bi can't believe you\b/i,
+  /\byou('re| are) being (difficult|unreasonable|impossible)\b/i,
+];
+
 function scoreOriginalMessage(originalMessage: string): { score: number; notes: string[] } {
   const notes: string[] = [];
   let deductions = 0;
   let issueCategories = 0;
-
   const text = originalMessage;
 
-  // Threats / intimidation (-3)
+  // Threats (-3)
   const threatPatterns = [
     /\bi('ll| will) (make sure|destroy|ruin|end)\b/i,
     /\byou('ll| will) (regret|pay|lose|suffer)\b/i,
@@ -603,8 +343,7 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   const faultPatterns = [
     /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bmy fault\b/i,
     /\bi forgot\b/i, /\bi should have\b/i, /\bi failed\b/i,
-    /\bi was wrong\b/i, /\bi made a mistake\b/i, /\bi admit\b/i,
-    /\bi regret\b/i,
+    /\bi was wrong\b/i, /\bi made a mistake\b/i, /\bi admit\b/i, /\bi regret\b/i,
   ];
   let faultHits = 0;
   for (const p of faultPatterns) { if (p.test(text)) { faultHits++; notes.push(`fault: ${p.source}`); } }
@@ -613,7 +352,8 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   // Strong accusations (-3)
   const accusatoryPatterns = [
     /\byou always\b/i, /\byou never\b/i, /\byour fault\b/i,
-    /\byou caused\b/i, /\byou did this\b/i, /\byou('re| are) (wrong|lying|the problem|the reason)\b/i,
+    /\byou caused\b/i, /\byou did this\b/i,
+    /\byou('re| are) (wrong|lying|the problem|the reason)\b/i,
     /\bthat's a lie\b/i, /\bhow dare you\b/i, /\byou have no right\b/i,
   ];
   let accusatoryHits = 0;
@@ -630,26 +370,23 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   let emotionalHits = 0;
   for (const p of emotionalPatterns) { if (p.test(text)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
 
-  // Short emotional message detection — single-word or very short reactive messages
+  // Short emotional detection
   const trimmed = text.trim();
   const wordCount = trimmed.split(/\s+/).length;
   const shortEmotionalPatterns = [
     /^unbelievable[.!?]*$/i, /^seriously[.!?]*$/i, /^ridiculous[.!?]*$/i,
     /^wow[.!?]*$/i, /^fine[.!?]*$/i, /^great[.!?]*$/i, /^nice[.!?]*$/i,
     /^really[.!?]*$/i, /^typical[.!?]*$/i, /^incredible[.!?]*$/i,
-    /^amazing[.!?]*$/i, /^perfect[.!?]*$/i, /^lovely[.!?]*$/i,
-    /^figures?[.!?]*$/i, /^right[.!?]*$/i, /^sure[.!?]*$/i,
-    /^of course[.!?]*$/i, /^clearly[.!?]*$/i,
+    /^figures?[.!?]*$/i, /^right[.!?]*$/i, /^sure[.!?]*$/i, /^of course[.!?]*$/i,
   ];
   let shortEmotionalHit = false;
   if (wordCount <= 4) {
     for (const p of shortEmotionalPatterns) {
       if (p.test(trimmed)) { shortEmotionalHit = true; notes.push(`short_emotional: ${p.source}`); break; }
     }
-    // Also catch short messages ending with ! or ? that express exasperation
     if (!shortEmotionalHit && wordCount <= 3 && /[!?]{1,}$/.test(trimmed) && !/^(yes|no|ok|okay|confirmed|done|received|noted)[.!?]*$/i.test(trimmed)) {
       shortEmotionalHit = true;
-      notes.push("short_emotional: short reactive message with punctuation");
+      notes.push("short_emotional: short reactive message");
     }
   }
   if (shortEmotionalHit && emotionalHits === 0) {
@@ -658,25 +395,21 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
     deductions += 2;
     issueCategories++;
   }
-
   if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
 
-  // Admission trap detection (-3)
+  // Admission trap (-3)
   const admissionTrapPatterns = [
     /\bso you agree\b/i, /\byou admit\b/i, /\bthen you acknowledge\b/i,
     /\bso basically you('re| are) saying\b/i, /\bso you('re| are) saying\b/i,
     /\bso you confirm\b/i, /\byou('re| are) confirming\b/i,
     /\bso you('re| are) admitting\b/i, /\byou just admitted\b/i,
     /\bso you acknowledge\b/i, /\bthen you agree\b/i,
-    /\bso you concede\b/i, /\byou('re| are) conceding\b/i,
-    /\bso we can agree that\b/i, /\byou already said\b/i,
-    /\byou told me that\b/i, /\byou said yourself\b/i,
   ];
   let admissionTrapHits = 0;
   for (const p of admissionTrapPatterns) { if (p.test(text)) { admissionTrapHits++; notes.push(`admission_trap: ${p.source}`); } }
   if (admissionTrapHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission trap"); }
 
-  // Hostile/aggressive tone (-2)
+  // Hostile/aggressive (-2)
   const hostilePatterns = [
     /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish)\b/i,
     /\bshut up\b/i, /\bgo to hell\b/i, /\byou disgust me\b/i,
@@ -686,136 +419,94 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
   if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); }
 
-  // Passive aggression / sarcasm (-2)
-  const passiveAggressivePatterns = [
+  // Passive aggression (-2)
+  const paPatterns = [
     /\bthanks for nothing\b/i, /\bwhatever\b/i, /\bgood luck with that\b/i,
     /\bnice try\b/i, /\bsure,? (right|okay)\b/i, /\boh really\b/i,
-    /\bthat's rich\b/i, /\bclassic you\b/i,
   ];
   let paHits = 0;
-  for (const p of passiveAggressivePatterns) { if (p.test(text)) { paHits++; notes.push(`passive_aggressive: ${p.source}`); } }
-  if (paHits > 0) { deductions += 2; issueCategories++; notes.push("-2: passive aggression/sarcasm"); }
+  for (const p of paPatterns) { if (p.test(text)) { paHits++; notes.push(`passive_aggressive: ${p.source}`); } }
+  if (paHits > 0) { deductions += 2; issueCategories++; notes.push("-2: passive aggression"); }
 
-  // Over-explaining / justification (-2)
-  const justificationPatterns = [
+  // Over-explaining (-2)
+  const justPatterns = [
     /\bbecause\b/i, /\bdue to\b/i, /\bthe reason\b/i,
     /\blet me explain\b/i, /\bwhat happened was\b/i,
-    /\bi was just\b/i, /\bin my defense\b/i, /\bto be fair\b/i,
   ];
   let justHits = 0;
-  for (const p of justificationPatterns) { if (p.test(text)) { justHits++; notes.push(`justification: ${p.source}`); } }
-  if (justHits > 0) { deductions += 2; issueCategories++; notes.push("-2: over-explaining/justification"); }
+  for (const p of justPatterns) { if (p.test(text)) { justHits++; notes.push(`justification: ${p.source}`); } }
+  if (justHits > 0) { deductions += 2; issueCategories++; notes.push("-2: over-explaining"); }
 
-  // Apology language (-2)
+  // Apology (-2)
   let apologyHits = 0;
-  for (const p of APOLOGY_PATTERNS) { if (p.test(text)) { apologyHits++; notes.push(`apology: ${p.source}`); } }
-  if (apologyHits > 0 && faultHits === 0) { // avoid double-counting with fault
-    deductions += 2; issueCategories++; notes.push("-2: apology language");
-  }
+  for (const p of APOLOGY_PATTERNS) { if (p.test(text)) { apologyHits++; } }
+  if (apologyHits > 0 && faultHits === 0) { deductions += 2; issueCategories++; notes.push("-2: apology language"); }
 
-  // Vague phrasing (-1)
-  const vaguePatterns = [
-    /\bmaybe\b/i, /\bkind of\b/i, /\bhopefully\b/i,
-    /\bi think\b/i, /\bi guess\b/i, /\bprobably\b/i,
-    /\bsort of\b/i, /\bi suppose\b/i,
-  ];
+  // Vague (-1)
+  const vaguePatterns = [/\bmaybe\b/i, /\bkind of\b/i, /\bhopefully\b/i, /\bi think\b/i, /\bi guess\b/i, /\bprobably\b/i];
   let vagueHits = 0;
-  for (const p of vaguePatterns) { if (p.test(text)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
+  for (const p of vaguePatterns) { if (p.test(text)) { vagueHits++; } }
   if (vagueHits > 0) { deductions += 1; issueCategories++; notes.push("-1: vague phrasing"); }
 
-  // Escalation risk (-1) — only if not already caught by more specific categories
+  // Escalation (-1)
   let escalationHits = 0;
   for (const p of [...ESCALATION_PATTERNS, ...INSULT_ENGAGEMENT_PATTERNS]) {
     if (p.test(text) && !accusatoryHits) { escalationHits++; }
   }
   if (escalationHits > 0 && accusatoryHits === 0) { deductions += 1; issueCategories++; notes.push("-1: escalation risk"); }
 
-  // ── Additional classification flags (no score deduction, flagging only) ──
-
-  // Past-fact confirmation risk
+  // Classification flags (no deduction)
   const pastFactPatterns = [
-    /\bso you (agree|admit|acknowledge|confirm|concede)\b/i,
+    /\bso you (agree|admit|acknowledge|confirm)\b/i,
     /\byou (agreed|admitted|acknowledged|confirmed|said|told me)\b/i,
-    /\blast time you\b/i, /\byou already said\b/i,
-    /\byou said yourself\b/i, /\bremember when you\b/i,
-    /\byou promised\b/i, /\byou were (late|absent|wrong)\b/i,
-    /\byou didn't (show|come|follow|pick)\b/i,
-    /\byou missed\b/i, /\byou failed to\b/i,
-    /\byou canceled\b/i, /\byou cancelled\b/i,
+    /\blast time you\b/i, /\byou already said\b/i, /\byou promised\b/i,
+    /\byou were (late|absent|wrong)\b/i, /\byou didn't (show|come|follow|pick)\b/i,
+    /\byou missed\b/i, /\byou failed to\b/i, /\byou canceled\b/i,
   ];
   let pastFactHits = 0;
   for (const p of pastFactPatterns) { if (p.test(text)) { pastFactHits++; } }
   if (pastFactHits > 0) { notes.push("flag: Past-fact confirmation risk"); }
 
-  // Financial demand or assumption
   const financialPatterns = [
     /\b(you|your) (owe|pay|paying|income|salary|raise|money|finances?)\b/i,
-    /\bchild support\b/i, /\balimony\b/i,
-    /\byou('re| are) making more\b/i, /\bsince your (raise|promotion|new job)\b/i,
-    /\byou should be paying\b/i, /\byou need to pay\b/i,
-    /\breimburse\b/i, /\bsplit the cost\b/i,
-    /\byou can afford\b/i, /\byour (new|extra) income\b/i,
-    /\bexpense(s)?\b/i, /\bcost(s)?\b/i,
+    /\bchild support\b/i, /\balimony\b/i, /\breimburse\b/i, /\bsplit the cost\b/i,
   ];
   let financialHits = 0;
   for (const p of financialPatterns) { if (p.test(text)) { financialHits++; } }
   if (financialHits > 0) { notes.push("flag: Financial demand or assumption"); }
 
-  // Irrelevant or non-child-related topic
   const irrelevantPatterns = [
     /\bi miss (us|you|our (family|life|marriage|relationship))\b/i,
     /\bremember when we\b/i, /\bwe used to\b/i,
-    /\bi (still )?(love|care about) you\b/i,
-    /\b(my|your) (stuff|things|belongings|furniture|couch|clothes)\b/i,
-    /\bgive (me )?back my\b/i, /\breturn my\b/i,
-    /\byou hurt me\b/i, /\byou broke my heart\b/i,
-    /\bour relationship\b/i, /\bour marriage\b/i,
-    /\bwhy did (you|we) (break up|divorce|separate|split)\b/i,
-    /\bi('m| am) (lonely|lost without you|nothing without you)\b/i,
+    /\b(my|your) (stuff|things|belongings|furniture)\b/i,
+    /\bgive (me )?back my\b/i, /\byou hurt me\b/i,
   ];
   let irrelevantHits = 0;
   for (const p of irrelevantPatterns) { if (p.test(text)) { irrelevantHits++; } }
   if (irrelevantHits > 0) { notes.push("flag: Irrelevant or non-child-related topic"); }
 
   let score = Math.max(1, 10 - deductions);
-
-  // Hard caps
-  if (threatHits > 0 || faultHits > 0 || accusatoryHits > 0) {
-    score = Math.min(score, 4);
-    notes.push("cap: threats/admissions/accusations caps at 4");
-  }
-  if (admissionTrapHits > 0) {
-    score = Math.min(score, 5);
-    notes.push("cap: admission trap caps at 5");
-  }
-  if (shortEmotionalHit) {
-    score = Math.min(score, 6);
-    notes.push("cap: short emotional message caps at 6");
-  }
-  if (emotionalHits > 0 || vagueHits > 0) {
-    score = Math.min(score, 8);
-  }
-
+  if (threatHits > 0 || faultHits > 0 || accusatoryHits > 0) { score = Math.min(score, 4); }
+  if (admissionTrapHits > 0) { score = Math.min(score, 5); }
+  if (shortEmotionalHit) { score = Math.min(score, 6); }
+  if (emotionalHits > 0 || vagueHits > 0) { score = Math.min(score, 8); }
   score = Math.max(1, Math.min(10, score));
 
   return { score, notes };
 }
 
-// ── Scoring: Output Quality (server-side verification) ──
+// ══════════════════════════════════════════════════════════════
+// SCORING: OUTPUT QUALITY
+// ══════════════════════════════════════════════════════════════
+
 interface OutputQualityResult {
   score: number | null;
   notes: string[];
   quality_score_status: "excellent" | "acceptable" | "weak" | "reject" | null;
 }
 
-// Keep the old interface name as an alias for compatibility within this file
-type RewriteQualityResult = OutputQualityResult;
-
 const OVERLY_FORMAL_PATTERNS = [
-  /\bhereby\b/i, /\bwherein\b/i, /\bnotwithstanding\b/i,
-  /\bpursuant to\b/i, /\bin accordance with\b/i,
-  /\bthe aforementioned\b/i, /\bthe undersigned\b/i,
-  /\bit is imperative\b/i, /\bi wish to inform you\b/i,
+  /\bhereby\b/i, /\bpursuant to\b/i, /\bin accordance with\b/i,
   /\bplease be advised\b/i, /\bkindly be informed\b/i,
 ];
 
@@ -825,17 +516,14 @@ const PASSIVE_WEAK_PATTERNS = [
   /\bwould it be possible\b/i, /\bif you don't mind\b/i,
   /\bi just wanted to\b/i, /\bi was hoping\b/i,
   /\bi would appreciate\b/i, /\bi feel\b/i, /\bi feel like\b/i,
-  /\bi feel that\b/i, /\bcould you possibly\b/i,
-  /\bi just think\b/i, /\bit seems like\b/i, /\bit appears that\b/i,
+  /\bcould you possibly\b/i, /\bit seems like\b/i,
 ];
 
 const VAGUE_REWRITE_PATTERNS = [
   /\bsometime soon\b/i, /\bat some point\b/i,
   /\bwhen you get a chance\b/i, /\bwhenever works\b/i,
-  /\bin the near future\b/i, /\bas needed\b/i,
-  /\bmaybe\b/i, /\bkind of\b/i, /\btrying to\b/i,
-  /\bsort of\b/i, /\bhopefully\b/i, /\bi think\b/i,
-  /\bi guess\b/i, /\bprobably\b/i, /\bi suppose\b/i,
+  /\bmaybe\b/i, /\bkind of\b/i, /\bhopefully\b/i,
+  /\bi think\b/i, /\bi guess\b/i, /\bprobably\b/i,
 ];
 
 function scoreOutputQuality(
@@ -852,11 +540,8 @@ function scoreOutputQuality(
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
     }
-    // Also score three_alternatives if present (respond mode only)
     if (Array.isArray(result.three_alternatives)) {
-      for (const alt of result.three_alternatives) {
-        if (typeof alt === "string") textFields.push(alt);
-      }
+      for (const alt of result.three_alternatives) { if (typeof alt === "string") textFields.push(alt); }
     }
   } else {
     if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
@@ -865,145 +550,69 @@ function scoreOutputQuality(
   }
 
   const allText = textFields.join(" ");
-  if (!allText.trim()) {
-    return { score: null, notes: ["empty_output"], quality_score_status: null };
-  }
+  if (!allText.trim()) return { score: null, notes: ["empty_output"], quality_score_status: null };
 
   let issueCategories = 0;
 
-  // 1. Emotional language (-2)
-  const emotionalPatterns = [
-    ...APOLOGY_PATTERNS,
-    /\bi feel\b/i, /\bit makes me\b/i, /\bi('m| am) upset\b/i,
-    /\bi('m| am) frustrated\b/i, /\bi('m| am) hurt\b/i,
-    /\byou make me\b/i, /\bthis is your fault\b/i,
-    /\bsorry\b/i, /\bupset\b/i, /\bfrustrated\b/i,
-    /\bhurt\b/i, /\bangry\b/i, /\bdisappointed\b/i,
-    /\bworried\b/i, /\bscared\b/i, /\bheartbroken\b/i,
-  ];
+  // Emotional (-2)
+  const emotionalPatterns = [...APOLOGY_PATTERNS, /\bsorry\b/i, /\bupset\b/i, /\bfrustrated\b/i, /\bhurt\b/i, /\bangry\b/i, /\bdisappointed\b/i];
   let emotionalHits = 0;
-  for (const p of emotionalPatterns) { if (p.test(allText)) { emotionalHits++; notes.push(`emotional: ${p.source}`); } }
+  for (const p of emotionalPatterns) { if (p.test(allText)) { emotionalHits++; } }
   if (emotionalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: emotional language in output"); }
 
-  // 2. Vague phrasing (-2)
+  // Vague (-2)
   let vagueHits = 0;
-  for (const p of VAGUE_REWRITE_PATTERNS) { if (p.test(allText)) { vagueHits++; notes.push(`vague: ${p.source}`); } }
+  for (const p of VAGUE_REWRITE_PATTERNS) { if (p.test(allText)) { vagueHits++; } }
   if (vagueHits > 0) { deductions += 2; issueCategories++; notes.push("-2: vague phrasing in output"); }
 
-  // 3. Defensive tone (-2)
-  const defensivePatterns = [
-    ...ADMISSION_PATTERNS,
-    /\bbecause\b/i, /\bdue to\b/i, /\bthe reason\b/i,
-    /\blet me explain\b/i, /\bwhat happened was\b/i,
-    /\bi was just\b/i, /\bi only\b/i, /\bi didn't mean\b/i,
-    /\bin my defense\b/i, /\bto be fair\b/i,
-  ];
+  // Defensive (-2)
+  const defensivePatterns = [...ADMISSION_PATTERNS, /\bbecause\b/i, /\bdue to\b/i, /\blet me explain\b/i];
   let defensiveHits = 0;
-  for (const p of defensivePatterns) { if (p.test(allText)) { defensiveHits++; notes.push(`defensive: ${p.source}`); } }
+  for (const p of defensivePatterns) { if (p.test(allText)) { defensiveHits++; } }
   if (defensiveHits > 0) { deductions += 2; issueCategories++; notes.push("-2: defensive/justification in output"); }
 
-  // 4. Accusatory language (-3)
-  const accusatoryPatterns = [
-    ...ESCALATION_PATTERNS, ...INSULT_ENGAGEMENT_PATTERNS,
-    /\byour fault\b/i, /\byou caused\b/i, /\byou did this\b/i,
-    /\byou('re| are) the (problem|reason)\b/i,
-  ];
+  // Accusatory (-3)
+  const accusatoryPatterns = [...ESCALATION_PATTERNS, /\byour fault\b/i, /\byou caused\b/i, /\byou did this\b/i];
   let accusatoryHits = 0;
-  for (const p of accusatoryPatterns) { if (p.test(allText)) { accusatoryHits++; notes.push(`accusatory: ${p.source}`); } }
+  for (const p of accusatoryPatterns) { if (p.test(allText)) { accusatoryHits++; } }
   if (accusatoryHits > 0) { deductions += 3; issueCategories++; notes.push("-3: accusatory language in output"); }
 
-  // 5. Admission of fault (-3)
-  const faultPatterns = [
-    /\bi forgot\b/i, /\bi should have\b/i, /\bi failed\b/i,
-    /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bi regret\b/i,
-    /\bi admit\b/i, /\bmy fault\b/i, /\bi was wrong\b/i, /\bi made a mistake\b/i,
-  ];
+  // Fault admission (-3)
+  const faultPatterns = [/\bi forgot\b/i, /\bi should have\b/i, /\bi('m| am) sorry\b/i, /\bi apologize\b/i, /\bmy fault\b/i];
   let faultHits = 0;
-  for (const p of faultPatterns) { if (p.test(allText)) { faultHits++; notes.push(`fault: ${p.source}`); } }
+  for (const p of faultPatterns) { if (p.test(allText)) { faultHits++; } }
   if (faultHits > 0) { deductions += 3; issueCategories++; notes.push("-3: admission of fault in output"); }
 
-  // 6. Overly formal (-2)
+  // Formal (-2)
   let formalHits = 0;
-  for (const p of OVERLY_FORMAL_PATTERNS) { if (p.test(allText)) { formalHits++; notes.push(`formal: ${p.source}`); } }
-  if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal/unnatural"); }
+  for (const p of OVERLY_FORMAL_PATTERNS) { if (p.test(allText)) { formalHits++; } }
+  if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal"); }
 
-  // 7. Verbosity (-2)
+  // Verbose (-2)
   const primaryText = (result.primary_rewrite as string ?? "");
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-  if (sentenceCount > 3 || primaryText.length > 400) {
-    deductions += 2; issueCategories++;
-    notes.push(`-2: verbose (${sentenceCount} sentences, ${primaryText.length} chars)`);
-  }
+  if (sentenceCount > 3 || primaryText.length > 400) { deductions += 2; issueCategories++; notes.push("-2: verbose"); }
 
-  // 8. Too passive/weak (-2)
+  // Weak (-2)
   let weakHits = 0;
-  for (const p of PASSIVE_WEAK_PATTERNS) { if (p.test(allText)) { weakHits++; notes.push(`weak: ${p.source}`); } }
+  for (const p of PASSIVE_WEAK_PATTERNS) { if (p.test(allText)) { weakHits++; } }
   if (weakHits > 0) { deductions += 2; issueCategories++; notes.push("-2: too passive/weak"); }
 
-  // 9. Indirect intent (-1)
-  const indirectPatterns = [
-    /\bso we can discuss\b/i, /\blet me know your thoughts\b/i,
-    /\bwe can talk about this\b/i, /\bi'd like to discuss\b/i,
-  ];
-  let indirectHits = 0;
-  for (const p of indirectPatterns) { if (p.test(allText)) { indirectHits++; notes.push(`indirect: ${p.source}`); } }
-  if (indirectHits > 0) { deductions += 1; issueCategories++; notes.push("-1: indirect intent"); }
+  // Placeholder (-3)
+  if (PLACEHOLDER_PATTERN.test(allText)) { deductions += 3; issueCategories++; notes.push("-3: placeholder brackets"); }
 
-  // 10. Placeholder brackets
-  if (PLACEHOLDER_PATTERN.test(allText)) {
-    deductions += 3; issueCategories++;
-    notes.push("-3: placeholder brackets");
-  }
-
-  // 11. Controlling / patronizing tone (-2 in rewrite, -1 in respond)
-  const controllingPatterns = [
-    /\byou need to\b/i, /\byou must\b/i, /\byou should\b/i,
-    /\bi expect you to\b/i, /\bi need you to\b/i,
-    /\bgoing forward,? you will\b/i, /\bi trust that you\b/i,
-    /\bplease confirm you understand\b/i, /\bi assume you will\b/i,
-    /\bmake sure you\b/i, /\bensure that you\b/i,
-    /\bsee to it that\b/i, /\bi trust you will\b/i,
-  ];
+  // Controlling (-2/-1)
+  const controllingPatterns = [/\byou need to\b/i, /\byou must\b/i, /\bi expect you to\b/i, /\bplease confirm you understand\b/i, /\bmake sure you\b/i];
   let controlHits = 0;
-  for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; notes.push(`controlling: ${p.source}`); } }
-  if (controlHits > 0) {
-    const controlDeduction = mode === "rewrite" ? 2 : 1;
-    deductions += controlDeduction;
-    issueCategories++;
-    notes.push(`-${controlDeduction}: controlling/patronizing tone`);
-  }
-
-  // 12. Generic/bland wording (-1)
-  const genericPatterns = [
-    /\bi appreciate your (cooperation|understanding|patience)\b/i,
-    /\bthank you for your (cooperation|understanding|patience)\b/i,
-    /\bi look forward to\b/i, /\bmoving forward together\b/i,
-    /\bin the best interest of\b/i,
-  ];
-  let genericHits = 0;
-  for (const p of genericPatterns) { if (p.test(allText)) { genericHits++; notes.push(`generic: ${p.source}`); } }
-  if (genericHits > 0) { deductions += 1; issueCategories++; notes.push("-1: generic/bland wording"); }
-
-  // 13. Unnecessary formalization
-  const wordCount = allText.split(/\s+/).length;
-  if (wordCount > 60) { deductions += 1; issueCategories++; notes.push(`-1: high word count (${wordCount})`); }
+  for (const p of controllingPatterns) { if (p.test(allText)) { controlHits++; } }
+  if (controlHits > 0) { const d = mode === "rewrite" ? 2 : 1; deductions += d; issueCategories++; notes.push(`-${d}: controlling tone`); }
 
   let serverScore = Math.max(1, 10 - deductions);
-
-  // Hard caps
   if (emotionalHits > 0 || vagueHits > 0) { serverScore = Math.min(serverScore, 8); }
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  // Incorporate AI self-score (take minimum)
   const aiSelfScore = typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null;
-  if (aiSelfScore !== null) {
-    notes.push(`ai_self_score: ${aiSelfScore}`);
-    if (Array.isArray(result.rewrite_quality_notes)) {
-      notes.push(`ai_deductions: ${(result.rewrite_quality_notes as string[]).join("; ")}`);
-    }
-  }
-
   let total: number;
   if (aiSelfScore !== null && aiSelfScore >= 1 && aiSelfScore <= 10) {
     total = Math.min(serverScore, aiSelfScore);
@@ -1011,12 +620,9 @@ function scoreOutputQuality(
     total = serverScore;
   }
 
-  // Final 10 gate
   if (total >= 10 && (issueCategories > 0 || sentenceCount > 2 || primaryText.length > 200)) {
     total = 9;
-    notes.push("cap: 10 requires zero issues + concise output");
   }
-
   total = Math.max(1, Math.min(10, total));
 
   let status: OutputQualityResult["quality_score_status"];
@@ -1028,79 +634,29 @@ function scoreOutputQuality(
   return { score: total, notes, quality_score_status: status };
 }
 
-// Keep old function name as alias for callers
-const scoreRewriteQuality = scoreOutputQuality;
+// ══════════════════════════════════════════════════════════════
+// SEMANTIC VALIDATION
+// ══════════════════════════════════════════════════════════════
 
-function validateThreeAlternatives(r: Record<string, unknown>): string | null {
-  if (!Array.isArray(r.three_alternatives)) return "missing three_alternatives";
-  if (r.three_alternatives.length !== 3) return `three_alternatives must have exactly 3 items, got ${r.three_alternatives.length}`;
-  for (let i = 0; i < 3; i++) {
-    if (!isNonEmptyString(r.three_alternatives[i])) return `three_alternatives[${i}] is empty`;
-    if (containsPlaceholder(r.three_alternatives[i])) return `three_alternatives[${i}] contains placeholder`;
-    const unsafeMatch = containsUnsafeLanguage(r.three_alternatives[i]);
-    if (unsafeMatch) return `three_alternatives[${i}] contains unsafe language (${unsafeMatch})`;
-  }
-  return null;
-}
-
-function validateRespondResult(r: Record<string, unknown>): string | null {
-  if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
-  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
-
-  if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
-    if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version for respond";
-    if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version for respond";
-    if (containsPlaceholder(r.shorter_version)) return "shorter_version contains placeholder text";
-    if (containsPlaceholder(r.firmer_version)) return "firmer_version contains placeholder text";
-
-    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
-      const unsafeMatch = containsUnsafeLanguage(r[field]);
-      if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
-    }
-  }
-
-  for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
-    if (!isNonEmptyString(r[k])) return `missing ${k}`;
-    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
-  }
-  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
-  const altError = validateThreeAlternatives(r);
-  if (altError) return altError;
-  return null;
-}
-
-// ── Rewrite semantic validation (pre-save) ──
 const SHARED_RESPONSIBILITY_PATTERNS = [
   /\bwe need to\b/i, /\bwe should\b/i, /\bwe must\b/i,
-  /\blet's\b/i, /\blet us\b/i, /\bwe can\b/i,
-  /\bwe both\b/i, /\btogether we\b/i, /\bour shared\b/i,
+  /\blet's\b/i, /\blet us\b/i, /\bwe can\b/i, /\bwe both\b/i,
 ];
 
 const NEW_COMMITMENT_PATTERNS = [
-  /\bi will\b/i, /\bi'll\b/i, /\bi commit\b/i,
-  /\bi promise\b/i, /\bi pledge\b/i, /\bi guarantee\b/i,
+  /\bi will\b/i, /\bi'll\b/i, /\bi commit\b/i, /\bi promise\b/i,
   /\bi am going to\b/i, /\bi'm going to\b/i,
 ];
 
 const HOSTILE_FIRMNESS_PATTERNS = [
-  /\byou need to understand\b/i, /\bi demand\b/i,
-  /\bi insist\b/i, /\byou('re| are) not allowed\b/i,
-  /\byou have no right\b/i, /\bdo as i say\b/i,
-  /\byou('re| are) forbidden\b/i, /\bi('m| am) warning you\b/i,
+  /\byou need to understand\b/i, /\bi demand\b/i, /\bi insist\b/i,
+  /\byou('re| are) not allowed\b/i, /\bdo as i say\b/i,
+  /\bi('m| am) warning you\b/i,
 ];
 
-interface SemanticIssue {
-  field: string;
-  type: string;
-  detail: string;
-  severity: "hard" | "soft";
-}
+interface SemanticIssue { field: string; type: string; detail: string; severity: "hard" | "soft"; }
 
-function validateRewriteSemantics(
-  original: string,
-  result: Record<string, unknown>,
-): SemanticIssue[] {
+function validateRewriteSemantics(original: string, result: Record<string, unknown>): SemanticIssue[] {
   const issues: SemanticIssue[] = [];
   const origLower = original.toLowerCase();
 
@@ -1110,102 +666,37 @@ function validateRewriteSemantics(
     { key: "firmer_version", label: "firmer_version" },
   ] as const;
 
-  const originalIsRequest = /\b(please|can you|could you|will you|would you|you need|confirm|let me know)\b/i.test(origLower)
-    || /\?/.test(original);
-
-  const originalHasCommitment = /\bi will\b/i.test(origLower)
-    || /\bi'll\b/i.test(origLower)
-    || /\bi am going to\b/i.test(origLower)
-    || /\bi'm going to\b/i.test(origLower)
-    || /\bi commit\b/i.test(origLower)
-    || /\bi promise\b/i.test(origLower);
-
+  const originalIsRequest = /\b(please|can you|could you|will you|would you|confirm|let me know)\b/i.test(origLower) || /\?/.test(original);
+  const originalHasCommitment = /\bi will\b/i.test(origLower) || /\bi'll\b/i.test(origLower);
   const originalHasShared = /\b(we need|we should|we must|let's|let us|we can|we both)\b/i.test(origLower);
-
-  const originalDirectsAtYou = /\b(you need|you should|you must|you have to|you haven't|you didn't|you failed|you were late|you missed)\b/i.test(origLower);
+  const originalDirectsAtYou = /\b(you need|you should|you must|you have to|you haven't|you didn't|you failed|you were late)\b/i.test(origLower);
 
   for (const { key, label } of rewriteFields) {
     const text = result[key];
     if (typeof text !== "string" || !text.trim()) continue;
 
-    // 1. Perspective flip: original is a request → output says "I will"
-    // Skip for firmer_version — it's designed to be more assertive
     if (key !== "firmer_version" && originalIsRequest && !originalHasCommitment) {
       for (const p of NEW_COMMITMENT_PATTERNS) {
         if (p.test(text)) {
-          // Allow safe forward-looking "I will" statements
-          const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
-          if (!isSafeCommitment) {
-            issues.push({ field: label, type: "perspective_flip", detail: `request converted to commitment: ${p.source}`, severity: "hard" });
-            break;
-          }
+          const isSafe = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
+          if (!isSafe) { issues.push({ field: label, type: "perspective_flip", detail: `request→commitment: ${p.source}`, severity: "hard" }); break; }
         }
       }
     }
 
-    // 2. Shared responsibility reframing
     if (originalDirectsAtYou && !originalHasShared) {
       for (const p of SHARED_RESPONSIBILITY_PATTERNS) {
-        if (p.test(text)) {
-          issues.push({ field: label, type: "shared_responsibility", detail: `directed responsibility reframed as shared: ${p.source}`, severity: "hard" });
-          break;
-        }
+        if (p.test(text)) { issues.push({ field: label, type: "shared_responsibility", detail: `directed→shared: ${p.source}`, severity: "hard" }); break; }
       }
     }
 
-    // 3. Over-softening — soft issue, deducts from quality score but doesn't hard-reject
     for (const p of PASSIVE_WEAK_PATTERNS) {
-      if (p.test(text)) {
-        issues.push({ field: label, type: "over_softening", detail: `passive/weak phrasing: ${p.source}`, severity: "soft" });
-        break;
-      }
+      if (p.test(text)) { issues.push({ field: label, type: "over_softening", detail: `passive/weak: ${p.source}`, severity: "soft" }); break; }
     }
 
-    // 4. New commitments not in original — skip for firmer_version
-    if (key !== "firmer_version" && !originalHasCommitment) {
-      if (/\bi will\b/i.test(text) || /\bi'll\b/i.test(text)) {
-        const isSafeCommitment = /\bi will (follow|adhere to|comply with|be at|confirm|ensure)/i.test(text);
-        if (!isSafeCommitment) {
-          issues.push({ field: label, type: "new_commitment", detail: `"I will" commitment not in original`, severity: "soft" });
-        }
-      }
-    }
-
-    // 5. Hostile firmness (firmer_version only)
     if (key === "firmer_version") {
       for (const p of HOSTILE_FIRMNESS_PATTERNS) {
-        if (p.test(text)) {
-          issues.push({ field: label, type: "hostile_firmness", detail: `firmer_version too aggressive: ${p.source}`, severity: "hard" });
-          break;
-        }
-      }
-    }
-
-    // 6. Controlling/patronizing closers (all variants)
-    const controllingCloserPatterns = [
-      /\bplease confirm you understand\b/i,
-      /\bi expect you to\b/i,
-      /\bi trust that you will\b/i,
-      /\bi assume you will\b/i,
-      /\bmake sure you\b/i,
-      /\bensure that you\b/i,
-      /\bsee to it that\b/i,
-    ];
-    for (const p of controllingCloserPatterns) {
-      if (p.test(text)) {
-        issues.push({ field: label, type: "controlling_closer", detail: `controlling/patronizing closing: ${p.source}`, severity: "soft" });
-        break;
-      }
-    }
-
-    // 7. Confirmation request converted to directive
-    if (originalIsRequest && !originalHasCommitment) {
-      const originalAsksOther = /\b(can you|could you|will you|would you|are you going to|please confirm)\b/i.test(origLower);
-      if (originalAsksOther) {
-        const isDirective = /\b(you will|you are to)\b/i.test(text) && !/\b(will you|can you|could you|would you|please confirm|confirm (that |whether )?(you will|he will|she will|they will))\b/i.test(text);
-        if (isDirective) {
-          issues.push({ field: label, type: "confirmation_to_directive", detail: `confirmation request converted to directive`, severity: "hard" });
-        }
+        if (p.test(text)) { issues.push({ field: label, type: "hostile_firmness", detail: `too aggressive: ${p.source}`, severity: "hard" }); break; }
       }
     }
   }
@@ -1213,191 +704,93 @@ function validateRewriteSemantics(
   return issues;
 }
 
-const SEMANTIC_RETRY_ADDENDUM = `
-
-CRITICAL RETRY — SEMANTIC VALIDATION FAILED. Your previous output violated these rules:
-
-1. NEVER convert a request into "I will" — if the original asks the other party to do something, keep it as a request.
-2. NEVER reframe directed responsibility as "we need to" or "let's" — preserve who the original holds accountable.
-3. NEVER soften the message with passive phrases like "I would appreciate", "perhaps we could", "if that's okay".
-4. NEVER add "I will" commitments unless the original explicitly contains them.
-5. firmer_version must be assertive but NEVER hostile, controlling, or patronizing (no "I expect you to", "you need to understand", "I demand").
-6. NEVER convert a confirmation request into a directive. If the original asks "Can you confirm...?" or "Will you...?", the rewrite MUST remain a request.
-7. NEVER add controlling or patronizing closers like "Please confirm you understand", "I expect you to", "Make sure you", "Ensure that you".
-8. NEVER harden assumptions into facts. If the original speculates about the other party's finances, motives, or intent, narrow or remove it — do not assert it as fact.
-9. If the original is primarily emotional with no logistical content, NARROW it to a brief logistics-focused message — do NOT polish the emotion.
-
-Regenerate ALL variants following these rules strictly.`;
+function validateRespondResult(r: Record<string, unknown>): string | null {
+  if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
+  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder";
+  if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
+    if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version";
+    if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version";
+    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
+      const unsafe = containsUnsafeLanguage(r[field]);
+      if (unsafe) return `${field} unsafe: ${unsafe}`;
+    }
+  }
+  for (const k of ["tone_assessment", "why_this_is_safer"] as const) {
+    if (!isNonEmptyString(r[k])) return `missing ${k}`;
+  }
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  if (!Array.isArray(r.three_alternatives) || r.three_alternatives.length !== 3) return "need 3 alternatives";
+  return null;
+}
 
 function validateRewriteResult(r: Record<string, unknown>): string | null {
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
-  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder text";
-
+  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder";
   for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
-    const unsafeMatch = containsUnsafeLanguage(r[field]);
-    if (unsafeMatch) return `${field} contains unsafe legal language (${unsafeMatch})`;
+    const unsafe = containsUnsafeLanguage(r[field]);
+    if (unsafe) return `${field} unsafe: ${unsafe}`;
   }
-
   for (const k of ["shorter_version", "firmer_version", "tone_assessment", "why_this_is_safer"] as const) {
     if (!isNonEmptyString(r[k])) return `missing ${k}`;
-    if (containsPlaceholder(r[k])) return `${k} contains placeholder text`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
   return null;
 }
 
+function validateTriageResult(r: Record<string, unknown>): string | null {
+  if (!["safe", "salvageable", "redirect"].includes(r.sendability_status as string)) return "invalid sendability_status";
+  if (!isNonEmptyString(r.sendability_reason)) return "missing sendability_reason";
+  if (!isNonEmptyString(r.detected_intent)) return "missing detected_intent";
+  if (!isNonEmptyString(r.detected_tone)) return "missing detected_tone";
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  return null;
+}
+
+function validateRedirectResult(r: Record<string, unknown>): string | null {
+  if (!isNonEmptyString(r.redirect_message)) return "missing redirect_message";
+  if (!isNonEmptyString(r.safe_alternative)) return "missing safe_alternative";
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+
 function getRetryDelayMs(retryAfter: string | null, attempt: number): number {
   if (!retryAfter) return Math.pow(2, attempt) * 1000 + Math.random() * 500;
   const seconds = Number.parseInt(retryAfter, 10);
   if (!Number.isNaN(seconds) && seconds > 0) return seconds * 1000;
-  const retryAt = new Date(retryAfter).getTime();
-  if (!Number.isNaN(retryAt)) { const delta = retryAt - Date.now(); if (delta > 0) return delta; }
   return Math.pow(2, attempt) * 1000 + Math.random() * 500;
 }
 
-// ── Tier 3: Deterministic fallback templates ──
-const RESPOND_FALLBACK_TEMPLATES: Record<string, string> = {
-  "set a boundary": "Please keep communication focused on logistics regarding our child.",
-  "ask for clarification": "Please clarify the specific logistical issue you need addressed.",
-  "acknowledge without engaging": "Received. I will review and respond if needed.",
-  "general neutral response": "Thank you. I will review this and respond as needed.",
-};
-const RESPOND_FALLBACK_DEFAULT = "Thank you. I will review this and respond as needed.";
-const REWRITE_FALLBACK = "I would like to discuss the logistics. Please let me know the relevant details so we can coordinate.";
-
-function matchIntent(context: string | undefined): string {
-  if (!context) return RESPOND_FALLBACK_DEFAULT;
-  const lower = context.toLowerCase().trim();
-  for (const [key, value] of Object.entries(RESPOND_FALLBACK_TEMPLATES)) {
-    if (lower.includes(key)) return value;
-  }
-  return RESPOND_FALLBACK_DEFAULT;
-}
-
-function buildDeterministicFallback(mode: "respond" | "rewrite", communicationContext?: string) {
-  if (mode === "rewrite") {
-    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
-  }
-  const fallbackText = matchIntent(communicationContext);
-  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: fallbackText, primary_response: fallbackText, three_alternatives: [] };
-}
-
-// ── OpenAI call helper ──
-async function callOpenAI(apiKey: string, model: string, requestBody: string): Promise<Response> {
-  return fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: requestBody.replace(/"model":"[^"]+"/, `"model":"${model}"`),
-  });
-}
-
-async function attemptAICall(
-  apiKey: string, model: string, requestBody: string,
-  mode: "respond" | "rewrite", toolName: string, label: string,
-): Promise<Record<string, unknown> | null> {
-  try {
-    const response = await callOpenAI(apiKey, model, requestBody);
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => "");
-      console.warn(`[${FN}] ${label} failure_type=api_error | status=${response.status} | body=${errBody.slice(0, 200)}`);
-      return null;
-    }
-    const aiData = await response.json();
-    const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
-    if (!functionCall) {
-      console.warn(`[${FN}] ${label} failure_type=empty_response | no function_call in output`);
-      return null;
-    }
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(functionCall.arguments);
-    } catch (jsonErr) {
-      console.warn(`[${FN}] ${label} failure_type=json_parse_error | ${jsonErr}`);
-      return null;
-    }
-    const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
-    if (validationError) {
-      console.warn(`[${FN}] ${label} failure_type=validation_rejection | ${validationError}`);
-      return null;
-    }
-    return parsed;
-  } catch (err) {
-    console.warn(`[${FN}] ${label} failure_type=api_error | ${err}`);
-    return null;
-  }
-}
-
 function extractServerFlags(notes: string[]): string[] {
-  return notes
-    .filter(n => n.startsWith("flag: "))
-    .map(n => n.replace("flag: ", ""));
+  return notes.filter(n => n.startsWith("flag: ")).map(n => n.replace("flag: ", ""));
 }
 
 function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
   const combined = [...(flags && Array.isArray(flags) ? flags : [])];
-  for (const sf of serverFlags) {
-    if (!combined.includes(sf)) combined.push(sf);
-  }
+  for (const sf of serverFlags) { if (!combined.includes(sf)) combined.push(sf); }
   if (combined.length === 0) return ["No risk flags"];
   return combined;
 }
 
-// ── Persist to normalized session + result tables ──
-async function persistToNewTables(
-  serviceClient: ReturnType<typeof createClient>,
-  userId: string, message: string, mode: "respond" | "rewrite",
-  result: Record<string, unknown>,
-  originalScore: { score: number; notes: string[] },
-  outputScore: RewriteQualityResult,
-) {
-  const sessionRow = {
-    user_id: userId,
-    mode,
-    original_message: message,
-    original_score: originalScore.score,
-    original_score_notes: JSON.parse(JSON.stringify(originalScore.notes)),
-    rewrite_quality_score: mode === "rewrite" ? outputScore.score : null,
-    rewrite_quality_notes: mode === "rewrite" ? JSON.parse(JSON.stringify(outputScore.notes)) : null,
-    recommendation_type: (result.recommendation_type as string) ?? null,
-    tone_assessment: (result.tone_assessment as string) ?? "Fallback",
-  };
+// Deterministic fallbacks
+const RESPOND_FALLBACK_DEFAULT = "Thank you. I will review this and respond as needed.";
+const REWRITE_FALLBACK = "I would like to discuss the logistics. Please let me know the relevant details so we can coordinate.";
 
-  const { data: sessionData, error: sessionErr } = await serviceClient
-    .from("communication_shield_sessions")
-    .insert(sessionRow)
-    .select("id")
-    .single();
-
-  if (sessionErr || !sessionData) {
-    console.error(`[${FN}] session insert error:`, JSON.stringify(sessionErr));
-    throw new Error(`Failed to persist Communication Shield session: ${sessionErr?.message ?? "no data returned"}`);
+function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) {
+  if (mode === "rewrite") {
+    return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
   }
-
-  const resultRow = {
-    session_id: sessionData.id,
-    result_type: mode === "respond" ? "respond_output" : "primary",
-    primary_rewrite: (result.primary_rewrite as string) ?? null,
-    primary_response: mode === "respond" ? (result.primary_rewrite as string ?? null) : null,
-    shorter_version: (result.shorter_version as string) ?? null,
-    firmer_version: (result.firmer_version as string) ?? null,
-    risk_flags: normalizeRiskFlags(result.risk_flags as string[] | undefined, extractServerFlags(originalScore.notes)),
-    why_this_is_safer: (result.why_this_is_safer as string) ?? null,
-    generation_index: 1,
-    is_selected: true,
-  };
-
-  const { error: resultErr } = await serviceClient
-    .from("communication_shield_results")
-    .insert(resultRow);
-
-  if (resultErr) {
-    console.error(`[${FN}] result insert error:`, JSON.stringify(resultErr));
-  }
-
-  console.log(`[${FN}] persistToNewTables | session=${sessionData.id} | mode=${mode} | original_score=${sessionRow.original_score} | rewrite_quality_score=${sessionRow.rewrite_quality_score}`);
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: RESPOND_FALLBACK_DEFAULT, primary_response: RESPOND_FALLBACK_DEFAULT, three_alternatives: [] };
 }
 
-// ── Prompt loading from database ──
+// ══════════════════════════════════════════════════════════════
+// PROMPT LOADING
+// ══════════════════════════════════════════════════════════════
+
 interface LoadedPrompt {
   promptText: string;
   versionLabel: string;
@@ -1406,9 +799,7 @@ interface LoadedPrompt {
 }
 
 function assembleHardcodedPrompt(mode: "respond" | "rewrite", originalContext?: string): string {
-  if (mode === "rewrite") {
-    return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
-  }
+  if (mode === "rewrite") return `${REWRITE_INTRO}\n\n${BASE_INSTRUCTIONS}`;
   return `${RESPOND_INTRO(originalContext)}\n\n${BASE_INSTRUCTIONS}\n\n${ALTERNATIVES_INSTRUCTIONS}`;
 }
 
@@ -1416,8 +807,8 @@ async function loadActivePrompt(
   serviceClient: any,
   featureKey: string,
   mode: "respond" | "rewrite",
-  originalContext?: string,
   stageKey: string = "generate",
+  originalContext?: string,
 ): Promise<LoadedPrompt> {
   try {
     const { data, error } = await serviceClient
@@ -1431,55 +822,645 @@ async function loadActivePrompt(
       .limit(1)
       .single();
 
-    // Update last_used_at for observability (fire-and-forget)
     if (data?.id) {
-      serviceClient
-        .from("ai_system_prompts")
-        .update({ last_used_at: new Date().toISOString() })
-        .eq("id", data.id)
-        .then(() => {});
+      serviceClient.from("ai_system_prompts").update({ last_used_at: new Date().toISOString() }).eq("id", data.id).then(() => {});
     }
 
     if (error || !data) {
       const reason = error ? `db_error: ${JSON.stringify(error)}` : "no_active_row";
-      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode} | stage=${stageKey}`);
-      console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
-      return {
-        promptText: assembleHardcodedPrompt(mode, originalContext),
-        versionLabel: "hardcoded",
-        source: "hardcoded_fallback",
-        fallbackReason: reason,
-      };
+      console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
+      return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
     }
 
     let promptText = data.prompt_text as string;
-
-    // Replace respond mode placeholder with actual context
-    if (mode === "respond") {
-      const contextSentence = originalContext
-        ? ` The original message received was: "${originalContext}"`
-        : "";
-      promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", contextSentence);
+    if (mode === "respond" && stageKey === "generate") {
+      const ctx = originalContext ? ` The original message received was: "${originalContext}"` : "";
+      promptText = promptText.replace("{{ORIGINAL_CONTEXT_SENTENCE}}", ctx);
     }
 
-    console.log(`[${FN}] prompt_load | source=database | feature=${featureKey} | mode=${mode} | stage=${stageKey} | version=${data.version_label} | length=${promptText.length}`);
-    return {
-      promptText,
-      versionLabel: data.version_label as string,
-      source: "database",
-    };
+    console.log(`[${FN}] prompt_load | stage=${stageKey} | version=${data.version_label} | len=${promptText.length}`);
+    return { promptText, versionLabel: data.version_label as string, source: "database" };
   } catch (err) {
     const reason = `exception: ${String(err)}`;
-    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | feature=${featureKey} | mode=${mode} | stage=${stageKey}`);
-    console.error(`[${FN}] ⚠️ Using hardcoded prompt — database is the intended source of truth. Check ai_system_prompts table.`);
-    return {
-      promptText: assembleHardcodedPrompt(mode, originalContext),
-      versionLabel: "hardcoded",
-      source: "hardcoded_fallback",
-      fallbackReason: reason,
-    };
+    console.error(`[${FN}] ⚠️ PROMPT_FALLBACK | reason=${reason} | stage=${stageKey}`);
+    return { promptText: assembleHardcodedPrompt(mode, originalContext), versionLabel: "hardcoded", source: "hardcoded_fallback", fallbackReason: reason };
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// OPENAI CALL HELPERS
+// ══════════════════════════════════════════════════════════════
+
+async function callOpenAI(apiKey: string, model: string, body: Record<string, unknown>): Promise<Response> {
+  return fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, model }),
+  });
+}
+
+async function callOpenAIWithRetry(
+  apiKey: string,
+  model: string,
+  body: Record<string, unknown>,
+  maxRetries = 2,
+): Promise<Response | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await callOpenAI(apiKey, model, body);
+    if (response.status !== 429) return response;
+    if (attempt === maxRetries) return response;
+    const retryAfter = response.headers.get("Retry-After");
+    const waitMs = getRetryDelayMs(retryAfter, attempt);
+    console.log(`[${FN}] 429, retry ${attempt + 1}/${maxRetries} after ${Math.round(waitMs)}ms`);
+    await response.text();
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  return null;
+}
+
+async function callToolFunction(
+  apiKey: string,
+  systemPrompt: string,
+  userMessage: string,
+  tool: typeof TRIAGE_TOOL | typeof REWRITE_TOOL | typeof RESPOND_TOOL | typeof REDIRECT_TOOL,
+  model: string = MODEL_PRIMARY,
+): Promise<Record<string, unknown> | null> {
+  const body = {
+    model,
+    input: [
+      { role: "developer", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    tools: [tool],
+    tool_choice: "required",
+  };
+
+  const response = await callOpenAIWithRetry(apiKey, model, body);
+  if (!response || !response.ok) {
+    const errText = response ? await response.text().catch(() => "") : "no response";
+    console.warn(`[${FN}] callToolFunction failure | tool=${tool.name} | model=${model} | status=${response?.status} | err=${errText.slice(0, 200)}`);
+    return null;
+  }
+
+  const aiData = await response.json();
+  const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === tool.name);
+  if (!functionCall) {
+    console.warn(`[${FN}] callToolFunction no function_call | tool=${tool.name}`);
+    return null;
+  }
+
+  try {
+    return JSON.parse(functionCall.arguments);
+  } catch (jsonErr) {
+    console.warn(`[${FN}] callToolFunction json_parse_error | tool=${tool.name} | ${jsonErr}`);
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// DB PERSISTENCE
+// ══════════════════════════════════════════════════════════════
+
+async function createSession(
+  serviceClient: any,
+  userId: string,
+  message: string,
+  mode: "respond" | "rewrite",
+  triageData?: Record<string, unknown>,
+  promptVersions?: Record<string, string>,
+): Promise<string> {
+  const sessionRow: Record<string, unknown> = {
+    user_id: userId,
+    mode,
+    original_message: message,
+    workflow_version: WORKFLOW_VERSION,
+  };
+
+  if (triageData) {
+    sessionRow.detected_intent = triageData.detected_intent ?? null;
+    sessionRow.detected_tone = triageData.detected_tone ?? null;
+    sessionRow.sendability_status = triageData.sendability_status ?? null;
+    sessionRow.sendability_reason = triageData.sendability_reason ?? null;
+    sessionRow.triage_confidence = triageData.triage_confidence ?? null;
+    sessionRow.goal_options = triageData.goal_options ?? null;
+    sessionRow.output_path = triageData.sendability_status === "redirect" ? "redirect" : (triageData.sendability_status === "safe" ? "rewrite" : "rewrite_with_guidance");
+  }
+
+  if (promptVersions) {
+    sessionRow.triage_prompt_version = promptVersions.triage ?? null;
+    sessionRow.rewrite_prompt_version = promptVersions.rewrite ?? null;
+    sessionRow.scoring_version = promptVersions.score ?? null;
+  }
+
+  const { data, error } = await serviceClient
+    .from("communication_shield_sessions")
+    .insert(sessionRow)
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error(`[${FN}] session insert error:`, JSON.stringify(error));
+    throw new Error(`Failed to persist session: ${error?.message ?? "no data"}`);
+  }
+
+  return data.id as string;
+}
+
+async function updateSessionScoring(
+  serviceClient: any,
+  sessionId: string,
+  originalScore: { score: number; notes: string[] },
+  outputScore: OutputQualityResult | null,
+  extraFields?: Record<string, unknown>,
+) {
+  const updateData: Record<string, unknown> = {
+    original_score: originalScore.score,
+    original_score_notes: originalScore.notes,
+  };
+
+  if (outputScore) {
+    updateData.rewrite_quality_score = outputScore.score;
+    updateData.rewrite_quality_notes = outputScore.notes;
+    updateData.quality_score_status = outputScore.quality_score_status;
+    updateData.quality_score_total = outputScore.score;
+  }
+
+  if (extraFields) {
+    Object.assign(updateData, extraFields);
+  }
+
+  const { error } = await serviceClient
+    .from("communication_shield_sessions")
+    .update(updateData)
+    .eq("id", sessionId);
+
+  if (error) {
+    console.error(`[${FN}] session scoring update error:`, JSON.stringify(error));
+  }
+}
+
+async function insertResult(
+  serviceClient: any,
+  sessionId: string,
+  resultType: string,
+  data: Record<string, unknown>,
+  riskFlags: string[],
+) {
+  const resultRow: Record<string, unknown> = {
+    session_id: sessionId,
+    result_type: resultType,
+    primary_rewrite: data.primary_rewrite ?? null,
+    primary_response: data.primary_response ?? data.primary_rewrite ?? null,
+    shorter_version: data.shorter_version ?? null,
+    firmer_version: data.firmer_version ?? null,
+    redirect_message: data.redirect_message ?? null,
+    safe_alternative: data.safe_alternative ?? null,
+    alternative_1: data.alternative_1 ?? null,
+    alternative_2: data.alternative_2 ?? null,
+    alternative_3: data.alternative_3 ?? null,
+    risk_flags: riskFlags,
+    why_this_is_safer: data.why_this_is_safer ?? null,
+    generation_index: 1,
+    is_selected: true,
+  };
+
+  const { error } = await serviceClient
+    .from("communication_shield_results")
+    .insert(resultRow);
+
+  if (error) {
+    console.error(`[${FN}] result insert error:`, JSON.stringify(error));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// RESPOND MODE ORCHESTRATION
+// ══════════════════════════════════════════════════════════════
+
+async function handleRespondMode(
+  serviceClient: any,
+  apiKey: string,
+  userId: string,
+  message: string,
+  originalContext: string | undefined,
+  communicationContext: string | undefined,
+  isAdminBypass: boolean,
+): Promise<Response> {
+  const originalScoreResult = scoreOriginalMessage(message);
+  console.log(`[${FN}] original_score: ${originalScoreResult.score}/10`);
+
+  const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", originalContext);
+
+  const contextInstruction = communicationContext
+    ? `\nThe user selected the following communication context: "${communicationContext}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
+    : "";
+
+  const systemPrompt = `You are a custody communication specialist trained in court-admissible co-parent messaging.
+
+${loadedPrompt.promptText}
+${contextInstruction}
+
+You MUST call the provided tool with your structured output.`;
+
+  // Try primary model
+  let aiResult = await callToolFunction(apiKey, systemPrompt, message, RESPOND_TOOL, MODEL_PRIMARY);
+  let validationError = aiResult ? validateRespondResult(aiResult) : "no result";
+  if (validationError) {
+    console.warn(`[${FN}] respond Tier1 validation: ${validationError}`);
+    aiResult = null;
+  }
+
+  // Try fallback model
+  if (!aiResult) {
+    console.log(`[${FN}] respond Tier2 fallback model`);
+    aiResult = await callToolFunction(apiKey, systemPrompt, message, RESPOND_TOOL, MODEL_FALLBACK);
+    validationError = aiResult ? validateRespondResult(aiResult) : "no result";
+    if (validationError) {
+      console.warn(`[${FN}] respond Tier2 validation: ${validationError}`);
+      aiResult = null;
+    }
+  }
+
+  // Try deterministic fallback
+  if (!aiResult) {
+    console.log(`[${FN}] respond Tier3 deterministic fallback`);
+    const fallback = buildDeterministicFallback("respond", communicationContext);
+    const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
+    const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
+    await updateSessionScoring(serviceClient, sessionId, originalScoreResult, fallbackScore, { recommendation_type: "respond", tone_assessment: "Fallback" });
+    await insertResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
+    if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    return jsonResponse(fallback);
+  }
+
+  // Score the output
+  const outputScore = scoreOutputQuality(aiResult, "respond");
+
+  // Merge AI original score
+  const aiOrigScore = typeof aiResult.original_score === "number" ? aiResult.original_score : null;
+  if (aiOrigScore !== null && aiOrigScore >= 1 && aiOrigScore <= 10) {
+    originalScoreResult.score = Math.min(originalScoreResult.score, aiOrigScore);
+  }
+
+  const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+
+  // Persist
+  const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, { triage: "", rewrite: loadedPrompt.versionLabel });
+  await updateSessionScoring(serviceClient, sessionId, originalScoreResult, outputScore, {
+    recommendation_type: aiResult.recommendation_type,
+    tone_assessment: aiResult.tone_assessment,
+  });
+  await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
+  if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+
+  console.log(`[${FN}] respond success | prompt=${loadedPrompt.versionLabel} | orig_score=${originalScoreResult.score} | quality=${outputScore.score}`);
+
+  return jsonResponse({
+    ...aiResult,
+    mode: "respond",
+    risk_flags: riskFlags,
+    original_score: originalScoreResult.score,
+    primary_response: aiResult.primary_rewrite,
+    three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
+    prompt_version: loadedPrompt.versionLabel,
+    prompt_source: loadedPrompt.source,
+    rewrite_quality_score: outputScore.score,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// REWRITE MODE — STAGED ORCHESTRATION
+// ══════════════════════════════════════════════════════════════
+
+async function handleRewriteMode(
+  serviceClient: any,
+  apiKey: string,
+  userId: string,
+  message: string,
+  selectedGoal: string | undefined,
+  sessionId: string | undefined,
+  isAdminBypass: boolean,
+): Promise<Response> {
+  const originalScoreResult = scoreOriginalMessage(message);
+  console.log(`[${FN}] rewrite original_score: ${originalScoreResult.score}/10`);
+
+  const promptVersions: Record<string, string> = {};
+
+  // ── STEP 1: TRIAGE ──
+  // If we already have a session_id, this is a continuation (goal selected), skip triage
+  let triageResult: Record<string, unknown> | null = null;
+  let existingSessionId = sessionId;
+
+  if (!existingSessionId) {
+    const triagePrompt = await loadActivePrompt(serviceClient, "communication_shield", "rewrite", "triage");
+    promptVersions.triage = triagePrompt.versionLabel;
+
+    const triageSystemPrompt = `You are a custody communication triage classifier.
+
+${triagePrompt.promptText}
+
+You MUST call the provided tool with your structured output.`;
+
+    triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, TRIAGE_TOOL, MODEL_PRIMARY);
+
+    // Validate triage
+    const triageError = triageResult ? validateTriageResult(triageResult) : "no triage result";
+    if (triageError) {
+      console.warn(`[${FN}] triage validation error: ${triageError}, trying fallback`);
+      triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, TRIAGE_TOOL, MODEL_FALLBACK);
+      const retryError = triageResult ? validateTriageResult(triageResult) : "no triage result";
+      if (retryError) {
+        console.warn(`[${FN}] triage fallback also failed: ${retryError}, defaulting to salvageable`);
+        triageResult = {
+          sendability_status: "salvageable",
+          sendability_reason: "Unable to classify — treating as salvageable for safety",
+          detected_intent: "unknown",
+          detected_tone: "unknown",
+          risk_flags: ["Vague or imprecise language"],
+          triage_confidence: 0.3,
+          goal_options: ["Make it neutral and court-safe", "Keep it brief"],
+        };
+      }
+    }
+
+    console.log(`[${FN}] triage result | status=${triageResult!.sendability_status} | intent=${triageResult!.detected_intent} | confidence=${triageResult!.triage_confidence}`);
+
+    // Create session with triage data
+    existingSessionId = await createSession(serviceClient, userId, message, "rewrite", triageResult!, promptVersions);
+  } else {
+    // Load existing session to get triage data
+    const { data: existingSession } = await serviceClient
+      .from("communication_shield_sessions")
+      .select("sendability_status, detected_intent, detected_tone, sendability_reason, triage_confidence, goal_options, output_path")
+      .eq("id", existingSessionId)
+      .single();
+
+    if (existingSession) {
+      triageResult = {
+        sendability_status: existingSession.sendability_status,
+        detected_intent: existingSession.detected_intent,
+        detected_tone: existingSession.detected_tone,
+        sendability_reason: existingSession.sendability_reason,
+        triage_confidence: existingSession.triage_confidence,
+        risk_flags: [],
+        goal_options: existingSession.goal_options,
+      };
+    } else {
+      triageResult = { sendability_status: "salvageable", detected_intent: "unknown", detected_tone: "unknown", sendability_reason: "Session not found", risk_flags: [], triage_confidence: 0, goal_options: [] };
+    }
+  }
+
+  const sendabilityStatus = triageResult!.sendability_status as string;
+  const outputPath = sendabilityStatus === "redirect" ? "redirect" : "rewrite";
+
+  // ── STEP 2: BRANCH ──
+
+  // 2A: REDIRECT
+  if (sendabilityStatus === "redirect") {
+    const redirectPrompt = await loadActivePrompt(serviceClient, "communication_shield", "rewrite", "redirect");
+    promptVersions.rewrite = redirectPrompt.versionLabel;
+
+    const redirectSystemPrompt = `You are a custody communication safety specialist.
+
+${redirectPrompt.promptText}
+
+You MUST call the provided tool with your structured output.`;
+
+    let redirectResult = await callToolFunction(apiKey, redirectSystemPrompt, message, REDIRECT_TOOL, MODEL_PRIMARY);
+    const redirectError = redirectResult ? validateRedirectResult(redirectResult) : "no redirect result";
+    if (redirectError) {
+      console.warn(`[${FN}] redirect validation: ${redirectError}, trying fallback`);
+      redirectResult = await callToolFunction(apiKey, redirectSystemPrompt, message, REDIRECT_TOOL, MODEL_FALLBACK);
+    }
+
+    if (!redirectResult || validateRedirectResult(redirectResult)) {
+      // Deterministic redirect fallback
+      redirectResult = {
+        redirect_message: "This message contains language that could create legal risk. Consider not sending it.",
+        safe_alternative: "Please keep messages focused on the child and logistics.",
+        alternative_1: "I will follow the agreed schedule.",
+        alternative_2: "Please send schedule updates only.",
+        alternative_3: "Please keep communication child-focused.",
+        risk_flags: triageResult!.risk_flags ?? ["Emotional language detected"],
+        why_this_is_safer: "The original message contains language that could escalate conflict or create legal exposure.",
+      };
+    }
+
+    const riskFlags = normalizeRiskFlags(redirectResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null, {
+      output_path: "redirect",
+      rewrite_prompt_version: promptVersions.rewrite,
+    });
+    await insertResult(serviceClient, existingSessionId!, "redirect", redirectResult, riskFlags);
+    if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+
+    // Score asynchronously (non-blocking)
+    runScoreStage(serviceClient, apiKey, existingSessionId!, message, redirectResult, originalScoreResult, promptVersions).catch(e => console.error(`[${FN}] score stage error:`, e));
+
+    console.log(`[${FN}] redirect complete | session=${existingSessionId}`);
+    return jsonResponse({
+      mode: "rewrite",
+      sendability_status: "redirect",
+      output_path: "redirect",
+      detected_intent: triageResult!.detected_intent,
+      detected_tone: triageResult!.detected_tone,
+      risk_flags: riskFlags,
+      redirect_message: redirectResult.redirect_message,
+      safe_alternative: redirectResult.safe_alternative,
+      alternative_1: redirectResult.alternative_1,
+      alternative_2: redirectResult.alternative_2,
+      alternative_3: redirectResult.alternative_3,
+      why_this_is_safer: redirectResult.why_this_is_safer,
+      original_score: originalScoreResult.score,
+      session_id: existingSessionId,
+    });
+  }
+
+  // 2B: SALVAGEABLE — needs goal selection
+  if (sendabilityStatus === "salvageable" && !selectedGoal) {
+    const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+    // Update session with initial scoring
+    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null);
+
+    console.log(`[${FN}] salvageable — needs goal selection | session=${existingSessionId}`);
+    return jsonResponse({
+      mode: "rewrite",
+      sendability_status: "salvageable",
+      output_path: "rewrite_with_guidance",
+      detected_intent: triageResult!.detected_intent,
+      detected_tone: triageResult!.detected_tone,
+      sendability_reason: triageResult!.sendability_reason,
+      risk_flags: riskFlags,
+      needs_goal_selection: true,
+      goal_options: triageResult!.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"],
+      original_score: originalScoreResult.score,
+      session_id: existingSessionId,
+    });
+  }
+
+  // 2B (cont): SALVAGEABLE with goal selected — save goal
+  if (sendabilityStatus === "salvageable" && selectedGoal) {
+    await serviceClient
+      .from("communication_shield_sessions")
+      .update({
+        selected_goal: selectedGoal,
+        goal_selection_source: "user_selected",
+      })
+      .eq("id", existingSessionId);
+  }
+
+  // 2C: SAFE or SALVAGEABLE with goal — GENERATE REWRITE
+  const generatePrompt = await loadActivePrompt(serviceClient, "communication_shield", "rewrite", "generate");
+  promptVersions.rewrite = generatePrompt.versionLabel;
+
+  const goalInstruction = selectedGoal
+    ? `\nThe user's communication goal is: "${selectedGoal}". Tailor the rewrite to achieve this goal while remaining neutral, factual, and court-safe.`
+    : "";
+
+  const triageContext = triageResult ? `\nTriage classification: ${sendabilityStatus}. Detected intent: ${triageResult.detected_intent}. Detected tone: ${triageResult.detected_tone}.` : "";
+
+  const generateSystemPrompt = `You are a custody communication specialist trained in court-admissible co-parent messaging.
+
+${generatePrompt.promptText}
+${goalInstruction}
+${triageContext}
+
+You MUST call the provided tool with your structured output.`;
+
+  // Try primary
+  let aiResult = await callToolFunction(apiKey, generateSystemPrompt, message, REWRITE_TOOL, MODEL_PRIMARY);
+  let rewriteValidation = aiResult ? validateRewriteResult(aiResult) : "no result";
+  let rewriteScore: OutputQualityResult | null = null;
+  let semanticOk = true;
+
+  if (!rewriteValidation && aiResult) {
+    rewriteScore = scoreOutputQuality(aiResult, "rewrite");
+    const semanticIssues = validateRewriteSemantics(message, aiResult);
+    const hardIssues = semanticIssues.filter(i => i.severity === "hard");
+    if (hardIssues.length > 0) { semanticOk = false; }
+    const softIssues = semanticIssues.filter(i => i.severity === "soft");
+    if (softIssues.length > 0 && rewriteScore.score !== null) {
+      rewriteScore.score = Math.max(1, rewriteScore.score - softIssues.length);
+      rewriteScore.notes.push(...softIssues.map(i => `semantic_warn: ${i.type}`));
+      rewriteScore.quality_score_status = rewriteScore.score >= 9 ? "excellent" : rewriteScore.score >= 7 ? "acceptable" : rewriteScore.score >= 5 ? "weak" : "reject";
+    }
+    if (!semanticOk || rewriteScore.quality_score_status === "reject" || rewriteScore.quality_score_status === "weak") {
+      console.log(`[${FN}] rewrite Tier1 issue, retrying stricter`);
+      const retryPrompt = generateSystemPrompt + (semanticOk ? STRICTER_RETRY_ADDENDUM : SEMANTIC_RETRY_ADDENDUM);
+      const retryResult = await callToolFunction(apiKey, retryPrompt, message, REWRITE_TOOL, MODEL_PRIMARY);
+      if (retryResult && !validateRewriteResult(retryResult)) {
+        const s2 = scoreOutputQuality(retryResult, "rewrite");
+        const retryIssues = validateRewriteSemantics(message, retryResult);
+        const retryHardIssues = retryIssues.filter(i => i.severity === "hard");
+        if (retryHardIssues.length === 0 && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
+          aiResult = retryResult;
+          rewriteScore = s2;
+          semanticOk = true;
+        }
+      }
+    }
+  } else {
+    console.warn(`[${FN}] rewrite Tier1 validation: ${rewriteValidation}`);
+  }
+
+  // Try fallback model
+  if (!aiResult || rewriteValidation || !semanticOk) {
+    console.log(`[${FN}] rewrite Tier2 fallback model`);
+    const tier2Prompt = generateSystemPrompt + SEMANTIC_RETRY_ADDENDUM;
+    const tier2Result = await callToolFunction(apiKey, tier2Prompt, message, REWRITE_TOOL, MODEL_FALLBACK);
+    if (tier2Result && !validateRewriteResult(tier2Result)) {
+      const s = scoreOutputQuality(tier2Result, "rewrite");
+      const tier2Issues = validateRewriteSemantics(message, tier2Result);
+      const tier2HardIssues = tier2Issues.filter(i => i.severity === "hard");
+      if (tier2HardIssues.length === 0 && s.quality_score_status !== "reject") {
+        aiResult = tier2Result;
+        rewriteScore = s;
+      }
+    }
+  }
+
+  // Tier 3: Error
+  if (!aiResult) {
+    console.log(`[${FN}] rewrite all tiers failed`);
+    return jsonResponse({ error: "Unable to generate rewrite. Please try again." }, 503);
+  }
+
+  // Merge AI original score
+  const aiOrigScore = typeof aiResult.original_score === "number" ? aiResult.original_score : null;
+  if (aiOrigScore !== null && aiOrigScore >= 1 && aiOrigScore <= 10) {
+    originalScoreResult.score = Math.min(originalScoreResult.score, aiOrigScore);
+  }
+
+  const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+
+  // Persist
+  await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, rewriteScore, {
+    output_path: outputPath,
+    rewrite_prompt_version: promptVersions.rewrite,
+    tone_assessment: aiResult.tone_assessment,
+    selected_goal: selectedGoal ?? null,
+    goal_selection_source: selectedGoal ? "user_selected" : (sendabilityStatus === "safe" ? "skipped" : null),
+  });
+  await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
+  if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+
+  // Score asynchronously (non-blocking)
+  runScoreStage(serviceClient, apiKey, existingSessionId!, message, aiResult, originalScoreResult, promptVersions).catch(e => console.error(`[${FN}] score stage error:`, e));
+
+  console.log(`[${FN}] rewrite success | session=${existingSessionId} | status=${sendabilityStatus} | quality=${rewriteScore?.score}`);
+
+  return jsonResponse({
+    mode: "rewrite",
+    sendability_status: sendabilityStatus,
+    output_path: outputPath,
+    detected_intent: triageResult!.detected_intent,
+    detected_tone: triageResult!.detected_tone,
+    risk_flags: riskFlags,
+    selected_goal: selectedGoal ?? null,
+    primary_rewrite: aiResult.primary_rewrite,
+    shorter_version: aiResult.shorter_version,
+    firmer_version: aiResult.firmer_version,
+    why_this_is_safer: aiResult.why_this_is_safer,
+    tone_assessment: aiResult.tone_assessment,
+    original_score: originalScoreResult.score,
+    rewrite_quality_score: rewriteScore?.score ?? null,
+    prompt_version: promptVersions.rewrite,
+    session_id: existingSessionId,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// SCORE STAGE (async, non-blocking)
+// ══════════════════════════════════════════════════════════════
+
+async function runScoreStage(
+  serviceClient: any,
+  apiKey: string,
+  sessionId: string,
+  originalMessage: string,
+  outputResult: Record<string, unknown>,
+  originalScore: { score: number; notes: string[] },
+  promptVersions: Record<string, string>,
+) {
+  try {
+    const scorePrompt = await loadActivePrompt(serviceClient, "communication_shield", "rewrite", "score");
+    promptVersions.score = scorePrompt.versionLabel;
+
+    // The score stage evaluates the output — we log it but don't block on it
+    console.log(`[${FN}] score stage | session=${sessionId} | prompt=${scorePrompt.versionLabel}`);
+
+    await serviceClient
+      .from("communication_shield_sessions")
+      .update({ scoring_version: scorePrompt.versionLabel })
+      .eq("id", sessionId);
+  } catch (err) {
+    console.error(`[${FN}] score stage error (non-blocking):`, err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN HANDLER
+// ══════════════════════════════════════════════════════════════
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -1499,13 +1480,13 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { message, mode, original_context, communication_context, skip_quota } = body;
+    const { message, mode, original_context, communication_context, skip_quota, selected_goal, session_id } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
       return jsonResponse({ error: "Invalid message" }, 400);
     }
-    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message?.length ?? 0}`);
+    console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message.length}`);
 
     if (mode !== "respond" && mode !== "rewrite") {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad mode" });
@@ -1518,23 +1499,17 @@ serve(async (req) => {
       return jsonResponse({ error: "Original context too long" }, 400);
     }
 
-    // Check if admin requesting quota bypass
+    // Admin quota bypass
     const { serviceClient } = auth;
     let isAdminBypass = false;
     if (skip_quota === true) {
-      const { data: profileRow } = await serviceClient
-        .from("profiles")
-        .select("role")
-        .eq("user_id", userId)
-        .single();
+      const { data: profileRow } = await serviceClient.from("profiles").select("role").eq("user_id", userId).single();
       isAdminBypass = profileRow?.role === "admin";
-      if (isAdminBypass) {
-        console.log(`[${FN}] admin_quota_bypass | user=${userId}`);
-      }
+      if (isAdminBypass) console.log(`[${FN}] admin_quota_bypass`);
     }
 
-    // Quota check (skip for admin bypass)
-    if (!isAdminBypass) {
+    // Quota check (skip for admin bypass and for goal-selection continuations)
+    if (!isAdminBypass && !session_id) {
       const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
       if (quotaError || !quotaRows || quotaRows.length === 0) {
         console.error("Quota check failed:", quotaError);
@@ -1546,240 +1521,20 @@ serve(async (req) => {
       }
     }
 
-    // Score the original message (server-side, independent of AI)
-    const originalScoreResult = scoreOriginalMessage(message);
-    console.log(`[${FN}] original_score: ${originalScoreResult.score}/10 | notes=${JSON.stringify(originalScoreResult.notes)}`);
-
-    // ── Load prompt from database (with hardcoded fallback) ──
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-    const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", mode, original_context);
-
-    const contextInstruction = communication_context
-      ? `\nThe user selected the following communication context: "${communication_context}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
-      : "";
-
-    const buildSystemPrompt = (addendum = "") => `You are a custody communication specialist trained in court-admissible co-parent messaging.
-
-${loadedPrompt.promptText}
-${contextInstruction}${addendum}
-
-You MUST call the provided tool with your structured output.`;
-
-    const tool = mode === "respond" ? RESPOND_TOOL : REWRITE_TOOL;
-    const toolName = tool.name;
-
-    if (loadedPrompt.source === "hardcoded_fallback") {
-      console.warn(`[${FN}] ⚠️ USING HARDCODED FALLBACK | version=${loadedPrompt.versionLabel} | reason=${loadedPrompt.fallbackReason}`);
-    } else {
-      console.log(`[${FN}] prompt_version=${loadedPrompt.versionLabel} | source=${loadedPrompt.source}`);
-    }
-
-    const buildRequestBody = (addendum = "") => JSON.stringify({
-      model: MODEL_PRIMARY,
-      input: [
-        { role: "developer", content: buildSystemPrompt(addendum) },
-        { role: "user", content: message },
-      ],
-      tools: [tool],
-      tool_choice: "required",
-    });
-
-    const requestBody = buildRequestBody();
-    let aiResult: Record<string, unknown> | null = null;
-    let rewriteScore: RewriteQualityResult | null = null;
-
-    // Tier 1: Primary model
-    let response: Response | null = null;
-    const MAX_RETRIES = 2;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      response = await callOpenAI(OPENAI_API_KEY, MODEL_PRIMARY, requestBody);
-      if (response.status !== 429) break;
-      if (attempt === MAX_RETRIES) break;
-      const retryAfter = response.headers.get("Retry-After");
-      const waitMs = getRetryDelayMs(retryAfter, attempt);
-      console.log(`[${FN}] Tier1 429, retry ${attempt + 1}/${MAX_RETRIES} after ${Math.round(waitMs)}ms`);
-      await response.text();
-      await new Promise((r) => setTimeout(r, waitMs));
-    }
-
-    if (response && response.ok) {
-      try {
-        const aiData = await response.json();
-        const functionCall = aiData.output?.find((item: any) => item.type === "function_call" && item.name === toolName);
-        if (functionCall) {
-          let parsed: Record<string, unknown>;
-          try {
-            parsed = JSON.parse(functionCall.arguments);
-          } catch (jsonErr) {
-            console.warn(`[${FN}] Tier1 failure_type=json_parse_error | ${jsonErr}`);
-            parsed = null as any;
-          }
-          if (parsed) {
-            const validationError = mode === "respond" ? validateRespondResult(parsed) : validateRewriteResult(parsed);
-            if (!validationError) {
-              const s = scoreRewriteQuality(parsed, mode);
-              console.log(`[${FN}] Tier1 rewrite_quality_score: ${s.score}/10 (${s.quality_score_status})`);
-
-              // Semantic validation for rewrite mode
-              let semanticFailed = false;
-              if (mode === "rewrite") {
-                const semanticIssues = validateRewriteSemantics(message, parsed);
-                const hardIssues = semanticIssues.filter(i => i.severity === "hard");
-                const softIssues = semanticIssues.filter(i => i.severity === "soft");
-                if (hardIssues.length > 0) {
-                  semanticFailed = true;
-                  console.log(`[${FN}] Tier1 failure_type=semantic_rejection | hard=${JSON.stringify(hardIssues)}`);
-                }
-                if (softIssues.length > 0) {
-                  // Apply soft semantic issues as quality deductions instead of hard-failing
-                  const softDeduction = softIssues.length;
-                  if (s.score !== null) {
-                    s.score = Math.max(1, s.score - softDeduction);
-                    s.notes.push(...softIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
-                    s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
-                  }
-                  console.log(`[${FN}] Tier1 semantic_warnings: ${JSON.stringify(softIssues)}`);
-                }
-              }
-
-              if (!semanticFailed && (s.quality_score_status === "excellent" || s.quality_score_status === "acceptable")) {
-                aiResult = parsed;
-                rewriteScore = s;
-              } else {
-                const retryAddendum = semanticFailed ? SEMANTIC_RETRY_ADDENDUM : STRICTER_RETRY_ADDENDUM;
-                console.log(`[${FN}] Tier1 ${semanticFailed ? "semantic" : "score"} issue, attempting stricter retry`);
-                const stricterBody = buildRequestBody(retryAddendum);
-                const retryResult = await attemptAICall(OPENAI_API_KEY, MODEL_PRIMARY, stricterBody, mode, toolName, "Tier1-strict-retry");
-                if (retryResult) {
-                  const s2 = scoreRewriteQuality(retryResult, mode);
-                  console.log(`[${FN}] Tier1-strict-retry score: ${s2.score}/10 (${s2.quality_score_status})`);
-                  let retrySemanticOk = true;
-                  if (mode === "rewrite") {
-                    const retryIssues = validateRewriteSemantics(message, retryResult);
-                    const retryHardIssues = retryIssues.filter(i => i.severity === "hard");
-                    if (retryHardIssues.length > 0) {
-                      retrySemanticOk = false;
-                      console.log(`[${FN}] Tier1-strict-retry failure_type=semantic_rejection | ${JSON.stringify(retryHardIssues)}`);
-                    }
-                    const retrySoftIssues = retryIssues.filter(i => i.severity === "soft");
-                    if (retrySoftIssues.length > 0 && s2.score !== null) {
-                      s2.score = Math.max(1, s2.score - retrySoftIssues.length);
-                      s2.notes.push(...retrySoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
-                      s2.quality_score_status = s2.score >= 9 ? "excellent" : s2.score >= 7 ? "acceptable" : s2.score >= 5 ? "weak" : "reject";
-                    }
-                  }
-                  if (retrySemanticOk && (s2.quality_score_status === "excellent" || s2.quality_score_status === "acceptable")) {
-                    aiResult = retryResult;
-                    rewriteScore = s2;
-                  }
-                }
-              }
-            } else {
-              console.warn(`[${FN}] Tier1 failure_type=validation_rejection | ${validationError}`);
-            }
-          }
-        } else {
-          console.warn(`[${FN}] Tier1 failure_type=empty_response | no function_call in output`);
-        }
-      } catch (parseErr) {
-        console.warn(`[${FN}] Tier1 failure_type=json_parse_error | ${parseErr}`);
-      }
-    } else {
-      const errText = response ? await response.text() : "no response";
-      console.warn(`[${FN}] Tier1 failure_type=api_error | status=${response?.status} | body=${errText.slice(0, 200)}`);
-    }
-
-    // Tier 2: Fallback model
-    if (!aiResult) {
-      console.log(`[${FN}] Tier2 attempting fallback model=${MODEL_FALLBACK}`);
-      const stricterBody = buildRequestBody(STRICTER_RETRY_ADDENDUM);
-      const tier2Body = mode === "rewrite" ? buildRequestBody(SEMANTIC_RETRY_ADDENDUM) : stricterBody;
-      const tier2Result = await attemptAICall(OPENAI_API_KEY, MODEL_FALLBACK, tier2Body, mode, toolName, "Tier2");
-      if (tier2Result) {
-        const s = scoreRewriteQuality(tier2Result, mode);
-        console.log(`[${FN}] Tier2 score: ${s.score}/10 (${s.quality_score_status})`);
-        let tier2SemanticOk = true;
-        if (mode === "rewrite") {
-          const tier2Issues = validateRewriteSemantics(message, tier2Result);
-          const tier2HardIssues = tier2Issues.filter(i => i.severity === "hard");
-          if (tier2HardIssues.length > 0) {
-            tier2SemanticOk = false;
-            console.log(`[${FN}] Tier2 semantic hard issues: ${JSON.stringify(tier2HardIssues)}`);
-          }
-          const tier2SoftIssues = tier2Issues.filter(i => i.severity === "soft");
-          if (tier2SoftIssues.length > 0 && s.score !== null) {
-            s.score = Math.max(1, s.score - tier2SoftIssues.length);
-            s.notes.push(...tier2SoftIssues.map(i => `semantic_warn: ${i.type} — ${i.detail}`));
-            s.quality_score_status = s.score >= 9 ? "excellent" : s.score >= 7 ? "acceptable" : s.score >= 5 ? "weak" : "reject";
-          }
-        }
-        if (tier2SemanticOk && s.quality_score_status !== "reject") {
-          aiResult = tier2Result;
-          rewriteScore = s;
-        }
-      }
-    }
-
-    // Tier 3: Rewrite mode → return error; Respond mode → deterministic fallback
-    if (!aiResult) {
-      if (mode === "rewrite") {
-        console.log(`[${FN}] Tier3 rewrite mode — returning error (no fallback)`);
-        logRequest({ userId, functionName: FN, status: "error", detail: `all_tiers_failed | mode=rewrite | original_score=${originalScoreResult.score}` });
-        return jsonResponse({ error: "Unable to generate rewrite. Please try again." }, 503);
-      }
-
-      console.log(`[${FN}] Tier3 deterministic fallback | mode=respond`);
-      const fallback = buildDeterministicFallback(mode, communication_context);
-      const fallbackScore: RewriteQualityResult = {
-        score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable",
-      };
-
-      await persistToNewTables(serviceClient, userId, message, mode, fallback as any, originalScoreResult, fallbackScore);
-
-      logRequest({ userId, functionName: FN, status: "error", detail: `tier3 fallback | mode=respond | original_score=${originalScoreResult.score}` });
-      return jsonResponse(fallback);
-    }
-
-    // AI succeeded — persist & increment
-    // Also incorporate AI's original_score (take minimum with server-side)
-    const aiOriginalScore = typeof aiResult.original_score === "number" ? aiResult.original_score : null;
-    if (aiOriginalScore !== null && aiOriginalScore >= 1 && aiOriginalScore <= 10) {
-      originalScoreResult.score = Math.min(originalScoreResult.score, aiOriginalScore);
-      originalScoreResult.notes.push(`ai_original_score: ${aiOriginalScore}`);
-      if (Array.isArray(aiResult.original_score_deductions)) {
-        originalScoreResult.notes.push(`ai_original_deductions: ${(aiResult.original_score_deductions as string[]).join("; ")}`);
-      }
-    }
-
-    await persistToNewTables(serviceClient, userId, message, mode, aiResult, originalScoreResult, rewriteScore!);
-
-    if (!isAdminBypass) {
-      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
-    }
-
-    console.log(`[${FN}] success | mode=${mode} | prompt_version=${loadedPrompt.versionLabel} | prompt_source=${loadedPrompt.source} | original_score=${originalScoreResult.score}/10 | rewrite_quality=${rewriteScore!.score}/10 (${rewriteScore!.quality_score_status})`);
-    logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
-
-    // For respond mode, also populate primary_response for backward compatibility
-    const responsePayload: Record<string, unknown> = {
-      ...aiResult,
-      mode,
-      risk_flags: normalizeRiskFlags(aiResult.risk_flags as string[] | undefined, extractServerFlags(originalScoreResult.notes)),
-      original_score: originalScoreResult.score,
-      prompt_version: loadedPrompt.versionLabel,
-      prompt_source: loadedPrompt.source,
-      ...(loadedPrompt.fallbackReason ? { prompt_fallback_reason: loadedPrompt.fallbackReason } : {}),
-    };
-    if (mode === "rewrite") {
-      responsePayload.rewrite_quality_score = rewriteScore!.score;
-    }
     if (mode === "respond") {
-      responsePayload.primary_response = aiResult.primary_rewrite;
-      responsePayload.three_alternatives = Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [];
+      const result = await handleRespondMode(serviceClient, OPENAI_API_KEY, userId, message, original_context, communication_context, isAdminBypass);
+      logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+      return result;
     }
-    return jsonResponse(responsePayload);
+
+    // REWRITE MODE — staged orchestration
+    const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass);
+    logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+    return result;
+
   } catch (e) {
     console.error(`[${FN}] unhandled_error | user=${userId} | error=${String(e)}`);
     logRequest({ userId, functionName: FN, status: "error", detail: String(e) });
