@@ -213,16 +213,7 @@ export default function AdminRewriteTests() {
         test_id: caseResult.name,
         category: caseResult.category,
         original_message: caseResult.input_message,
-        primary_rewrite: caseResult.result?.primary_rewrite ?? null,
-        shorter_version: caseResult.result?.shorter_version ?? null,
-        firmer_version: caseResult.result?.firmer_version ?? null,
-        tone_assessment: caseResult.result?.tone_assessment ?? null,
-        risk_flags: caseResult.result?.risk_flags ?? [],
-        why_this_is_safer: caseResult.result?.why_this_is_safer ?? null,
-        original_score: caseResult.result?.original_score ?? null,
-        original_score_notes: caseResult.result?.original_score_notes ?? null,
-        rewrite_quality_score: caseResult.result?.rewrite_quality_score ?? null,
-        rewrite_quality_notes: caseResult.result?.rewrite_quality_notes ?? null,
+        actual_primary_output: caseResult.result?.primary_rewrite ?? null,
         prompt_version: caseResult.promptVersion,
         prompt_source: caseResult.promptSource,
         validator_pass: caseResult.validatorStatus === "pass",
@@ -446,12 +437,8 @@ export default function AdminRewriteTests() {
                         {r.result.primary_rewrite}
                       </p>
                       <p>
-                        <span className="text-muted-foreground font-medium">Scores: </span>
-                        original={r.result.original_score}, rewrite_quality={r.result.rewrite_quality_score}
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground font-medium">Risk flags: </span>
-                        {r.result.risk_flags.join(", ") || "none"}
+                        <span className="text-muted-foreground font-medium">Why safer: </span>
+                        {r.result.why_this_is_safer ?? "—"}
                       </p>
                     </div>
                   )}
@@ -561,7 +548,7 @@ export default function AdminRewriteTests() {
                             <TableHead>Test</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Scores</TableHead>
+                            <TableHead>Triage/Route</TableHead>
                             <TableHead>Prompt</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -582,7 +569,7 @@ export default function AdminRewriteTests() {
                                 )}
                               </TableCell>
                               <TableCell className="text-xs">
-                                {r.original_score ?? "—"}/{r.rewrite_quality_score ?? "—"}
+                                {r.triage_accuracy_score ?? "—"}/{r.routing_accuracy_score ?? "—"}
                               </TableCell>
                               <TableCell className="text-xs">{r.prompt_version ?? "—"}</TableCell>
                             </TableRow>
@@ -668,20 +655,6 @@ export default function AdminRewriteTests() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {/* Scores */}
-                  <div className="flex gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{adHocResult.original_score}</p>
-                      <p className="text-xs text-muted-foreground">Original Score</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{adHocResult.rewrite_quality_score}</p>
-                      <p className="text-xs text-muted-foreground">Rewrite Score</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
                   {/* Rewrites */}
                   <div className="space-y-2 text-sm">
                     <div>
@@ -700,44 +673,10 @@ export default function AdminRewriteTests() {
 
                   <Separator />
 
-                  {/* Analysis */}
-                  <div className="space-y-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground font-medium">Tone Assessment: </span>
-                      <span className="text-foreground">{adHocResult.tone_assessment}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Risk Flags: </span>
-                      <span className="text-foreground">
-                        {adHocResult.risk_flags.length > 0 ? adHocResult.risk_flags.join(", ") : "none"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Why This is Safer: </span>
-                      <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Score Notes */}
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Original Score Notes</p>
-                      <ul className="space-y-0.5 text-foreground">
-                        {(adHocResult.original_score_notes ?? []).map((n, i) => (
-                          <li key={i}>• {n}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Rewrite Quality Notes</p>
-                      <ul className="space-y-0.5 text-foreground">
-                        {(adHocResult.rewrite_quality_notes ?? []).map((n, i) => (
-                          <li key={i}>• {n}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  {/* Why Safer */}
+                  <div className="text-xs">
+                    <span className="text-muted-foreground font-medium">Why This is Safer: </span>
+                    <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
                   </div>
                 </CardContent>
               </Card>
