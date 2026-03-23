@@ -1574,6 +1574,7 @@ serve(async (req) => {
       _no_message_terminal,
       triage_risk_flags,
       triage_sendability_reason,
+      is_regeneration: clientIsRegeneration,
     } = body;
 
     if (!message || typeof message !== "string" || message.length > 4000) {
