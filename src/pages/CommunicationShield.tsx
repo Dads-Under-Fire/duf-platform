@@ -829,7 +829,7 @@ export default function CommunicationShield() {
                 </div>
               ) : loading ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <p className="text-muted-foreground text-sm">Generating response...</p>
+                  <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
                 </div>
               ) : step === "goal-selection" ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
