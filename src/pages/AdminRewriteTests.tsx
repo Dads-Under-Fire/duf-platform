@@ -655,20 +655,6 @@ export default function AdminRewriteTests() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {/* Scores */}
-                  <div className="flex gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{adHocResult.original_score}</p>
-                      <p className="text-xs text-muted-foreground">Original Score</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{adHocResult.rewrite_quality_score}</p>
-                      <p className="text-xs text-muted-foreground">Rewrite Score</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
                   {/* Rewrites */}
                   <div className="space-y-2 text-sm">
                     <div>
@@ -687,44 +673,10 @@ export default function AdminRewriteTests() {
 
                   <Separator />
 
-                  {/* Analysis */}
-                  <div className="space-y-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground font-medium">Tone Assessment: </span>
-                      <span className="text-foreground">{adHocResult.tone_assessment}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Risk Flags: </span>
-                      <span className="text-foreground">
-                        {adHocResult.risk_flags.length > 0 ? adHocResult.risk_flags.join(", ") : "none"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Why This is Safer: </span>
-                      <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Score Notes */}
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Original Score Notes</p>
-                      <ul className="space-y-0.5 text-foreground">
-                        {(adHocResult.original_score_notes ?? []).map((n, i) => (
-                          <li key={i}>• {n}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium mb-1">Rewrite Quality Notes</p>
-                      <ul className="space-y-0.5 text-foreground">
-                        {(adHocResult.rewrite_quality_notes ?? []).map((n, i) => (
-                          <li key={i}>• {n}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  {/* Why Safer */}
+                  <div className="text-xs">
+                    <span className="text-muted-foreground font-medium">Why This is Safer: </span>
+                    <span className="text-foreground">{adHocResult.why_this_is_safer}</span>
                   </div>
                 </CardContent>
               </Card>
