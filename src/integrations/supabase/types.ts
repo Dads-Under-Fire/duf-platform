@@ -391,6 +391,7 @@ export type Database = {
           selected_goal: string | null
           sendability_reason: string | null
           sendability_status: string | null
+          session_status: string
           triage_confidence: number | null
           updated_at: string
           user_id: string
@@ -408,6 +409,7 @@ export type Database = {
           selected_goal?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
+          session_status?: string
           triage_confidence?: number | null
           updated_at?: string
           user_id: string
@@ -425,6 +427,7 @@ export type Database = {
           selected_goal?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
+          session_status?: string
           triage_confidence?: number | null
           updated_at?: string
           user_id?: string

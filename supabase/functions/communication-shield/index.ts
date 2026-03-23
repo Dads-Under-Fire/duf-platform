@@ -1065,7 +1065,7 @@ You MUST call the provided tool with your structured output.`;
     const fallback = buildDeterministicFallback("respond", communicationContext);
     const fallbackScore: OutputQualityResult = { score: 7, notes: ["deterministic_fallback"], quality_score_status: "acceptable" };
     const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
-    // No scoring columns to update — session created
+    await updateSession(serviceClient, sessionId, { session_status: "completed" });
     await insertResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse(fallback);
@@ -1084,6 +1084,7 @@ You MUST call the provided tool with your structured output.`;
 
   // Persist
   const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
+  await updateSession(serviceClient, sessionId, { session_status: "completed" });
   await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
@@ -1161,6 +1162,9 @@ You MUST call the provided tool with your structured output.`;
 
     // Create session with triage data
     existingSessionId = await createSession(serviceClient, userId, message, "rewrite", triageResult!, promptVersions);
+    // Set initial status based on triage outcome
+    const initialStatus = (triageResult!.sendability_status === "safe") ? "processing" : "awaiting_goal_selection";
+    await updateSession(serviceClient, existingSessionId, { session_status: initialStatus });
   } else {
     // Load existing session to get triage data
     const { data: existingSession } = await serviceClient
@@ -1340,6 +1344,7 @@ You MUST call the provided tool with your structured output.`;
   await updateSession(serviceClient, existingSessionId!, {
     output_path: outputPath,
     selected_goal: selectedGoal ?? null,
+    session_status: "completed",
   });
   await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
