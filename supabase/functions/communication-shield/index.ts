@@ -1176,18 +1176,19 @@ async function handleRespondTriage(
   const originalScoreResult = scoreOriginalMessage(message);
   console.log(`[${FN}] respond_triage | original_score: ${originalScoreResult.score}/10`);
 
-  // Try to load triage prompt from DB, fall back to hardcoded
-  let triagePromptText = RESPOND_TRIAGE_PROMPT;
-  try {
-    const loaded = await loadActivePrompt(serviceClient, "communication_shield", "respond", "triage");
-    if (loaded.source === "database") triagePromptText = loaded.promptText;
-  } catch {}
+  // Load triage prompt from ai_system_prompts (matches rewrite triage pattern)
+  const triagePrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "triage");
+  console.log(`[${FN}] respond_triage prompt_load | source=${triagePrompt.source} | version=${triagePrompt.versionLabel}${triagePrompt.fallbackReason ? ` | fallback_reason=${triagePrompt.fallbackReason}` : ""}`);
 
-  let triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_PRIMARY);
+  const triageSystemPrompt = `${triagePrompt.promptText}
+
+You MUST call the provided tool with your structured output.`;
+
+  let triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, RESPOND_TRIAGE_TOOL, MODEL_PRIMARY);
   let triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
   if (triageError) {
     console.warn(`[${FN}] respond_triage Tier1: ${triageError}`);
-    triageResult = await callToolFunction(apiKey, triagePromptText, message, RESPOND_TRIAGE_TOOL, MODEL_FALLBACK);
+    triageResult = await callToolFunction(apiKey, triageSystemPrompt, message, RESPOND_TRIAGE_TOOL, MODEL_FALLBACK);
     triageError = triageResult ? validateRespondTriageResult(triageResult) : "no result";
     if (triageError) {
       console.warn(`[${FN}] respond_triage Tier2 failed: ${triageError}, defaulting to respond`);
@@ -1228,7 +1229,7 @@ async function handleRespondTriage(
     session_status: triageResult!.recommendation_type === "respond" ? "awaiting_intent_selection" : "triage_complete",
   });
 
-  console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId}`);
+  console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId} | prompt_source=${triagePrompt.source} | prompt_version=${triagePrompt.versionLabel}`);
 
   return jsonResponse({
     mode: "respond",
@@ -1243,6 +1244,8 @@ async function handleRespondTriage(
     original_score: originalScoreResult.score,
     original_score_notes: originalScoreResult.notes,
     session_id: sessionId,
+    prompt_version: triagePrompt.versionLabel,
+    prompt_source: triagePrompt.source,
   });
 }
 
