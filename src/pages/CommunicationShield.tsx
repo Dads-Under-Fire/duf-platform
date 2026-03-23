@@ -1145,7 +1145,7 @@ function SingleResultBlock({ result, index, total }: { result: AIResult; index: 
   const isEven = index % 2 === 0;
   const isLatest = index === total - 1;
 
-  if ((result as any)._noMessageNeeded) {
+  if ((result as any)._noMessageNeeded || (result as any)._doNotRespond) {
     return (
       <div className={`rounded-lg p-4 ${isEven ? "bg-background" : "bg-muted/30"} ${!isLatest ? "border-b border-border" : ""}`}>
         {total > 1 && (
@@ -1153,7 +1153,11 @@ function SingleResultBlock({ result, index, total }: { result: AIResult; index: 
             {isLatest ? `Version ${index + 1} (Latest)` : `Version ${index + 1}`}
           </p>
         )}
-        <NoMessageNeededLayout />
+        {(result as any)._doNotRespond ? (
+          <DoNotRespondLayout result={result} />
+        ) : (
+          <NoMessageNeededLayout />
+        )}
       </div>
     );
   }
