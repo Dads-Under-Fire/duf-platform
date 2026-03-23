@@ -111,7 +111,6 @@ export default function CommunicationShield() {
   const handleModeChange = (newMode: "respond" | "rewrite") => {
     if (newMode === mode) return;
     setMode(newMode);
-    setInputMessage("");
     setSubmittedMessage("");
     setResult(null);
     setAllResults([]);
