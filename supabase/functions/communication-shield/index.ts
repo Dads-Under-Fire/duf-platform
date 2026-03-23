@@ -709,6 +709,15 @@ function validateRewriteSemantics(original: string, result: Record<string, unkno
   return issues;
 }
 
+function validateRespondTriageResult(r: Record<string, unknown>): string | null {
+  if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
+  if (typeof r.should_show_intent_picker !== "boolean") return "missing should_show_intent_picker";
+  if (typeof r.contains_actionable_logistics !== "boolean") return "missing contains_actionable_logistics";
+  if (!isNonEmptyString(r.recommendation_reason)) return "missing recommendation_reason";
+  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
+  return null;
+}
+
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
   if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
@@ -725,7 +734,9 @@ function validateRespondResult(r: Record<string, unknown>): string | null {
     if (!isNonEmptyString(r[k])) return `missing ${k}`;
   }
   if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
-  if (!Array.isArray(r.three_alternatives) || r.three_alternatives.length !== 3) return "need 3 alternatives";
+  if (r.recommendation_type === "respond") {
+    if (!Array.isArray(r.three_alternatives) || r.three_alternatives.length !== 3) return "need 3 alternatives";
+  }
   return null;
 }
 
