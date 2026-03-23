@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, RotateCcw, AlertTriangle, Ban } from "lucide-react";
+import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -305,19 +305,7 @@ export default function CommunicationShield() {
     }
   };
 
-  const handleStartOver = () => {
-    setStep("input");
-    setSubmittedMessage("");
-    setResult(null);
-    setCommunicationContext("");
-    setIntentOptions([]);
-    setShowOtherInput(false);
-    setOtherText("");
-    setSessionId(null);
-    setGoalOptions([]);
-    setTriageData(null);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
+  // Reset state is handled inline in handleSubmitMessage
 
   const handleBackToCompose = () => {
     if (step === "goal-selection") {
@@ -393,7 +381,7 @@ export default function CommunicationShield() {
             ) : step === "result" && result ? (
               <>
                 {(result as any)._noMessageNeeded ? (
-                  <NoMessageNeededLayout onStartOver={handleStartOver} />
+                  <NoMessageNeededLayout />
                 ) : result.is_fallback ? (
                   <FallbackResultLayout result={result} />
                 ) : (
@@ -436,15 +424,7 @@ export default function CommunicationShield() {
 
           {/* Fixed bottom action bar */}
           {step === "result" && (
-            <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
-              <button
-                onClick={handleStartOver}
-                disabled={loading}
-                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Start Over
-              </button>
+            <div className="border-t border-border px-4 py-3 flex items-center justify-end bg-background shrink-0">
               <button
                 onClick={handleRegenerate}
                 disabled={!hasResult || loading}
@@ -796,7 +776,7 @@ export default function CommunicationShield() {
               {result ? (
                 <div className="space-y-4 text-sm">
                   {(result as any)._noMessageNeeded ? (
-                    <NoMessageNeededLayout onStartOver={handleStartOver} />
+                    <NoMessageNeededLayout />
                   ) : result.is_fallback ? (
                     <FallbackResultLayout result={result} />
                   ) : (
@@ -853,26 +833,16 @@ export default function CommunicationShield() {
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
         {/* Action buttons — always visible */}
-        {(step === "result" || step === "goal-selection") && (
+        {step === "result" && (
           <div className="flex items-center gap-4">
             <button
-              onClick={handleStartOver}
-              disabled={loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
+              onClick={handleRegenerate}
+              disabled={!hasResult || loading}
+              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <RotateCcw className="h-4 w-4" />
-              Start Over
+              <RefreshCw className="h-4 w-4" />
+              Generate again
             </button>
-            {step === "result" && (
-              <button
-                onClick={handleRegenerate}
-                disabled={!hasResult || loading}
-                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Generate again
-              </button>
-            )}
           </div>
         )}
 
@@ -895,12 +865,12 @@ export default function CommunicationShield() {
             onKeyDown={(e) => e.key === "Enter" && handleSubmitMessage()}
             ref={inputRef}
             placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
-            disabled={step !== "input"}
+            disabled={loading}
             className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           />
           <button
             onClick={handleSubmitMessage}
-            disabled={loading || !inputMessage.trim() || step !== "input"}
+            disabled={loading || !inputMessage.trim()}
             className="h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
           >
             <ArrowUp className="h-5 w-5" />
@@ -1094,7 +1064,7 @@ function DoNotRespondLayout({ result }: { result: AIResult }) {
   );
 }
 
-function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
+function NoMessageNeededLayout() {
   return (
     <div className="space-y-5 py-4">
       <div className="rounded-lg border border-primary/30 bg-primary/5 px-5 py-4 space-y-3">
@@ -1109,13 +1079,6 @@ function NoMessageNeededLayout({ onStartOver }: { onStartOver: () => void }) {
           Limiting unnecessary communication can help reduce conflict.
         </p>
       </div>
-      <button
-        onClick={onStartOver}
-        className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors"
-      >
-        <RotateCcw className="h-4 w-4" />
-        Start a new message
-      </button>
     </div>
   );
 }
