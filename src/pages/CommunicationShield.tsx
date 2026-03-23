@@ -379,7 +379,7 @@ export default function CommunicationShield() {
             {step === "result" && loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                Generating response...
+                {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
               </div>
             ) : step === "result" && result ? (
               <>
