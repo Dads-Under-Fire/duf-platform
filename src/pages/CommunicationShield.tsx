@@ -853,8 +853,8 @@ export default function CommunicationShield() {
               )}
             </div>
 
-            {/* Generate Again — fixed at bottom of the rewrite card */}
-            {step === "result" && mode === "rewrite" && hasResult && !loading && (
+            {/* Generate Again — fixed at bottom of the result card */}
+            {step === "result" && hasResult && !loading && (
               <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
                 <button
                   onClick={handleRegenerate}
