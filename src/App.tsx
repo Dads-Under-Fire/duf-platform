@@ -10,7 +10,7 @@ import Account from "./pages/Account";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
 import NotFound from "./pages/NotFound";
-import AdminRewriteTests from "./pages/AdminRewriteTests";
+
 
 const queryClient = new QueryClient();
 
