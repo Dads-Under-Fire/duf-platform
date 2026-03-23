@@ -196,7 +196,7 @@ export default function CommunicationShield() {
   };
 
   const handleSelectGoal = async (goal: string) => {
-    // "No message needed" — show confirmation result, don't call backend
+    // "No message needed" — show confirmation result, update session status
     if (goal === "No message needed") {
       setCommunicationContext(goal);
       setStep("result");
@@ -207,6 +207,13 @@ export default function CommunicationShield() {
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
         _noMessageNeeded: true,
       } as any);
+      // Update session status in background
+      if (sessionId) {
+        supabase.from("communication_shield_sessions").update({
+          session_status: "no_message_needed",
+          selected_goal: "No message needed",
+        }).eq("id", sessionId).then(() => {});
+      }
       return;
     }
 
