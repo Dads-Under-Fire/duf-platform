@@ -776,7 +776,7 @@ export default function CommunicationShield() {
               {result ? (
                 <div className="space-y-4 text-sm">
                   {(result as any)._noMessageNeeded ? (
-                    <NoMessageNeededLayout onStartOver={handleStartOver} />
+                    <NoMessageNeededLayout />
                   ) : result.is_fallback ? (
                     <FallbackResultLayout result={result} />
                   ) : (
