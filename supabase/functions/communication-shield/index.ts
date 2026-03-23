@@ -1388,11 +1388,7 @@ async function runScoreStage(
 
     // The score stage evaluates the output — we log it but don't block on it
     console.log(`[${FN}] score stage | session=${sessionId} | prompt=${scorePrompt.versionLabel}`);
-
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({ scoring_version: scorePrompt.versionLabel })
-      .eq("id", sessionId);
+    // Score stage logging only — no DB columns to update
   } catch (err) {
     console.error(`[${FN}] score stage error (non-blocking):`, err);
   }
