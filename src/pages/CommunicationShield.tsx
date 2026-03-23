@@ -117,6 +117,7 @@ export default function CommunicationShield() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [goalOptions, setGoalOptions] = useState<string[]>([]);
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
+  const [respondTriageData, setRespondTriageData] = useState<RespondTriageResult | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
   const FREE_REGEN_LIMIT = 2;
   const MAX_MESSAGE_LENGTH = 10000;
