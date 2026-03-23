@@ -1602,9 +1602,13 @@ serve(async (req) => {
       is_regeneration: clientIsRegeneration,
     } = body;
 
-    if (!message || typeof message !== "string" || message.length > 4000) {
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
       logRequest({ userId, functionName: FN, status: "invalid_input", detail: "bad message" });
       return jsonResponse({ error: "Invalid message" }, 400);
+    }
+    if (message.length > 10000) {
+      logRequest({ userId, functionName: FN, status: "invalid_input", detail: `msg too long: ${message.length}` });
+      return jsonResponse({ error: `Message too long (${message.length}/10000 characters)` }, 400);
     }
     console.log(`[${FN}] request_start | user=${userId} | mode=${mode} | msg_len=${message.length}`);
 

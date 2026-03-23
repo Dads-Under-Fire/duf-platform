@@ -105,10 +105,12 @@ export default function CommunicationShield() {
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
   const FREE_REGEN_LIMIT = 2;
+  const MAX_MESSAGE_LENGTH = 10000;
+  const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
-    if (!msg || !user) return;
+    if (!msg || !user || isOverLimit) return;
 
     if (rewritesExhausted) {
       setShowUpgradeModal(true);
