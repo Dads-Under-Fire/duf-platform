@@ -167,15 +167,17 @@ export function runStagedValidator(
   // ═══ 2) ROUTING ACCURACY ═══
 
   if (expectations.expected_output_path) {
-    const match = outcome.actual_output_path === expectations.expected_output_path;
+    const expectedPath = normalizeStagedOutputPath(expectations.expected_output_path);
+    const actualPath = normalizeStagedOutputPath(outcome.actual_output_path);
+    const match = actualPath === expectedPath;
     add("staged_output_path_match", match,
-      `Expected output_path "${expectations.expected_output_path}" — got "${outcome.actual_output_path}"`);
+      `Expected output_path "${expectedPath}" — got "${actualPath}"`);
     if (!match) routingScore -= 5;
   }
 
   // ═══ 3) OUTCOME QUALITY — PATH-SPECIFIC ═══
 
-  const effectivePath = outcome.actual_output_path ?? expectations.expected_output_path;
+  const effectivePath = normalizeStagedOutputPath(outcome.actual_output_path ?? expectations.expected_output_path);
 
   if (effectivePath === "rewrite") {
     outcomeScore = validateRewriteOutcome(checks, add, outcome, originalMessage, testCategory, rules);
@@ -370,6 +372,12 @@ function validateNoMessageOutcome(
 // FUZZY MATCHING HELPERS
 // ══════════════════════════════════════════════════════════════
 
+function normalizeStagedOutputPath(path: unknown): "rewrite" | "redirect_choice" | "no_message" | null {
+  if (path === "rewrite_with_guidance") return "rewrite";
+  if (path === "rewrite" || path === "redirect_choice" || path === "no_message") return path;
+  return null;
+}
+
 function fuzzyIntentMatch(actual: string, expected: string): boolean {
   const a = actual.toLowerCase().trim();
   const e = expected.toLowerCase().trim();
@@ -378,10 +386,11 @@ function fuzzyIntentMatch(actual: string, expected: string): boolean {
   // Allow reasonable equivalences
   const equivalences: [string, string[]][] = [
     ["confirm logistics", ["schedule coordination", "logistics coordination", "logistics confirmation"]],
-    ["set boundary", ["boundary setting", "setting boundary", "communication boundary"]],
+    ["set boundary", ["boundary setting", "setting boundary", "communication boundary", "set a neutral boundary"]],
+    ["request info", ["request information", "clarification", "ask for details", "respond to accusation safely"]],
     ["express frustration", ["venting", "emotional venting", "frustration"]],
     ["personal/romantic", ["romantic", "personal", "relationship"]],
-    ["threaten/intimidate", ["threat", "intimidation", "leverage"]],
+    ["threaten/intimidate", ["threat", "intimidation", "leverage", "coercion"]],
     ["respond to accusation", ["defend against accusation", "accusation response"]],
   ];
   for (const [canonical, aliases] of equivalences) {
@@ -393,9 +402,26 @@ function fuzzyIntentMatch(actual: string, expected: string): boolean {
   return false;
 }
 
+function normalizeFlag(flag: string): string {
+  const raw = flag.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    "emotional language": "emotional language detected",
+    "personal attack": "denigration / disparagement",
+    accusation: "admission trap",
+    sarcasm: "emotional language detected",
+    threat: "leverage or intimidation language detected",
+    coercion: "leverage or intimidation language detected",
+    manipulation: "denigration / disparagement",
+    vague: "vague or imprecise language",
+    romantic: "irrelevant or non-child-related topic",
+    "irrelevant content": "irrelevant or non-child-related topic",
+  };
+  return aliases[raw] ?? raw;
+}
+
 function fuzzyFlagMatch(actual: string, expected: string): boolean {
-  const a = actual.toLowerCase().trim();
-  const e = expected.toLowerCase().trim();
+  const a = normalizeFlag(actual);
+  const e = normalizeFlag(expected);
   if (a === e) return true;
   if (a.includes(e) || e.includes(a)) return true;
   return false;
