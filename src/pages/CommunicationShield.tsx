@@ -801,16 +801,20 @@ export default function CommunicationShield() {
                         <DoNotRespondLayout result={result} />
                       ) : (
                         <>
-                          {result.sendability_status && result.mode === "rewrite" && (
-                            <SendabilityBadge status={result.sendability_status} />
-                          )}
                           <ResponseSection label={result.mode === "rewrite" ? "Primary Rewrite" : "Primary Response"} content={getPrimaryText(result)} showCopy />
                           <ResponseSection label="Shorter Version" content={result.shorter_version ?? ""} showCopy />
                           <ResponseSection label="Firmer Version" content={result.firmer_version ?? ""} showCopy />
-                          <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          {result.mode !== "rewrite" && (
+                            <ResponseSection label="Tone Assessment" content={result.tone_assessment ?? ""} />
+                          )}
                           <div>
-                            <p className="text-muted-foreground mb-1">Risk Flags</p>
+                            <p className="text-muted-foreground mb-1">
+                              {result.mode === "rewrite" ? "Original Message Risks" : "Risk Flags"}
+                            </p>
                             <div className="h-px bg-border mb-2" />
+                            {result.mode === "rewrite" && (
+                              <p className="text-muted-foreground text-xs mb-2">These risks were found in your original message — not in the rewrite above.</p>
+                            )}
                             <ul className="space-y-1">
                               {(result.risk_flags ?? []).map((flag, i) => (
                                 <li key={i} className="text-foreground">• {flag}</li>
