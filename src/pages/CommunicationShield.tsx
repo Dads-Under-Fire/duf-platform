@@ -1117,7 +1117,76 @@ function GoalSelectionPanel({
   );
 }
 
-function RedirectResultLayout({ result }: { result: AIResult }) {
+function NextStepOptionsPanel({
+  options,
+  onSelect,
+  showOtherInput,
+  setShowOtherInput,
+  otherText,
+  setOtherText,
+  onOtherSubmit,
+}: {
+  options: string[];
+  onSelect: (option: string) => void;
+  showOtherInput: boolean;
+  setShowOtherInput: (v: boolean) => void;
+  otherText: string;
+  setOtherText: (v: string) => void;
+  onOtherSubmit: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-foreground">What would you like to do instead?</p>
+      <div className="space-y-1">
+        {options.map((option) => (
+          <button
+            key={option}
+            onClick={() => onSelect(option)}
+            className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+          >
+            {option}
+          </button>
+        ))}
+
+        {!showOtherInput && (
+          <button
+            onClick={() => setShowOtherInput(true)}
+            className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+          >
+            <MessageSquarePlus className="h-4 w-4 shrink-0" />
+            Other…
+          </button>
+        )}
+
+        {showOtherInput && (
+          <div className="mt-2 space-y-2">
+            <label className="text-xs text-muted-foreground">What would you like to do?</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={otherText}
+                onChange={(e) => setOtherText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onOtherSubmit()}
+                placeholder="e.g. Ask about pickup time"
+                className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                onClick={onOtherSubmit}
+                disabled={!otherText.trim()}
+                className="px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
+              >
+                Go
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
   return (
     <div className="space-y-4">
       <SendabilityBadge status="redirect" />
