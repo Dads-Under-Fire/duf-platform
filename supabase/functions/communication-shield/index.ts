@@ -1215,71 +1215,43 @@ You MUST call the provided tool with your structured output.`;
 
   // ── STEP 2: BRANCH ──
 
-  // 2A: REDIRECT
-  if (sendabilityStatus === "redirect") {
-    const redirectPrompt = await loadActivePrompt(serviceClient, "communication_shield", "rewrite", "redirect");
-    promptVersions.rewrite = redirectPrompt.versionLabel;
-
-    const redirectSystemPrompt = `You are a custody communication safety specialist.
-
-${redirectPrompt.promptText}
-
-You MUST call the provided tool with your structured output.`;
-
-    let redirectResult = await callToolFunction(apiKey, redirectSystemPrompt, message, REDIRECT_TOOL, MODEL_PRIMARY);
-    const redirectError = redirectResult ? validateRedirectResult(redirectResult) : "no redirect result";
-    if (redirectError) {
-      console.warn(`[${FN}] redirect validation: ${redirectError}, trying fallback`);
-      redirectResult = await callToolFunction(apiKey, redirectSystemPrompt, message, REDIRECT_TOOL, MODEL_FALLBACK);
-    }
-
-    if (!redirectResult || validateRedirectResult(redirectResult)) {
-      // Deterministic redirect fallback
-      redirectResult = {
-        redirect_message: "This message contains language that could create legal risk. Consider not sending it.",
-        safe_alternative: "Please keep messages focused on the child and logistics.",
-        alternative_1: "I will follow the agreed schedule.",
-        alternative_2: "Please send schedule updates only.",
-        alternative_3: "Please keep communication child-focused.",
-        risk_flags: triageResult!.risk_flags ?? ["Emotional language detected"],
-        why_this_is_safer: "The original message contains language that could escalate conflict or create legal exposure.",
-      };
-    }
-
-    const riskFlags = normalizeRiskFlags(redirectResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+  // 2A: REDIRECT — decision state, NOT final output
+  // If redirect and no selected_goal yet, return triage data + goal options only
+  if (sendabilityStatus === "redirect" && !selectedGoal) {
+    const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
     await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null, {
       output_path: "redirect",
-      rewrite_prompt_version: promptVersions.rewrite,
     });
-    await insertResult(serviceClient, existingSessionId!, "redirect", redirectResult, riskFlags);
-    if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    // Score asynchronously (non-blocking)
-    runScoreStage(serviceClient, apiKey, existingSessionId!, message, redirectResult, originalScoreResult, promptVersions).catch(e => console.error(`[${FN}] score stage error:`, e));
-
-    console.log(`[${FN}] redirect complete | session=${existingSessionId}`);
+    console.log(`[${FN}] redirect — needs goal selection | session=${existingSessionId}`);
     return jsonResponse({
       mode: "rewrite",
       sendability_status: "redirect",
       output_path: "redirect",
       detected_intent: triageResult!.detected_intent,
       detected_tone: triageResult!.detected_tone,
+      sendability_reason: triageResult!.sendability_reason,
       risk_flags: riskFlags,
-      redirect_message: redirectResult.redirect_message,
-      safe_alternative: redirectResult.safe_alternative,
-      alternative_1: redirectResult.alternative_1,
-      alternative_2: redirectResult.alternative_2,
-      alternative_3: redirectResult.alternative_3,
-      why_this_is_safer: redirectResult.why_this_is_safer,
-      original_score: originalScoreResult.score,
-      session_id: existingSessionId,
-      next_step_options: [
+      needs_goal_selection: true,
+      goal_options: [
         "Refocus on logistics",
         "Set a neutral boundary",
         "No message needed",
-        "Start a new message",
       ],
+      original_score: originalScoreResult.score,
+      session_id: existingSessionId,
     });
+  }
+
+  // 2A (cont): REDIRECT with goal selected — save goal, then fall through to generate
+  if (sendabilityStatus === "redirect" && selectedGoal) {
+    await serviceClient
+      .from("communication_shield_sessions")
+      .update({
+        selected_goal: selectedGoal,
+        goal_selection_source: "user_selected",
+      })
+      .eq("id", existingSessionId);
   }
 
   // 2B: SALVAGEABLE — needs goal selection
