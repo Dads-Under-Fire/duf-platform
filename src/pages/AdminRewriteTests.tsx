@@ -32,18 +32,15 @@ import {
 
 interface GoldCase {
   id: string;
-  test_id: string;
+  name: string;
   category: string;
-  original_message: string;
-  expected_behavior: string | null;
-  must_not_do: string | null;
-  validator_rules: ValidatorRules | null;
+  input_message: string;
 }
 
 interface CaseRunResult {
-  test_id: string;
+  name: string;
   category: string;
-  original_message: string;
+  input_message: string;
   result: RewriteResult | null;
   validatorStatus: "pass" | "warn" | "fail";
   validatorNotes: string[];
@@ -88,7 +85,7 @@ export default function AdminRewriteTests() {
   useEffect(() => {
     async function load() {
       const { data } = await (supabase.from as any)("ai_gold_suite_cases")
-        .select("id, test_id, category, original_message, expected_behavior, must_not_do, validator_rules")
+        .select("id, name, category, input_message, expected_sendability_status, expected_output_path")
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("is_active", true)
@@ -156,19 +153,19 @@ export default function AdminRewriteTests() {
     let firstPromptSource = "unknown";
 
     for (const tc of cases) {
-      setCurrentCase(tc.test_id);
+      setCurrentCase(tc.name);
       let caseResult: CaseRunResult;
 
       try {
         const { data, error } = await supabase.functions.invoke("communication-shield", {
-          body: { message: tc.original_message, mode: "rewrite", skip_quota: true },
+          body: { message: tc.input_message, mode: "rewrite", skip_quota: true },
         });
 
         if (error || !data) {
           caseResult = {
-            test_id: tc.test_id,
+            name: tc.name,
             category: tc.category,
-            original_message: tc.original_message,
+            input_message: tc.input_message,
             result: null,
             validatorStatus: "fail",
             validatorNotes: [error?.message ?? "No data returned"],
@@ -184,11 +181,11 @@ export default function AdminRewriteTests() {
             firstPromptVersion = pv;
             firstPromptSource = ps;
           }
-          const validation = runValidator(tc.validator_rules, result, tc.original_message, tc.category);
+          const validation = runValidator(null, result, tc.input_message, tc.category);
           caseResult = {
-            test_id: tc.test_id,
+            name: tc.name,
             category: tc.category,
-            original_message: tc.original_message,
+            input_message: tc.input_message,
             result,
             validatorStatus: validation.status,
             validatorNotes: validation.notes,
@@ -198,9 +195,9 @@ export default function AdminRewriteTests() {
         }
       } catch (e: any) {
         caseResult = {
-          test_id: tc.test_id,
+          name: tc.name,
           category: tc.category,
-          original_message: tc.original_message,
+          input_message: tc.input_message,
           result: null,
           validatorStatus: "fail",
           validatorNotes: [e.message],
@@ -213,9 +210,9 @@ export default function AdminRewriteTests() {
       // Store result in DB
       await (supabase.from as any)("ai_gold_suite_results").insert({
         run_id: runId,
-        test_id: caseResult.test_id,
+        test_id: caseResult.name,
         category: caseResult.category,
-        original_message: caseResult.original_message,
+        original_message: caseResult.input_message,
         primary_rewrite: caseResult.result?.primary_rewrite ?? null,
         shorter_version: caseResult.result?.shorter_version ?? null,
         firmer_version: caseResult.result?.firmer_version ?? null,
@@ -277,15 +274,13 @@ export default function AdminRewriteTests() {
   const saveAsGoldCandidate = useCallback(async () => {
     if (!adHocMessage.trim()) return;
     setAdHocSaving(true);
-    const testId = `ADHOC-${Date.now()}`;
+    const testName = `ADHOC-${Date.now()}`;
     const { error } = await (supabase.from as any)("ai_gold_suite_cases").insert({
       feature_key: "communication_shield",
       mode: "rewrite",
-      test_id: testId,
+      name: testName,
       category: adHocCategory.trim() || "ad_hoc",
-      original_message: adHocMessage.trim(),
-      expected_behavior: null,
-      must_not_do: null,
+      input_message: adHocMessage.trim(),
       notes: adHocNotes.trim() || "Saved from ad hoc test",
       is_active: false,
     });
@@ -293,7 +288,7 @@ export default function AdminRewriteTests() {
     if (error) {
       toast.error("Failed to save: " + error.message);
     } else {
-      toast.success(`Saved as gold-suite candidate: ${testId}`);
+      toast.success(`Saved as gold-suite candidate: ${testName}`);
     }
   }, [adHocMessage, adHocCategory, adHocNotes]);
 
@@ -417,7 +412,7 @@ export default function AdminRewriteTests() {
               </p>
             )}
             {latestResults.map((r) => (
-              <Card key={r.test_id}>
+              <Card key={r.name}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
                     {r.validatorStatus === "pass" ? (
@@ -428,7 +423,7 @@ export default function AdminRewriteTests() {
                       <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-medium">{r.test_id}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{r.name}</CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Category: {r.category} · Prompt: {r.promptVersion} · Source: {r.promptSource}
                       </p>
@@ -441,7 +436,7 @@ export default function AdminRewriteTests() {
                 <CardContent className="space-y-2">
                   <div className="text-xs">
                     <span className="text-muted-foreground font-medium">Input: </span>
-                    <span className="text-foreground">{r.original_message}</span>
+                    <span className="text-foreground">{r.input_message}</span>
                   </div>
                   {r.error && <p className="text-xs text-destructive">Error: {r.error}</p>}
                   {r.result && (
