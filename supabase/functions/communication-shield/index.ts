@@ -1190,23 +1190,54 @@ You MUST call the provided tool with your structured output.`;
   }
 
   const sendabilityStatus = triageResult!.sendability_status as string;
-  const outputPath = sendabilityStatus === "redirect" ? "redirect" : "rewrite";
+  const triageOutputPath = (triageResult!.output_path as string) || (sendabilityStatus === "redirect" ? "redirect_choice" : "rewrite");
+  const outputPath = sendabilityStatus === "redirect" ? triageOutputPath : "rewrite";
 
   // ── STEP 2: BRANCH ──
 
-  // 2A: REDIRECT — decision state, NOT final output
-  // If redirect and no selected_goal yet, return triage data + goal options only
-  if (sendabilityStatus === "redirect" && !selectedGoal) {
+  // 2A-i: NO_MESSAGE — terminal state, no goal selection needed
+  if (sendabilityStatus === "redirect" && triageOutputPath === "no_message" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
     await updateSession(serviceClient, existingSessionId!, {
-      output_path: "redirect",
+      output_path: "no_message",
+      session_status: "no_message_needed",
+      selected_goal: "No message needed",
     });
+    // Create terminal result row
+    await insertResult(serviceClient, existingSessionId!, "no_message", {
+      redirect_message: triageResult!.sendability_reason ?? "This message does not require a response.",
+      why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+    }, riskFlags);
+    if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
-    console.log(`[${FN}] redirect — needs goal selection | session=${existingSessionId}`);
+    console.log(`[${FN}] no_message — terminal | session=${existingSessionId}`);
     return jsonResponse({
       mode: "rewrite",
       sendability_status: "redirect",
-      output_path: "redirect",
+      output_path: "no_message",
+      detected_intent: triageResult!.detected_intent,
+      detected_tone: triageResult!.detected_tone,
+      sendability_reason: triageResult!.sendability_reason,
+      risk_flags: riskFlags,
+      needs_goal_selection: false,
+      _noMessageNeeded: true,
+      original_score: originalScoreResult.score,
+      session_id: existingSessionId,
+    });
+  }
+
+  // 2A-ii: REDIRECT_CHOICE — decision state, needs goal selection
+  if (sendabilityStatus === "redirect" && triageOutputPath !== "no_message" && !selectedGoal) {
+    const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
+    await updateSession(serviceClient, existingSessionId!, {
+      output_path: "redirect_choice",
+    });
+
+    console.log(`[${FN}] redirect_choice — needs goal selection | session=${existingSessionId}`);
+    return jsonResponse({
+      mode: "rewrite",
+      sendability_status: "redirect",
+      output_path: "redirect_choice",
       detected_intent: triageResult!.detected_intent,
       detected_tone: triageResult!.detected_tone,
       sendability_reason: triageResult!.sendability_reason,
