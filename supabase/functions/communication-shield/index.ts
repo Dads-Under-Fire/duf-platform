@@ -1573,16 +1573,48 @@ serve(async (req) => {
       if (isAdminBypass) console.log(`[${FN}] admin_quota_bypass`);
     }
 
-    // Quota check (skip for admin bypass and for goal-selection continuations)
-    if (!isAdminBypass && !session_id) {
-      const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
-      if (quotaError || !quotaRows || quotaRows.length === 0) {
-        console.error("Quota check failed:", quotaError);
-        return jsonResponse({ error: "Could not verify quota" }, 500);
-      }
-      console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
-      if (!quotaRows[0].allowed) {
-        return jsonResponse({ error: "You've used all your message rewrites." }, 429);
+    // Quota check
+    // For new sessions (no session_id): always check + will charge 1
+    // For regenerations (has session_id): check if this regen is free or paid
+    const isRegeneration = !!session_id && !_no_message_terminal && !selected_goal;
+    let regenIsFree = false;
+
+    if (!isAdminBypass) {
+      if (isRegeneration) {
+        // Look up how many free regens have been used for this session
+        const { data: sessionRow } = await serviceClient
+          .from("communication_shield_sessions")
+          .select("free_regenerations_used")
+          .eq("id", session_id)
+          .single();
+        const freeUsed = sessionRow?.free_regenerations_used ?? 0;
+        const FREE_REGEN_LIMIT = 2;
+        if (freeUsed < FREE_REGEN_LIMIT) {
+          regenIsFree = true;
+          console.log(`[${FN}] regen free | session=${session_id} | free_used=${freeUsed}/${FREE_REGEN_LIMIT}`);
+        } else {
+          // Paid regen — check quota
+          const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
+          if (quotaError || !quotaRows || quotaRows.length === 0) {
+            console.error("Quota check failed:", quotaError);
+            return jsonResponse({ error: "Could not verify quota" }, 500);
+          }
+          if (!quotaRows[0].allowed) {
+            return jsonResponse({ error: "You've used all your message rewrites.", quota_exhausted: true }, 429);
+          }
+          console.log(`[${FN}] regen paid | session=${session_id} | free_used=${freeUsed} | used=${quotaRows[0].used}/${quotaRows[0].limit}`);
+        }
+      } else if (!session_id) {
+        // New session — normal quota check
+        const { data: quotaRows, error: quotaError } = await serviceClient.rpc("check_message_rewrite_quota", { p_user_id: userId });
+        if (quotaError || !quotaRows || quotaRows.length === 0) {
+          console.error("Quota check failed:", quotaError);
+          return jsonResponse({ error: "Could not verify quota" }, 500);
+        }
+        console.log(`[${FN}] quota_check | used=${quotaRows[0].used}/${quotaRows[0].limit} | allowed=${quotaRows[0].allowed}`);
+        if (!quotaRows[0].allowed) {
+          return jsonResponse({ error: "You've used all your message rewrites.", quota_exhausted: true }, 429);
+        }
       }
     }
 
