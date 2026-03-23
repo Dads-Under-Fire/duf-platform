@@ -142,10 +142,9 @@ export default function CommunicationShield() {
 
         // Check if this is a no_message terminal result from triage
         if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
-          setResult({
-            ...aiData,
-            _noMessageNeeded: true,
-          });
+          const noMsgResult = { ...aiData, _noMessageNeeded: true };
+          setResult(noMsgResult);
+          setAllResults(prev => [...prev, noMsgResult]);
           setSessionId(aiData.session_id ?? null);
           refetchProfile();
           return;
