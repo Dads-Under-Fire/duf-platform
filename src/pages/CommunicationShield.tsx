@@ -38,6 +38,8 @@ interface AIResult {
   alternative_1?: string;
   alternative_2?: string;
   alternative_3?: string;
+  // Redirect next-step options
+  next_step_options?: string[];
 }
 
 function getPrimaryText(result: AIResult): string {
