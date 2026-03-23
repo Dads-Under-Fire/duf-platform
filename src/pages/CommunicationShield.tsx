@@ -889,11 +889,11 @@ export default function CommunicationShield() {
         )}
 
         <div className="flex items-center gap-4">
-          <button onClick={() => setMode("respond")} className="flex items-center gap-2">
+          <button onClick={() => handleModeChange("respond")} className="flex items-center gap-2">
             <div className={`h-4 w-4 rounded-full border-2 ${mode === "respond" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
             <span className="text-sm text-foreground">Respond to message</span>
           </button>
-          <button onClick={() => setMode("rewrite")} className="flex items-center gap-2">
+          <button onClick={() => handleModeChange("rewrite")} className="flex items-center gap-2">
             <div className={`h-4 w-4 rounded-full border-2 ${mode === "rewrite" ? "border-primary bg-primary" : "border-muted-foreground"}`} />
             <span className="text-sm text-foreground">Rewrite my message</span>
           </button>
