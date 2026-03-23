@@ -991,9 +991,21 @@ export default function CommunicationShield() {
                 <div className="flex-1 flex items-center justify-center">
                   <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
                 </div>
+              ) : step === "respond-triage" && respondTriageData ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>
+                    {respondTriageData.recommendation_type === "do_not_respond"
+                      ? "This message does not require a response."
+                      : "Generating response..."}
+                  </p>
+                </div>
               ) : step === "goal-selection" ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>Select a goal on the left to generate your court-safe rewrite.</p>
+                </div>
+              ) : step === "select-intent" ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>Select a response intent on the left to generate your court-safe reply.</p>
                 </div>
               ) : (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
@@ -1007,15 +1019,13 @@ export default function CommunicationShield() {
               <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
                 <button
                   onClick={handleRegenerate}
-                  disabled={loading || rewritesExhausted}
+                  disabled={loading || (rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                   className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Generate again
                 </button>
-                {mode === "rewrite" && (
-                  <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
-                )}
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
               </div>
             )}
           </div>
