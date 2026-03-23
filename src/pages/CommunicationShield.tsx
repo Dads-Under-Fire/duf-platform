@@ -228,6 +228,8 @@ export default function CommunicationShield() {
             selected_goal: "No message needed",
             session_id: sessionId,
             _no_message_terminal: true,
+            triage_risk_flags: triageData?.risk_flags ?? [],
+            triage_sendability_reason: triageData?.sendability_reason ?? "",
           },
         }).then(() => {}).catch(() => {});
       }
