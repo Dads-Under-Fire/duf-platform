@@ -288,7 +288,7 @@ export default function AdminRewriteTests() {
     if (error) {
       toast.error("Failed to save: " + error.message);
     } else {
-      toast.success(`Saved as gold-suite candidate: ${testId}`);
+      toast.success(`Saved as gold-suite candidate: ${testName}`);
     }
   }, [adHocMessage, adHocCategory, adHocNotes]);
 
