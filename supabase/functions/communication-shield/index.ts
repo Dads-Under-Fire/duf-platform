@@ -1792,6 +1792,8 @@ serve(async (req) => {
       triage_risk_flags,
       triage_sendability_reason,
       is_regeneration: clientIsRegeneration,
+      respond_stage,
+      boundary_override,
     } = body;
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -1825,12 +1827,14 @@ serve(async (req) => {
     }
 
     // Quota check
+    // For respond triage: no usage charged (triage only)
     // For new sessions (no session_id): always check + will charge 1
     // For regenerations (has session_id): check if this regen is free or paid
-    const isRegeneration = !!session_id && !_no_message_terminal && (clientIsRegeneration === true || !selected_goal);
+    const isRespondTriage = mode === "respond" && respond_stage !== "generate" && !session_id;
+    const isRegeneration = !!session_id && !_no_message_terminal && (clientIsRegeneration === true || (!selected_goal && respond_stage !== "generate"));
     let regenIsFree = false;
 
-    if (!isAdminBypass) {
+    if (!isAdminBypass && !isRespondTriage) {
       if (isRegeneration) {
         // Look up how many free regens have been used for this session
         const { data: sessionRow } = await serviceClient
@@ -1873,9 +1877,26 @@ serve(async (req) => {
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     if (mode === "respond") {
-      const result = await handleRespondMode(serviceClient, OPENAI_API_KEY, userId, message, original_context, communication_context, isAdminBypass);
-      logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
-      return result;
+      // Stage 1: Triage (no session_id, no respond_stage=generate)
+      if (!session_id && respond_stage !== "generate") {
+        const result = await handleRespondTriage(serviceClient, OPENAI_API_KEY, userId, message, isAdminBypass);
+        logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 0 });
+        return result;
+      }
+
+      // Stage 2: Generate (has session_id)
+      if (session_id) {
+        const result = await handleRespondGenerate(
+          serviceClient, OPENAI_API_KEY, userId, message, session_id,
+          communication_context, !!boundary_override, isAdminBypass,
+          isRegeneration, regenIsFree,
+        );
+        logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+        return result;
+      }
+
+      // Fallback: shouldn't reach here
+      return jsonResponse({ error: "Invalid respond request — missing session_id for generate stage" }, 400);
     }
 
     // Handle "No message needed" terminal from redirect_choice
