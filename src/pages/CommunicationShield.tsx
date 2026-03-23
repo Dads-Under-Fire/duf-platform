@@ -865,12 +865,12 @@ export default function CommunicationShield() {
             onKeyDown={(e) => e.key === "Enter" && handleSubmitMessage()}
             ref={inputRef}
             placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
-            disabled={step !== "input"}
+            disabled={loading}
             className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           />
           <button
             onClick={handleSubmitMessage}
-            disabled={loading || !inputMessage.trim() || step !== "input"}
+            disabled={loading || !inputMessage.trim()}
             className="h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
           >
             <ArrowUp className="h-5 w-5" />
