@@ -33,6 +33,7 @@ interface AIResult {
   selected_goal?: string | null;
   session_id?: string;
   _noMessageNeeded?: boolean;
+  free_regenerations_used?: number;
 }
 
 function getPrimaryText(result: AIResult): string {
