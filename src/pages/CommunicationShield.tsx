@@ -118,6 +118,7 @@ export default function CommunicationShield() {
     setSubmittedMessage(msg);
     setInputMessage("");
     setResult(null);
+    setAllResults([]);
     setCommunicationContext("");
     setShowOtherInput(false);
     setOtherText("");
