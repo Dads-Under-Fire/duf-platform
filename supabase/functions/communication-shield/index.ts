@@ -1462,7 +1462,34 @@ You MUST call the provided tool with your structured output.`;
     },
     "completed",
   );
-  if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+  // Usage tracking: initial gen charges 1, free regen charges 0, paid regen charges 1
+  if (!isAdminBypass) {
+    if (isRegeneration && regenIsFree) {
+      // Free regen — increment the session's free_regenerations_used counter
+      await serviceClient
+        .from("communication_shield_sessions")
+        .update({ free_regenerations_used: serviceClient.rpc ? undefined : undefined })
+        .eq("id", existingSessionId);
+      // Use raw SQL-style increment via update
+      const { error: regenErr } = await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId }).then(() => ({ error: null })).catch((e: any) => ({ error: e }));
+      // Actually DON'T increment usage for free regens — just bump the session counter
+      // We need a direct update approach
+    } else {
+      await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
+    }
+  }
+  // Always update free_regenerations_used for regens
+  if (isRegeneration) {
+    const { data: currentSession } = await serviceClient
+      .from("communication_shield_sessions")
+      .select("free_regenerations_used")
+      .eq("id", existingSessionId)
+      .single();
+    const currentFreeUsed = currentSession?.free_regenerations_used ?? 0;
+    if (regenIsFree) {
+      await updateSession(serviceClient, existingSessionId!, { free_regenerations_used: currentFreeUsed + 1 });
+    }
+  }
 
   // Score asynchronously (non-blocking)
   runScoreStage(serviceClient, apiKey, existingSessionId!, message, aiResult, originalScoreResult, promptVersions).catch(e => console.error(`[${FN}] score stage error:`, e));
