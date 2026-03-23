@@ -1504,6 +1504,23 @@ serve(async (req) => {
       return result;
     }
 
+    // Handle "No message needed" terminal from redirect_choice
+    if (_no_message_terminal && session_id && mode === "rewrite") {
+      const { serviceClient: sc } = auth;
+      await updateSession(sc, session_id, {
+        session_status: "no_message_needed",
+        selected_goal: "No message needed",
+        output_path: "no_message",
+      });
+      await insertResult(sc, session_id, "no_message", {
+        redirect_message: "No message recommended.",
+        why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+      }, []);
+      if (!isAdminBypass) await sc.rpc("increment_message_rewrites", { p_user_id: userId });
+      logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
+      return jsonResponse({ mode: "rewrite", output_path: "no_message", _noMessageNeeded: true, session_id });
+    }
+
     // REWRITE MODE — staged orchestration
     const result = await handleRewriteMode(serviceClient, OPENAI_API_KEY, userId, message, selected_goal, session_id, isAdminBypass);
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
