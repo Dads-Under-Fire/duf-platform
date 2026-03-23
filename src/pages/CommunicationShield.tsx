@@ -195,9 +195,17 @@ export default function CommunicationShield() {
   };
 
   const handleSelectGoal = async (goal: string) => {
-    // "No message needed" is a terminal action — just reset
+    // "No message needed" — show confirmation result, don't call backend
     if (goal === "No message needed") {
-      handleStartOver();
+      setCommunicationContext(goal);
+      setStep("result");
+      setResult({
+        mode: "rewrite",
+        sendability_status: triageData?.sendability_status as SendabilityStatus,
+        primary_rewrite: "",
+        why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
+        _noMessageNeeded: true,
+      } as any);
       return;
     }
 

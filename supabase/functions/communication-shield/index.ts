@@ -946,11 +946,7 @@ async function createSession(
     sessionRow.output_path = triageData.sendability_status === "redirect" ? "redirect" : (triageData.sendability_status === "safe" ? "rewrite" : "rewrite_with_guidance");
   }
 
-  if (promptVersions) {
-    sessionRow.triage_prompt_version = promptVersions.triage ?? null;
-    sessionRow.rewrite_prompt_version = promptVersions.rewrite ?? null;
-    sessionRow.scoring_version = promptVersions.score ?? null;
-  }
+  // prompt versions are no longer stored in sessions (columns dropped)
 
   const { data, error } = await serviceClient
     .from("communication_shield_sessions")
