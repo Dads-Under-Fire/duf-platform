@@ -1013,16 +1013,26 @@ async function insertResult(
   data: Record<string, unknown>,
   riskFlags: string[],
 ) {
-  // Determine next generation_index and deselect previous results
-  const { data: existingResults, error: existingResultsError } = await serviceClient
-    .from("communication_shield_results")
-    .select("id, generation_index")
-    .eq("session_id", sessionId)
-    .order("generation_index", { ascending: false })
-    .limit(1);
-
-  if (existingResultsError) {
-    throw new Error(`Failed to load existing results: ${existingResultsError.message}`);
+  // Determine next generation_index and deselect previous results (with retry)
+  let existingResults: any[] | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await serviceClient
+      .from("communication_shield_results")
+      .select("id, generation_index")
+      .eq("session_id", sessionId)
+      .order("generation_index", { ascending: false })
+      .limit(1);
+    if (!error) {
+      existingResults = data;
+      break;
+    }
+    console.warn(`[communication-shield] existing results query attempt ${attempt + 1} failed: ${error.message}`);
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+  }
+  // If all retries fail, default to index 1 (safe fallback)
+  if (existingResults === null) {
+    console.warn(`[communication-shield] all retries failed for existing results query, defaulting to generation_index=1`);
+    existingResults = [];
   }
 
   const nextIndex = (existingResults && existingResults.length > 0)
