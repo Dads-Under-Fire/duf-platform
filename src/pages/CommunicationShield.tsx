@@ -843,6 +843,21 @@ export default function CommunicationShield() {
               />
             </div>
           )}
+
+          {/* Redirect next-step options below the card (rewrite mode) */}
+          {step === "redirect-options" && mode === "rewrite" && (
+            <div className="mt-4 shrink-0">
+              <NextStepOptionsPanel
+                options={nextStepOptions}
+                onSelect={handleSelectNextStep}
+                showOtherInput={showOtherInput}
+                setShowOtherInput={setShowOtherInput}
+                otherText={otherText}
+                setOtherText={setOtherText}
+                onOtherSubmit={handleOtherSubmit}
+              />
+            </div>
+          )}
         </div>
 
         {/* Arrow separator */}
