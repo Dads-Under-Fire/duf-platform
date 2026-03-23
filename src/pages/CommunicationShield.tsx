@@ -313,10 +313,16 @@ export default function CommunicationShield() {
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
+      } else if (sessionId) {
+        body.session_id = sessionId;
       }
       supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
         if (error || data?.error) {
-          toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+          if (data?.quota_exhausted) {
+            setShowUpgradeModal(true);
+          } else {
+            toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+          }
         } else {
           const aiData = data as AIResult;
           if (aiData.needs_goal_selection) {
@@ -326,6 +332,7 @@ export default function CommunicationShield() {
             setStep("goal-selection");
           } else {
             setResult(aiData);
+            setFreeRegensUsed(aiData.free_regenerations_used ?? freeRegensUsed);
             refetchProfile();
           }
         }
