@@ -1343,6 +1343,7 @@ You MUST call the provided tool with your structured output.`;
   await updateSession(serviceClient, existingSessionId!, {
     output_path: outputPath,
     selected_goal: selectedGoal ?? null,
+    session_status: "completed",
   });
   await insertResult(serviceClient, existingSessionId!, "primary", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
