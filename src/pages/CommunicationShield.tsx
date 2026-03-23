@@ -134,7 +134,18 @@ export default function CommunicationShield() {
 
         const aiData = data as AIResult;
 
-        // Check if goal selection is needed (both salvageable AND redirect use this now)
+        // Check if this is a no_message terminal result from triage
+        if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
+          setResult({
+            ...aiData,
+            _noMessageNeeded: true,
+          });
+          setSessionId(aiData.session_id ?? null);
+          refetchProfile();
+          return;
+        }
+
+        // Check if goal selection is needed (salvageable or redirect_choice)
         if (aiData.needs_goal_selection) {
           setSessionId(aiData.session_id ?? null);
           setGoalOptions(aiData.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"]);
@@ -196,23 +207,29 @@ export default function CommunicationShield() {
   };
 
   const handleSelectGoal = async (goal: string) => {
-    // "No message needed" — show confirmation result, update session status
+    // "No message needed" — show confirmation result, update session status, persist result
     if (goal === "No message needed") {
       setCommunicationContext(goal);
       setStep("result");
       setResult({
         mode: "rewrite",
         sendability_status: triageData?.sendability_status as SendabilityStatus,
+        output_path: "no_message",
         primary_rewrite: "",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
         _noMessageNeeded: true,
       } as any);
-      // Update session status in background
+      // Update session and create result row in background
       if (sessionId) {
-        supabase.from("communication_shield_sessions").update({
-          session_status: "no_message_needed",
-          selected_goal: "No message needed",
-        }).eq("id", sessionId).then(() => {});
+        supabase.functions.invoke("communication-shield", {
+          body: {
+            message: submittedMessage,
+            mode: "rewrite",
+            selected_goal: "No message needed",
+            session_id: sessionId,
+            _no_message_terminal: true,
+          },
+        }).then(() => {}).catch(() => {});
       }
       return;
     }
