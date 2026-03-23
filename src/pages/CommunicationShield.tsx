@@ -550,6 +550,22 @@ export default function CommunicationShield() {
 
             <div className="h-px bg-border" />
 
+            {/* Respond triage result */}
+            {step === "respond-triage" && respondTriageData && !loading && (
+              <RespondTriageCard
+                triage={respondTriageData}
+                onBoundaryOverride={handleBoundaryOverride}
+                loading={loading}
+              />
+            )}
+
+            {step === "respond-triage" && loading && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Analyzing message...
+              </div>
+            )}
+
             {/* Goal selection step (handles both salvageable and redirect) */}
             {step === "goal-selection" && (
               <GoalSelectionPanel
@@ -589,13 +605,13 @@ export default function CommunicationShield() {
             <div className="border-t border-border px-4 py-3 bg-background shrink-0 space-y-1">
               <button
                 onClick={handleRegenerate}
-                disabled={!hasResult || loading || (mode === "rewrite" && rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
+                disabled={!hasResult || loading || (rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                 className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Generate again
               </button>
-              {mode === "rewrite" && hasResult && (
+              {hasResult && (
                 <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
               )}
             </div>
