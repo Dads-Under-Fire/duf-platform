@@ -724,7 +724,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Intent options below the card (respond mode) */}
-          {step !== "input" && mode === "respond" && (
+          {step === "select-intent" && mode === "respond" && (
             <div className="mt-4 shrink-0">
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
@@ -739,17 +739,8 @@ export default function CommunicationShield() {
                     return (
                       <button
                         key={option}
-                        onClick={() => {
-                          if (step === "select-intent") handleSelectIntent(option);
-                        }}
-                        disabled={step === "result"}
-                        className={`w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : step === "result"
-                            ? "bg-card text-muted-foreground cursor-default"
-                            : "bg-card text-foreground hover:bg-secondary"
-                        }`}
+                        onClick={() => handleSelectIntent(option)}
+                        className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
                       >
                         {isSelected && <Check className="h-4 w-4 shrink-0" />}
                         {option}
@@ -853,8 +844,8 @@ export default function CommunicationShield() {
               )}
             </div>
 
-            {/* Generate Again — fixed at bottom of the rewrite card */}
-            {step === "result" && mode === "rewrite" && hasResult && !loading && (
+            {/* Generate Again — fixed at bottom of the result card */}
+            {step === "result" && hasResult && !loading && (
               <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
                 <button
                   onClick={handleRegenerate}
@@ -864,7 +855,9 @@ export default function CommunicationShield() {
                   <RefreshCw className="h-4 w-4" />
                   Generate again
                 </button>
-                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+                {mode === "rewrite" && (
+                  <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+                )}
               </div>
             )}
           </div>
@@ -873,19 +866,6 @@ export default function CommunicationShield() {
 
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
-        {/* Generate again — only shown here for respond mode (rewrite mode has it in the card) */}
-        {step === "result" && mode === "respond" && (
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleRegenerate}
-              disabled={!hasResult || loading}
-              className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Generate again
-            </button>
-          </div>
-        )}
 
         <div className="flex items-center gap-4">
           <button onClick={() => handleModeChange("respond")} className="flex items-center gap-2">
