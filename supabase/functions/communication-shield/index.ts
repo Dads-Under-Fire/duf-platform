@@ -1219,13 +1219,9 @@ You MUST call the provided tool with your structured output.`;
 
   // 2A (cont): REDIRECT with goal selected — save goal, then fall through to generate
   if (sendabilityStatus === "redirect" && selectedGoal) {
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({
-        selected_goal: selectedGoal,
-        goal_selection_source: "user_selected",
-      })
-      .eq("id", existingSessionId);
+    await updateSession(serviceClient, existingSessionId!, {
+      selected_goal: selectedGoal,
+    });
   }
 
   // 2B: SALVAGEABLE — needs goal selection
