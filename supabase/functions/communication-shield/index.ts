@@ -1488,6 +1488,13 @@ You MUST call the provided tool with your structured output.`;
 
   console.log(`[${FN}] rewrite success | session=${existingSessionId} | status=${sendabilityStatus} | quality=${rewriteScore?.score}`);
 
+  // Get current free_regenerations_used for the response
+  const { data: finalSession } = await serviceClient
+    .from("communication_shield_sessions")
+    .select("free_regenerations_used")
+    .eq("id", existingSessionId)
+    .single();
+
   return jsonResponse({
     mode: "rewrite",
     sendability_status: sendabilityStatus,
@@ -1505,6 +1512,7 @@ You MUST call the provided tool with your structured output.`;
     rewrite_quality_score: rewriteScore?.score ?? null,
     prompt_version: promptVersions.rewrite,
     session_id: existingSessionId,
+    free_regenerations_used: finalSession?.free_regenerations_used ?? 0,
   });
 }
 
