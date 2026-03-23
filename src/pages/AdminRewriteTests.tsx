@@ -273,7 +273,7 @@ export default function AdminRewriteTests() {
       category: adHocCategory.trim() || "ad_hoc",
       input_message: adHocMessage.trim(),
       notes: adHocNotes.trim() || "Saved from ad hoc test",
-      is_active: false,
+      active: false,
     });
     setAdHocSaving(false);
     if (error) {
