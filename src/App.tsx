@@ -10,7 +10,7 @@ import Account from "./pages/Account";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
 import NotFound from "./pages/NotFound";
-import AdminRewriteTests from "./pages/AdminRewriteTests";
+
 
 const queryClient = new QueryClient();
 
@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/account" element={<Account />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-            <Route path="/admin/rewrite-tests" element={<AdminRewriteTests />} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
