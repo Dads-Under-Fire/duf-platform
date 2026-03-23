@@ -1231,8 +1231,7 @@ You MUST call the provided tool with your structured output.`;
   // 2B: SALVAGEABLE — needs goal selection
   if (sendabilityStatus === "salvageable" && !selectedGoal) {
     const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
-    // Update session with initial scoring
-    await updateSessionScoring(serviceClient, existingSessionId!, originalScoreResult, null);
+    // Session already created with triage data
 
     console.log(`[${FN}] salvageable — needs goal selection | session=${existingSessionId}`);
     return jsonResponse({
