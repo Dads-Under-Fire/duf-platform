@@ -724,7 +724,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Intent options below the card (respond mode) */}
-          {step !== "input" && mode === "respond" && (
+          {step === "select-intent" && mode === "respond" && (
             <div className="mt-4 shrink-0">
               <p className="text-sm font-medium text-foreground mb-2">How would you like to respond?</p>
               {loadingIntents ? (
