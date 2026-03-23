@@ -207,23 +207,29 @@ export default function CommunicationShield() {
   };
 
   const handleSelectGoal = async (goal: string) => {
-    // "No message needed" — show confirmation result, update session status
+    // "No message needed" — show confirmation result, update session status, persist result
     if (goal === "No message needed") {
       setCommunicationContext(goal);
       setStep("result");
       setResult({
         mode: "rewrite",
         sendability_status: triageData?.sendability_status as SendabilityStatus,
+        output_path: "no_message",
         primary_rewrite: "",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
         _noMessageNeeded: true,
       } as any);
-      // Update session status in background
+      // Update session and create result row in background
       if (sessionId) {
-        supabase.from("communication_shield_sessions").update({
-          session_status: "no_message_needed",
-          selected_goal: "No message needed",
-        }).eq("id", sessionId).then(() => {});
+        supabase.functions.invoke("communication-shield", {
+          body: {
+            message: submittedMessage,
+            mode: "rewrite",
+            selected_goal: "No message needed",
+            session_id: sessionId,
+            _no_message_terminal: true,
+          },
+        }).then(() => {}).catch(() => {});
       }
       return;
     }

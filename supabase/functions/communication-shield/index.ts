@@ -1149,6 +1149,7 @@ You MUST call the provided tool with your structured output.`;
         console.warn(`[${FN}] triage fallback also failed: ${retryError}, defaulting to salvageable`);
         triageResult = {
           sendability_status: "salvageable",
+          output_path: "rewrite",
           sendability_reason: "Unable to classify — treating as salvageable for safety",
           detected_intent: "unknown",
           detected_tone: "unknown",
