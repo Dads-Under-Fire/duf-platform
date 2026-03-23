@@ -893,13 +893,12 @@ export default function CommunicationShield() {
               rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
               placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
               disabled={loading}
-              className={`w-full bg-card border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px] ${isOverLimit ? "border-destructive" : "border-border"}`}
+              className={`w-full bg-card border rounded-xl px-4 py-2.5 pr-20 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px] ${isOverLimit ? "border-destructive" : "border-border"}`}
             />
             {inputMessage.length > 0 && (
-              <div className={`text-xs mt-1 text-right ${isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+              <span className={`absolute top-2 right-3 text-[10px] pointer-events-none ${isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                 {inputMessage.length.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
-                {isOverLimit && " — message too long"}
-              </div>
+              </span>
             )}
           </div>
           <button
