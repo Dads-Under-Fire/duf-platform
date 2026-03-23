@@ -274,15 +274,13 @@ export default function AdminRewriteTests() {
   const saveAsGoldCandidate = useCallback(async () => {
     if (!adHocMessage.trim()) return;
     setAdHocSaving(true);
-    const testId = `ADHOC-${Date.now()}`;
+    const testName = `ADHOC-${Date.now()}`;
     const { error } = await (supabase.from as any)("ai_gold_suite_cases").insert({
       feature_key: "communication_shield",
       mode: "rewrite",
-      test_id: testId,
+      name: testName,
       category: adHocCategory.trim() || "ad_hoc",
-      original_message: adHocMessage.trim(),
-      expected_behavior: null,
-      must_not_do: null,
+      input_message: adHocMessage.trim(),
       notes: adHocNotes.trim() || "Saved from ad hoc test",
       is_active: false,
     });
