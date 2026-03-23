@@ -103,7 +103,7 @@ export default function AdminRewriteTests() {
         .eq("feature_key", "communication_shield")
         .eq("mode", "rewrite")
         .eq("active", true)
-        .order("created_at", { ascending: true });
+        .order("category", { ascending: true });
       setCases((data ?? []) as GoldCase[]);
       setLoadingCases(false);
     }
@@ -169,7 +169,7 @@ export default function AdminRewriteTests() {
       const failResult = (err: string): CaseRunResult => ({
         name: tc.name, category: tc.category, input_message: tc.input_message,
         expected: expectations, actual: emptyOutcome,
-        validation: { status: "fail", checks: [{ rule: "error", severity: "fail", reason: err }], triageScore: 0, routingScore: 0, outcomeScore: 0, overallScore: 0 },
+        validation: { status: "fail", checks: [{ rule: "error", severity: "fail", reason: err }], failReason: err },
         error: err, promptVersion: "unknown", promptSource: "unknown",
       });
 
@@ -242,7 +242,6 @@ export default function AdminRewriteTests() {
         }
 
         const validation = runStagedValidator(expectations, outcome);
-        const pathForScoring = outcome.actual_output_path ?? normalizeOutputPath(tc.expected_output_path);
 
         const caseResult: CaseRunResult = {
           name: tc.name, category: tc.category, input_message: tc.input_message,
@@ -261,15 +260,10 @@ export default function AdminRewriteTests() {
           actual_primary_output: outcome.actual_primary_output ?? null,
           actual_redirect_message: outcome.actual_redirect_message ?? null,
           actual_no_message_recommended: outcome.actual_no_message_recommended ?? null,
-          triage_accuracy_score: validation.triageScore,
-          routing_accuracy_score: validation.routingScore,
-          goal_alignment_score: pathForScoring === "rewrite" ? validation.outcomeScore : null,
-          redirect_quality_score: pathForScoring === "redirect_choice" ? validation.outcomeScore : null,
-          no_message_quality_score: pathForScoring === "no_message" ? validation.outcomeScore : null,
           prompt_version: pv, prompt_source: ps,
           validator_pass: validation.status === "pass",
           validator_status: validation.status,
-          validator_notes: { expected: expectations, actual: outcome, checks: validation.checks, scores: { triage: validation.triageScore, routing: validation.routingScore, outcome: validation.outcomeScore, overall: validation.overallScore } },
+          validator_notes: { expected: expectations, actual: outcome, checks: validation.checks, failReason: validation.failReason },
         });
 
         results.push(caseResult);
@@ -432,9 +426,9 @@ export default function AdminRewriteTests() {
                     ))}
                   </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    Scores: triage={r.validation.triageScore} routing={r.validation.routingScore} outcome={r.validation.outcomeScore} overall={r.validation.overallScore}
-                  </div>
+                  {r.validation.failReason && (
+                    <p className="text-xs text-destructive mt-1">Fail: {r.validation.failReason}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}
