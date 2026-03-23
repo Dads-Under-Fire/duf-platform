@@ -1,0 +1,1 @@
+ALTER TABLE public.communication_shield_sessions ADD COLUMN IF NOT EXISTS session_status text NOT NULL DEFAULT 'awaiting_input'; COMMENT ON COLUMN public.communication_shield_sessions.session_status IS 'Tracks session lifecycle: awaiting_input, awaiting_goal_selection, completed, no_message_needed';
