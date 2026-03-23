@@ -463,15 +463,18 @@ export default function CommunicationShield() {
 
           {/* Fixed bottom action bar */}
           {step === "result" && (
-            <div className="border-t border-border px-4 py-3 flex items-center justify-end bg-background shrink-0">
+            <div className="border-t border-border px-4 py-3 bg-background shrink-0 space-y-1">
               <button
                 onClick={handleRegenerate}
-                disabled={!hasResult || loading}
+                disabled={!hasResult || loading || (mode === "rewrite" && rewritesExhausted && freeRegensUsed >= FREE_REGEN_LIMIT)}
                 className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Generate again
               </button>
+              {mode === "rewrite" && hasResult && (
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+              )}
             </div>
           )}
         </div>
