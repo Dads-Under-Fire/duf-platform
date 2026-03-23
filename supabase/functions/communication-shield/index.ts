@@ -1247,13 +1247,9 @@ You MUST call the provided tool with your structured output.`;
 
   // 2B (cont): SALVAGEABLE with goal selected — save goal
   if (sendabilityStatus === "salvageable" && selectedGoal) {
-    await serviceClient
-      .from("communication_shield_sessions")
-      .update({
-        selected_goal: selectedGoal,
-        goal_selection_source: "user_selected",
-      })
-      .eq("id", existingSessionId);
+    await updateSession(serviceClient, existingSessionId!, {
+      selected_goal: selectedGoal,
+    });
   }
 
   // 2C: SAFE or SALVAGEABLE with goal — GENERATE REWRITE
