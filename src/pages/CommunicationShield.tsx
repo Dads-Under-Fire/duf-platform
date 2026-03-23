@@ -865,6 +865,21 @@ export default function CommunicationShield() {
                 </div>
               )}
             </div>
+
+            {/* Generate Again — fixed at bottom of the rewrite card */}
+            {step === "result" && mode === "rewrite" && hasResult && !loading && (
+              <div className="border-t border-border pt-3 mt-3 shrink-0 space-y-1">
+                <button
+                  onClick={handleRegenerate}
+                  disabled={loading || rewritesExhausted}
+                  className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Generate again
+                </button>
+                <RegenHelperText freeRegensUsed={freeRegensUsed} freeRegenLimit={FREE_REGEN_LIMIT} rewritesExhausted={rewritesExhausted} />
+              </div>
+            )}
           </div>
         </div>
       </div>
