@@ -1084,6 +1084,7 @@ You MUST call the provided tool with your structured output.`;
 
   // Persist
   const sessionId = await createSession(serviceClient, userId, message, "respond", undefined, {});
+  await updateSession(serviceClient, sessionId, { session_status: "completed" });
   await insertResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags);
   if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
 
