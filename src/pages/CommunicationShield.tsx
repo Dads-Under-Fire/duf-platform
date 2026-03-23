@@ -105,10 +105,12 @@ export default function CommunicationShield() {
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
   const FREE_REGEN_LIMIT = 2;
+  const MAX_MESSAGE_LENGTH = 10000;
+  const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
-    if (!msg || !user) return;
+    if (!msg || !user || isOverLimit) return;
 
     if (rewritesExhausted) {
       setShowUpgradeModal(true);
@@ -599,25 +601,33 @@ export default function CommunicationShield() {
           </div>
 
           <div className="flex gap-2 items-end">
-            <textarea
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmitMessage();
-                }
-              }}
-              ref={inputRef}
-              rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
-              placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
-              disabled={step !== "input"}
-              style={{ fontSize: "16px" }}
-              className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px]"
-            />
+            <div className="flex-1 relative">
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmitMessage();
+                  }
+                }}
+                ref={inputRef}
+                rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
+                placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
+                disabled={step !== "input"}
+                style={{ fontSize: "16px" }}
+                className={`w-full bg-card border rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px] ${isOverLimit ? "border-destructive" : "border-border"}`}
+              />
+              {inputMessage.length > 0 && (
+                <div className={`text-xs mt-1 text-right ${isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  {inputMessage.length.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+                  {isOverLimit && " — message too long"}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleSubmitMessage}
-              disabled={loading || !inputMessage.trim() || step !== "input"}
+              disabled={loading || !inputMessage.trim() || step !== "input" || isOverLimit}
               className="h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
             >
               <ArrowUp className="h-5 w-5" />
@@ -870,24 +880,32 @@ export default function CommunicationShield() {
         </div>
 
         <div className="flex gap-2 items-end">
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmitMessage();
-              }
-            }}
-            ref={inputRef}
-            rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
-            placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
-            disabled={loading}
-            className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px]"
-          />
+          <div className="flex-1 relative">
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmitMessage();
+                }
+              }}
+              ref={inputRef}
+              rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
+              placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
+              disabled={loading}
+              className={`w-full bg-card border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px] ${isOverLimit ? "border-destructive" : "border-border"}`}
+            />
+            {inputMessage.length > 0 && (
+              <div className={`text-xs mt-1 text-right ${isOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                {inputMessage.length.toLocaleString()}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+                {isOverLimit && " — message too long"}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleSubmitMessage}
-            disabled={loading || !inputMessage.trim()}
+            disabled={loading || !inputMessage.trim() || isOverLimit}
             className="h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
           >
             <ArrowUp className="h-5 w-5" />
