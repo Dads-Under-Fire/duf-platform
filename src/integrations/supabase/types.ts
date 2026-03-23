@@ -18,7 +18,6 @@ export type Database = {
         Row: {
           category: string
           created_at: string
-          expected_behavior: string | null
           expected_detected_intent: string | null
           expected_needs_goal_selection: boolean
           expected_no_message_recommended: boolean
@@ -27,19 +26,16 @@ export type Database = {
           expected_sendability_status: string | null
           feature_key: string
           id: string
+          input_message: string
           is_active: boolean
           mode: string
-          must_not_do: string | null
+          name: string
           notes: string | null
-          original_message: string
           selected_goal_for_test: string | null
-          test_id: string
-          validator_rules: Json | null
         }
         Insert: {
           category: string
           created_at?: string
-          expected_behavior?: string | null
           expected_detected_intent?: string | null
           expected_needs_goal_selection?: boolean
           expected_no_message_recommended?: boolean
@@ -48,19 +44,16 @@ export type Database = {
           expected_sendability_status?: string | null
           feature_key: string
           id?: string
+          input_message: string
           is_active?: boolean
           mode: string
-          must_not_do?: string | null
+          name: string
           notes?: string | null
-          original_message: string
           selected_goal_for_test?: string | null
-          test_id: string
-          validator_rules?: Json | null
         }
         Update: {
           category?: string
           created_at?: string
-          expected_behavior?: string | null
           expected_detected_intent?: string | null
           expected_needs_goal_selection?: boolean
           expected_no_message_recommended?: boolean
@@ -69,14 +62,12 @@ export type Database = {
           expected_sendability_status?: string | null
           feature_key?: string
           id?: string
+          input_message?: string
           is_active?: boolean
           mode?: string
-          must_not_do?: string | null
+          name?: string
           notes?: string | null
-          original_message?: string
           selected_goal_for_test?: string | null
-          test_id?: string
-          validator_rules?: Json | null
         }
         Relationships: []
       }
