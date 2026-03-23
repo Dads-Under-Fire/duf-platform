@@ -83,7 +83,7 @@ function CopyButton({ text }: { text: string }) {
 export default function CommunicationShield() {
   const { user } = useAuth();
   const { usage, limits, intendedPlan, rewritesExhausted, refetch: refetchProfile } = useProfile();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isMobile = useIsMobile();
   const [submittedMessage, setSubmittedMessage] = useState("");
   const [mode, setMode] = useState<"respond" | "rewrite">("respond");
@@ -598,17 +598,22 @@ export default function CommunicationShield() {
             </button>
           </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
+          <div className="flex gap-2 items-end">
+            <textarea
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmitMessage()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmitMessage();
+                }
+              }}
               ref={inputRef}
+              rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
               placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
               disabled={step !== "input"}
               style={{ fontSize: "16px" }}
-              className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px]"
             />
             <button
               onClick={handleSubmitMessage}
@@ -864,16 +869,21 @@ export default function CommunicationShield() {
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmitMessage()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmitMessage();
+              }
+            }}
             ref={inputRef}
+            rows={Math.min(Math.max(inputMessage.split("\n").length, 1), 5)}
             placeholder={mode === "respond" ? "Paste the message you received..." : "Paste your message here..."}
             disabled={loading}
-            className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 resize-none min-h-[42px]"
           />
           <button
             onClick={handleSubmitMessage}
