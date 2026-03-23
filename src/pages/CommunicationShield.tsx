@@ -392,7 +392,9 @@ export default function CommunicationShield() {
               </div>
             ) : step === "result" && result ? (
               <>
-                {result.is_fallback ? (
+                {(result as any)._noMessageNeeded ? (
+                  <NoMessageNeededLayout onStartOver={handleStartOver} />
+                ) : result.is_fallback ? (
                   <FallbackResultLayout result={result} />
                 ) : (
                   <>
