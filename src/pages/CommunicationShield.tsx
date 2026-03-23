@@ -38,6 +38,8 @@ interface AIResult {
   alternative_1?: string;
   alternative_2?: string;
   alternative_3?: string;
+  // Redirect next-step options
+  next_step_options?: string[];
 }
 
 function getPrimaryText(result: AIResult): string {
@@ -46,7 +48,7 @@ function getPrimaryText(result: AIResult): string {
     : (result.primary_response ?? "");
 }
 
-type Step = "input" | "select-intent" | "goal-selection" | "result";
+type Step = "input" | "select-intent" | "goal-selection" | "redirect-options" | "result";
 
 const FALLBACK_INTENTS = [
   "Set a boundary",
@@ -106,6 +108,7 @@ export default function CommunicationShield() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [goalOptions, setGoalOptions] = useState<string[]>([]);
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
+  const [nextStepOptions, setNextStepOptions] = useState<string[]>([]);
 
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
@@ -125,6 +128,7 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setNextStepOptions([]);
 
     if (mode === "rewrite") {
       // Staged rewrite: call triage first
@@ -149,7 +153,19 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Final result (safe path or redirect)
+        // Check if redirect with next-step options
+        if (aiData.sendability_status === "redirect" && aiData.next_step_options?.length) {
+          setResult(aiData);
+          setSessionId(aiData.session_id ?? null);
+          setNextStepOptions(aiData.next_step_options);
+          setTriageData(aiData);
+          setStep("redirect-options");
+          setLoading(false);
+          refetchProfile();
+          return;
+        }
+
+        // Final result (safe path or normal redirect)
         setResult(aiData);
         setSessionId(aiData.session_id ?? null);
         refetchProfile();
@@ -258,11 +274,52 @@ export default function CommunicationShield() {
   const handleOtherSubmit = () => {
     const text = otherText.trim();
     if (text) {
-      if (step === "goal-selection") {
+      if (step === "goal-selection" || step === "redirect-options") {
         handleSelectGoal(text);
       } else {
         handleSelectIntent(text);
       }
+    }
+  };
+
+  const handleSelectNextStep = async (option: string) => {
+    if (option === "No message needed") {
+      handleStartOver();
+      return;
+    }
+    if (option === "Start a new message") {
+      setStep("input");
+      setResult(null);
+      setSessionId(null);
+      setNextStepOptions([]);
+      setTriageData(null);
+      setCommunicationContext("");
+      setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+    // "Refocus on logistics" or "Set a neutral boundary" → generate with that goal
+    setCommunicationContext(option);
+    setStep("result");
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: {
+          message: submittedMessage,
+          mode: "rewrite",
+          selected_goal: option,
+          session_id: sessionId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIResult);
+      refetchProfile();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
+      setStep("redirect-options");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -271,7 +328,6 @@ export default function CommunicationShield() {
       setResult(null);
       setLoading(true);
       const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite" };
-      // If we have a session with a goal, re-send with goal
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
@@ -308,11 +364,12 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setNextStepOptions([]);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleBackToCompose = () => {
-    if (step === "goal-selection") {
+    if (step === "goal-selection" || step === "redirect-options") {
       setStep("input");
       setResult(null);
       setLoading(false);
@@ -328,7 +385,7 @@ export default function CommunicationShield() {
 
   // ─── MOBILE ───
   if (isMobile) {
-    const showResultScreen = step === "result" || step === "goal-selection";
+    const showResultScreen = step === "result" || step === "goal-selection" || step === "redirect-options";
 
     if (showResultScreen) {
       return (
@@ -342,7 +399,7 @@ export default function CommunicationShield() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">
-              {step === "goal-selection" ? "Choose Your Goal" : isRedirect ? "Message Redirect" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
+              {step === "goal-selection" ? "Choose Your Goal" : step === "redirect-options" ? "What Would You Like to Do?" : isRedirect ? "Message Redirect" : mode === "rewrite" ? "Rewritten Message" : "Court-Safe Response"}
             </h1>
           </div>
 
@@ -376,6 +433,23 @@ export default function CommunicationShield() {
                 setOtherText={setOtherText}
                 onOtherSubmit={handleOtherSubmit}
               />
+            )}
+
+            {/* Redirect next-step options */}
+            {step === "redirect-options" && result && (
+              <>
+                <RedirectResultLayout result={result} />
+                <div className="h-px bg-border" />
+                <NextStepOptionsPanel
+                  options={nextStepOptions}
+                  onSelect={handleSelectNextStep}
+                  showOtherInput={showOtherInput}
+                  setShowOtherInput={setShowOtherInput}
+                  otherText={otherText}
+                  setOtherText={setOtherText}
+                  onOtherSubmit={handleOtherSubmit}
+                />
+              </>
             )}
 
             {step === "result" && loading ? (
@@ -427,7 +501,7 @@ export default function CommunicationShield() {
           </div>
 
           {/* Fixed bottom action bar */}
-          {step === "result" && (
+          {(step === "result" || step === "redirect-options") && (
             <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
               <button
                 onClick={handleStartOver}
@@ -769,6 +843,21 @@ export default function CommunicationShield() {
               />
             </div>
           )}
+
+          {/* Redirect next-step options below the card (rewrite mode) */}
+          {step === "redirect-options" && mode === "rewrite" && (
+            <div className="mt-4 shrink-0">
+              <NextStepOptionsPanel
+                options={nextStepOptions}
+                onSelect={handleSelectNextStep}
+                showOtherInput={showOtherInput}
+                setShowOtherInput={setShowOtherInput}
+                otherText={otherText}
+                setOtherText={setOtherText}
+                onOtherSubmit={handleOtherSubmit}
+              />
+            </div>
+          )}
         </div>
 
         {/* Arrow separator */}
@@ -831,6 +920,10 @@ export default function CommunicationShield() {
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>Select a goal on the left to generate your court-safe rewrite.</p>
                 </div>
+              ) : step === "redirect-options" ? (
+                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <p>Choose a next step on the left, or start a new message.</p>
+                </div>
               ) : (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
@@ -844,7 +937,7 @@ export default function CommunicationShield() {
       {/* Fixed bottom bar: actions + input */}
       <div className="border-t border-border px-6 py-4 space-y-3 shrink-0 bg-background">
         {/* Action buttons — always visible */}
-        {(step === "result" || step === "goal-selection") && (
+        {(step === "result" || step === "goal-selection" || step === "redirect-options") && (
           <div className="flex items-center gap-4">
             <button
               onClick={handleStartOver}
@@ -1019,6 +1112,75 @@ function GoalSelectionPanel({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function NextStepOptionsPanel({
+  options,
+  onSelect,
+  showOtherInput,
+  setShowOtherInput,
+  otherText,
+  setOtherText,
+  onOtherSubmit,
+}: {
+  options: string[];
+  onSelect: (option: string) => void;
+  showOtherInput: boolean;
+  setShowOtherInput: (v: boolean) => void;
+  otherText: string;
+  setOtherText: (v: string) => void;
+  onOtherSubmit: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-foreground">What would you like to do instead?</p>
+      <div className="space-y-1">
+        {options.map((option) => (
+          <button
+            key={option}
+            onClick={() => onSelect(option)}
+            className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+          >
+            {option}
+          </button>
+        ))}
+
+        {!showOtherInput && (
+          <button
+            onClick={() => setShowOtherInput(true)}
+            className="w-full text-left px-4 py-2.5 rounded-md text-sm transition-colors flex items-center gap-2 bg-card text-foreground hover:bg-secondary"
+          >
+            <MessageSquarePlus className="h-4 w-4 shrink-0" />
+            Other…
+          </button>
+        )}
+
+        {showOtherInput && (
+          <div className="mt-2 space-y-2">
+            <label className="text-xs text-muted-foreground">What would you like to do?</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={otherText}
+                onChange={(e) => setOtherText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onOtherSubmit()}
+                placeholder="e.g. Ask about pickup time"
+                className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                onClick={onOtherSubmit}
+                disabled={!otherText.trim()}
+                className="px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
+              >
+                Go
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
