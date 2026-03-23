@@ -87,31 +87,21 @@ export type Database = {
           court_safe_phrasing_score: number | null
           created_at: string
           escalation_safety_score: number | null
-          firmer_version: string | null
           focus_discipline_score: number | null
           goal_alignment_score: number | null
           id: string
           no_message_quality_score: number | null
           original_message: string
-          original_score: number | null
-          original_score_notes: Json | null
-          primary_rewrite: string | null
           prompt_source: string | null
           prompt_version: string | null
           redirect_quality_score: number | null
-          rewrite_quality_notes: Json | null
-          rewrite_quality_score: number | null
-          risk_flags: Json | null
           routing_accuracy_score: number | null
           run_id: string
-          shorter_version: string | null
           test_id: string
-          tone_assessment: string | null
           triage_accuracy_score: number | null
           validator_notes: Json | null
           validator_pass: boolean | null
           validator_status: string | null
-          why_this_is_safer: string | null
         }
         Insert: {
           actionability_score?: number | null
@@ -128,31 +118,21 @@ export type Database = {
           court_safe_phrasing_score?: number | null
           created_at?: string
           escalation_safety_score?: number | null
-          firmer_version?: string | null
           focus_discipline_score?: number | null
           goal_alignment_score?: number | null
           id?: string
           no_message_quality_score?: number | null
           original_message: string
-          original_score?: number | null
-          original_score_notes?: Json | null
-          primary_rewrite?: string | null
           prompt_source?: string | null
           prompt_version?: string | null
           redirect_quality_score?: number | null
-          rewrite_quality_notes?: Json | null
-          rewrite_quality_score?: number | null
-          risk_flags?: Json | null
           routing_accuracy_score?: number | null
           run_id: string
-          shorter_version?: string | null
           test_id: string
-          tone_assessment?: string | null
           triage_accuracy_score?: number | null
           validator_notes?: Json | null
           validator_pass?: boolean | null
           validator_status?: string | null
-          why_this_is_safer?: string | null
         }
         Update: {
           actionability_score?: number | null
@@ -169,31 +149,21 @@ export type Database = {
           court_safe_phrasing_score?: number | null
           created_at?: string
           escalation_safety_score?: number | null
-          firmer_version?: string | null
           focus_discipline_score?: number | null
           goal_alignment_score?: number | null
           id?: string
           no_message_quality_score?: number | null
           original_message?: string
-          original_score?: number | null
-          original_score_notes?: Json | null
-          primary_rewrite?: string | null
           prompt_source?: string | null
           prompt_version?: string | null
           redirect_quality_score?: number | null
-          rewrite_quality_notes?: Json | null
-          rewrite_quality_score?: number | null
-          risk_flags?: Json | null
           routing_accuracy_score?: number | null
           run_id?: string
-          shorter_version?: string | null
           test_id?: string
-          tone_assessment?: string | null
           triage_accuracy_score?: number | null
           validator_notes?: Json | null
           validator_pass?: boolean | null
           validator_status?: string | null
-          why_this_is_safer?: string | null
         }
         Relationships: [
           {
