@@ -548,7 +548,7 @@ export default function AdminRewriteTests() {
                             <TableHead>Test</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Scores</TableHead>
+                            <TableHead>Triage/Route</TableHead>
                             <TableHead>Prompt</TableHead>
                           </TableRow>
                         </TableHeader>
