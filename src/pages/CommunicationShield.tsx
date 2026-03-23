@@ -424,15 +424,7 @@ export default function CommunicationShield() {
 
           {/* Fixed bottom action bar */}
           {step === "result" && (
-            <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-background shrink-0">
-              <button
-                onClick={handleStartOver}
-                disabled={loading}
-                className="flex items-center gap-2 text-primary text-sm hover:text-primary/80 transition-colors disabled:opacity-40"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Start Over
-              </button>
+            <div className="border-t border-border px-4 py-3 flex items-center justify-end bg-background shrink-0">
               <button
                 onClick={handleRegenerate}
                 disabled={!hasResult || loading}
