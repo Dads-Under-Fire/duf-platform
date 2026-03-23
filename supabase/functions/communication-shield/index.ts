@@ -253,26 +253,7 @@ const TRIAGE_TOOL = {
   strict: true,
 };
 
-const REDIRECT_TOOL = {
-  type: "function" as const,
-  name: "format_redirect",
-  description: "Provide redirect guidance for a message that should not be sent",
-  parameters: {
-    type: "object",
-    properties: {
-      redirect_message: { type: "string" },
-      safe_alternative: { type: "string" },
-      alternative_1: { type: "string" },
-      alternative_2: { type: "string" },
-      alternative_3: { type: "string" },
-      risk_flags: { type: "array", items: { type: "string" } },
-      why_this_is_safer: { type: "string" },
-    },
-    required: ["redirect_message", "safe_alternative", "alternative_1", "alternative_2", "alternative_3", "risk_flags", "why_this_is_safer"],
-    additionalProperties: false,
-  },
-  strict: true,
-};
+// REDIRECT_TOOL removed — no longer used in staged workflow
 
 // ══════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
@@ -749,12 +730,7 @@ function validateTriageResult(r: Record<string, unknown>): string | null {
   return null;
 }
 
-function validateRedirectResult(r: Record<string, unknown>): string | null {
-  if (!isNonEmptyString(r.redirect_message)) return "missing redirect_message";
-  if (!isNonEmptyString(r.safe_alternative)) return "missing safe_alternative";
-  if (!Array.isArray(r.risk_flags)) return "missing risk_flags";
-  return null;
-}
+// validateRedirectResult removed — legacy redirect columns dropped
 
 // ══════════════════════════════════════════════════════════════
 // HELPERS
@@ -993,11 +969,6 @@ async function insertResult(
     primary_response: data.primary_response ?? data.primary_rewrite ?? null,
     shorter_version: data.shorter_version ?? null,
     firmer_version: data.firmer_version ?? null,
-    redirect_message: data.redirect_message ?? null,
-    safe_alternative: data.safe_alternative ?? null,
-    alternative_1: data.alternative_1 ?? null,
-    alternative_2: data.alternative_2 ?? null,
-    alternative_3: data.alternative_3 ?? null,
     risk_flags: riskFlags,
     why_this_is_safer: data.why_this_is_safer ?? null,
     generation_index: 1,
@@ -1207,7 +1178,7 @@ You MUST call the provided tool with your structured output.`;
     });
     // Create terminal result row
     await insertResult(serviceClient, existingSessionId!, "no_message", {
-      redirect_message: triageResult!.sendability_reason ?? "This message does not require a response.",
+      primary_response: triageResult!.sendability_reason ?? "This message does not require a response.",
       why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
     }, riskFlags);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
@@ -1514,7 +1485,7 @@ serve(async (req) => {
         output_path: "no_message",
       });
       await insertResult(sc, session_id, "no_message", {
-        redirect_message: "No message recommended.",
+        primary_response: "No message recommended.",
         why_this_is_safer: "Limiting unnecessary communication can help reduce conflict and protect your position.",
       }, []);
       if (!isAdminBypass) await sc.rpc("increment_message_rewrites", { p_user_id: userId });

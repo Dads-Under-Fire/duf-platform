@@ -351,9 +351,6 @@ export type Database = {
       }
       communication_shield_results: {
         Row: {
-          alternative_1: string | null
-          alternative_2: string | null
-          alternative_3: string | null
           created_at: string
           firmer_version: string | null
           generation_index: number
@@ -361,18 +358,13 @@ export type Database = {
           is_selected: boolean
           primary_response: string | null
           primary_rewrite: string | null
-          redirect_message: string | null
           result_type: string
           risk_flags: Json | null
-          safe_alternative: string | null
           session_id: string
           shorter_version: string | null
           why_this_is_safer: string | null
         }
         Insert: {
-          alternative_1?: string | null
-          alternative_2?: string | null
-          alternative_3?: string | null
           created_at?: string
           firmer_version?: string | null
           generation_index?: number
@@ -380,18 +372,13 @@ export type Database = {
           is_selected?: boolean
           primary_response?: string | null
           primary_rewrite?: string | null
-          redirect_message?: string | null
           result_type?: string
           risk_flags?: Json | null
-          safe_alternative?: string | null
           session_id: string
           shorter_version?: string | null
           why_this_is_safer?: string | null
         }
         Update: {
-          alternative_1?: string | null
-          alternative_2?: string | null
-          alternative_3?: string | null
           created_at?: string
           firmer_version?: string | null
           generation_index?: number
@@ -399,10 +386,8 @@ export type Database = {
           is_selected?: boolean
           primary_response?: string | null
           primary_rewrite?: string | null
-          redirect_message?: string | null
           result_type?: string
           risk_flags?: Json | null
-          safe_alternative?: string | null
           session_id?: string
           shorter_version?: string | null
           why_this_is_safer?: string | null
