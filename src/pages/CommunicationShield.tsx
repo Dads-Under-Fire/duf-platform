@@ -292,6 +292,7 @@ export default function CommunicationShield() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data as AIResult);
+      setAllResults(prev => [...prev, data as AIResult]);
       refetchProfile();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
