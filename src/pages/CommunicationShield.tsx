@@ -274,11 +274,52 @@ export default function CommunicationShield() {
   const handleOtherSubmit = () => {
     const text = otherText.trim();
     if (text) {
-      if (step === "goal-selection") {
+      if (step === "goal-selection" || step === "redirect-options") {
         handleSelectGoal(text);
       } else {
         handleSelectIntent(text);
       }
+    }
+  };
+
+  const handleSelectNextStep = async (option: string) => {
+    if (option === "No message needed") {
+      handleStartOver();
+      return;
+    }
+    if (option === "Start a new message") {
+      setStep("input");
+      setResult(null);
+      setSessionId(null);
+      setNextStepOptions([]);
+      setTriageData(null);
+      setCommunicationContext("");
+      setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+    // "Refocus on logistics" or "Set a neutral boundary" → generate with that goal
+    setCommunicationContext(option);
+    setStep("result");
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("communication-shield", {
+        body: {
+          message: submittedMessage,
+          mode: "rewrite",
+          selected_goal: option,
+          session_id: sessionId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data as AIResult);
+      refetchProfile();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
+      setStep("redirect-options");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -287,7 +328,6 @@ export default function CommunicationShield() {
       setResult(null);
       setLoading(true);
       const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite" };
-      // If we have a session with a goal, re-send with goal
       if (sessionId && communicationContext) {
         body.selected_goal = communicationContext;
         body.session_id = sessionId;
@@ -324,11 +364,12 @@ export default function CommunicationShield() {
     setSessionId(null);
     setGoalOptions([]);
     setTriageData(null);
+    setNextStepOptions([]);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleBackToCompose = () => {
-    if (step === "goal-selection") {
+    if (step === "goal-selection" || step === "redirect-options") {
       setStep("input");
       setResult(null);
       setLoading(false);
