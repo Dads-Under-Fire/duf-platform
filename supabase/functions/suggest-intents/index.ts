@@ -11,7 +11,7 @@ const FN = "suggest-intents";
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60_000;
 const MODEL = "gpt-4o-mini";
-const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
+const FALLBACK = { options: ["Confirm the plan", "Decline the request", "Clarify timing", "Request missing details"] };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
