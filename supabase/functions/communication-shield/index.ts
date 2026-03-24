@@ -1224,7 +1224,9 @@ You MUST call the provided tool with your structured output.`;
     triage_confidence: 1.0,
     risk_flags: riskFlags,
     goal_options: null,
-    output_path: triageResult!.recommendation_type,
+    output_path: triageResult!.recommendation_type === "do_not_respond" ? "no_message"
+      : triageResult!.recommendation_type === "brief_boundary_response" ? "redirect"
+      : "rewrite",
   }, {});
 
   await updateSession(serviceClient, sessionId, {
