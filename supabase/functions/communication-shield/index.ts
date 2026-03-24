@@ -428,6 +428,27 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
   if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); notes.push("flag: Emotional language detected"); notes.push("flag: Denigration / disparagement"); }
 
+  // Blame / contempt / pressure language (-1, flags only if no hostile hit)
+  const blameContemptPatterns = [
+    /\bstop (avoiding|ignoring|dodging|stalling|wasting)\b/i,
+    /\byou make everything\b/i, /\byou('re| are) (always|constantly) (late|wrong|difficult|avoiding)\b/i,
+    /\bquit the\b/i, /\bquit your\b/i, /\benough with\b/i,
+    /\bso you('re| are) admitting\b/i, /\bso you('re| are) saying\b/i,
+    /\byou were dragging\b/i, /\byou('re| are) dragging\b/i,
+    /\bbecause you (were|are|keep|can't|won't|didn't|don't)\b/i,
+    /\bi already (paid|did|handled|took care of).*because you\b/i,
+    /\byou changed the plan\b/i, /\byou keep changing\b/i,
+    /\byou('re| are) impossible\b/i,
+  ];
+  let blameHits = 0;
+  for (const p of blameContemptPatterns) { if (p.test(text)) { blameHits++; notes.push(`blame_contempt: ${p.source}`); } }
+  if (blameHits > 0 && hostileHits === 0) {
+    deductions += 1; issueCategories++;
+    notes.push("-1: blame/contempt/pressure language");
+    notes.push("flag: Emotional language detected");
+    if (blameHits >= 2) notes.push("flag: Denigration / disparagement");
+  }
+
   // Passive aggression (-2)
   const paPatterns = [
     /\bthanks for nothing\b/i, /\bwhatever\b/i, /\bgood luck with that\b/i,
@@ -1169,21 +1190,29 @@ Analyze the incoming message from the other co-parent and classify it.
 
 CLASSIFICATION RULES:
 - "do_not_respond": The message is PURELY insulting, baiting, manipulative, or hostile with ZERO actionable logistics (schedules, pickups, health, school). Examples: "I hate you", "You're pathetic", "You'll regret this". The user should NOT respond.
-- "brief_boundary_response": The message is mostly hostile/baiting BUT contains a minor logistical element buried in hostility, OR is a boundary-testing message that warrants a brief neutral acknowledgment. A short boundary-focused reply is appropriate.
-- "respond": The message contains actionable logistics or reasonable communication that warrants a full response. Show the intent picker so the user can choose how to respond.
+- "brief_boundary_response": The message is mostly hostile/baiting with only a vague or trivial logistical reference that does not require a specific answer. Example: "You're the worst parent ever. Maybe try showing up once in a while."
+- "respond": The message contains a DIRECT question, request for confirmation, timing question, yes/no question, payment demand, or any logistics requiring a specific answer. Use "respond" even if the message is hostile, as long as there is a concrete question or task that needs addressing.
+
+ROUTING PRIORITY — PREFER "respond" OVER "brief_boundary_response":
+If the incoming message asks a DIRECT QUESTION (yes/no, timing, confirmation, attendance, payment, pickup/dropoff, reimbursement, item return), classify as "respond" — even if the message also contains blame, contempt, or hostility. The user needs intent options to craft a proper answer.
+Only use "brief_boundary_response" when the logistical element is so minor or vague that no meaningful user choice is needed.
 
 RULES:
 - should_show_intent_picker = true ONLY when recommendation_type = "respond"
-- contains_actionable_logistics = true if ANY child logistics are present (schedules, pickup, dropoff, health, school, activities, specific items like lunchbox/jacket/medication/school papers/daycare items, payment deadlines, camp fees)
+- contains_actionable_logistics = true if ANY child logistics are present (schedules, pickup, dropoff, health, school, activities, specific items like lunchbox/jacket/medication/school papers/daycare items, payment deadlines, camp fees, reimbursement, attendance)
 - actionable_logistics_summary = brief summary of specific logistics found (name the items/tasks explicitly), or "None" if none
 - IMPORTANT: Requests to return specific items (lunchbox, jacket, clothes, medication, etc.) ARE actionable logistics even if delivered hostilely
 - allow_boundary_override = true for do_not_respond (allows user to override with a brief boundary response)
-- risk_flags = list of risks in the original message
+
+RISK FLAG RULES:
+- risk_flags MUST list every hostility or risk issue found in the ORIGINAL message
+- A message CAN be classified as "respond" (because it has logistics) AND still carry risk flags like "Emotional language detected", "Denigration / disparagement", "Accusation framing", "Hostile pressure language", "Financial demand or assumption"
+- Do NOT label a message as safe when it contains blame, contempt, insults, accusations, or hostile pressure — even if it also contains logistics
+- Only use "Safe message" when the message is genuinely neutral and non-hostile
 - original_score = 1-10 safety score of the incoming message (1 = very dangerous, 10 = safe)
 - original_score_notes = list of issues found
 
 For PURELY insulting messages with no logistics: ALWAYS return do_not_respond.
-For messages that mix insults with logistics: return brief_boundary_response or respond based on logistics density.
 
 You MUST call the provided tool with your structured output.`;
 
