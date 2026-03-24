@@ -372,6 +372,7 @@ export default function CommunicationShield() {
           respond_stage: "generate",
           session_id: sessionId,
           communication_context: option,
+          response_intent_options: intentOptions,
         },
       });
       if (error) throw error;

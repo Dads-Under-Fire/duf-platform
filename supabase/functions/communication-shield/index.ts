@@ -211,7 +211,7 @@ const RESPOND_TOOL = {
     type: "object",
     properties: {
       recommendation_type: { type: "string", enum: ["respond", "do_not_respond", "brief_boundary_response"] },
-      primary_rewrite: { type: "string" },
+      primary_response: { type: "string" },
       shorter_version: { type: "string" },
       firmer_version: { type: "string" },
       fallback_response: { type: "string" },
@@ -224,7 +224,7 @@ const RESPOND_TOOL = {
       response_quality_score: { type: "integer" },
       response_quality_notes: { type: "array", items: { type: "string" } },
     },
-    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "response_quality_score", "response_quality_notes"],
+    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "response_quality_score", "response_quality_notes"],
     additionalProperties: false,
   },
   strict: true,
@@ -543,7 +543,7 @@ function scoreOutputQuality(
 
   const textFields: string[] = [];
   if (mode === "respond") {
-    if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
+    if (typeof result.primary_response === "string") textFields.push(result.primary_response);
     if (result.recommendation_type !== "do_not_respond") {
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
@@ -597,7 +597,7 @@ function scoreOutputQuality(
   if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal"); }
 
   // Verbose (-2)
-  const primaryText = (result.primary_rewrite as string ?? "");
+  const primaryText = (mode === "respond" ? (result.primary_response as string ?? "") : (result.primary_rewrite as string ?? ""));
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
   if (sentenceCount > 3 || primaryText.length > 400) { deductions += 2; issueCategories++; notes.push("-2: verbose"); }
 
@@ -620,7 +620,7 @@ function scoreOutputQuality(
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  const aiSelfScore = typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null;
+  const aiSelfScore = typeof result.response_quality_score === "number" ? result.response_quality_score : (typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null);
   let total: number;
   if (aiSelfScore !== null && aiSelfScore >= 1 && aiSelfScore <= 10) {
     total = Math.min(serverScore, aiSelfScore);
@@ -723,12 +723,12 @@ function validateRespondTriageResult(r: Record<string, unknown>): string | null 
 
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
-  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder";
+  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
+  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder";
   if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
     if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version";
     if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version";
-    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
+    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
       const unsafe = containsUnsafeLanguage(r[field]);
       if (unsafe) return `${field} unsafe: ${unsafe}`;
     }
@@ -787,8 +787,8 @@ function extractServerFlags(notes: string[]): string[] {
 function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
   const combined = [...(flags && Array.isArray(flags) ? flags : [])];
   for (const sf of serverFlags) { if (!combined.includes(sf)) combined.push(sf); }
-  if (combined.length === 0) return ["No risk flags"];
-  return combined;
+  if (combined.length === 0) return ["Safe message"];
+  return combined.filter(f => f !== "No risk flags");
 }
 
 // Deterministic fallbacks
@@ -850,7 +850,7 @@ function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) 
   if (mode === "rewrite") {
     return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
   }
-  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: RESPOND_FALLBACK_DEFAULT, primary_response: RESPOND_FALLBACK_DEFAULT, three_alternatives: [] };
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_response: RESPOND_FALLBACK_DEFAULT, three_alternatives: [] };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1105,11 +1105,22 @@ async function insertResult(
     }
   }
 
+  // Determine mode from session to split field mapping
+  let sessionMode: string | null = null;
+  try {
+    const { data: sessRow } = await serviceClient
+      .from("communication_shield_sessions")
+      .select("mode")
+      .eq("id", sessionId)
+      .single();
+    sessionMode = sessRow?.mode ?? null;
+  } catch {}
+
   const resultRow: Record<string, unknown> = {
     session_id: sessionId,
     result_type: normalizeResultType(resultType),
-    primary_rewrite: data.primary_rewrite ?? null,
-    primary_response: data.primary_response ?? data.primary_rewrite ?? null,
+    primary_rewrite: sessionMode === "respond" ? null : (data.primary_rewrite ?? null),
+    primary_response: data.primary_response ?? (sessionMode === "respond" ? null : data.primary_rewrite) ?? null,
     shorter_version: data.shorter_version ?? null,
     firmer_version: data.firmer_version ?? null,
     risk_flags: riskFlags,
@@ -1218,24 +1229,28 @@ You MUST call the provided tool with your structured output.`;
   }
   const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
-  // Create session
+  // Create session with respond-specific metadata
+  const recType = triageResult!.recommendation_type as string;
   const sessionId = await createSession(serviceClient, userId, message, "respond", {
-    detected_intent: triageResult!.recommendation_type,
+    detected_intent: recType,
     detected_tone: triageResult!.recommendation_reason,
-    sendability_status: triageResult!.recommendation_type === "do_not_respond" ? "redirect" : "safe",
+    sendability_status: recType === "do_not_respond" ? "redirect" : "safe",
     sendability_reason: triageResult!.recommendation_reason,
     triage_confidence: 1.0,
     risk_flags: riskFlags,
     goal_options: null,
-    output_path: triageResult!.recommendation_type === "do_not_respond" ? "no_message"
-      : triageResult!.recommendation_type === "brief_boundary_response" ? "redirect"
-      : "rewrite",
+    output_path: recType, // store respond-specific: do_not_respond | brief_boundary_response | respond
   }, {});
 
+  // Store respond-specific metadata columns
+  await updateSession(serviceClient, sessionId, {
+    recommendation_type: recType,
+    actionable_logistics_summary: triageResult!.actionable_logistics_summary ?? null,
+  });
+
   // For do_not_respond, persist a result row immediately (triage-only outcome)
-  if (triageResult!.recommendation_type === "do_not_respond") {
+  if (recType === "do_not_respond") {
     await finalizeSessionWithResult(serviceClient, sessionId, "no_message", {
-      primary_rewrite: "",
       primary_response: "",
       shorter_version: "",
       firmer_version: "",
@@ -1278,22 +1293,21 @@ async function handleRespondGenerate(
   isAdminBypass: boolean,
   isRegeneration: boolean = false,
   regenIsFree: boolean = false,
+  intentOptions: string[] | undefined = undefined,
 ): Promise<Response> {
   const originalScoreResult = scoreOriginalMessage(message);
 
   // Load existing session triage data
   const { data: existingSession } = await serviceClient
     .from("communication_shield_sessions")
-    .select("output_path, sendability_reason")
+    .select("output_path, sendability_reason, recommendation_type")
     .eq("id", sessionId)
     .single();
 
-  const rawOutputPath = existingSession?.output_path as string || "respond";
-  // Map DB output_path values back to recommendation_type
-  const recommendationType = rawOutputPath === "no_message" ? "do_not_respond"
-    : rawOutputPath === "redirect" ? "brief_boundary_response"
-    : rawOutputPath === "rewrite" ? "respond"
-    : rawOutputPath;
+  // Use stored recommendation_type directly (respond-specific values now stored natively)
+  const recommendationType = existingSession?.recommendation_type
+    || existingSession?.output_path as string
+    || "respond";
 
   // For do_not_respond without boundary override — return explanation only
   if (recommendationType === "do_not_respond" && !boundaryOverride) {
@@ -1357,7 +1371,7 @@ You MUST call the provided tool with your structured output.`;
   // Deterministic fallback
   if (!aiResult) {
     const fallback = buildDeterministicFallback("respond", communicationContext);
-    await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
+    await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["Safe message"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse({ ...fallback, session_id: sessionId, stage: "generate" });
   }
@@ -1365,9 +1379,12 @@ You MUST call the provided tool with your structured output.`;
   const outputScore = scoreOutputQuality(aiResult, "respond");
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
-  // Persist
+  // Persist result + update session with respond-specific metadata
   await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags, {
     selected_goal: communicationContext ?? (boundaryOverride ? "boundary_override" : null),
+    selected_response_intent: communicationContext ?? null,
+    response_intent_options: Array.isArray(intentOptions) ? intentOptions : null,
+    output_path: effectiveType,
   });
 
   // Usage tracking
@@ -1404,7 +1421,7 @@ You MUST call the provided tool with your structured output.`;
     recommendation_type: effectiveType,
     risk_flags: riskFlags,
     original_score: originalScoreResult.score,
-    primary_response: aiResult.primary_rewrite,
+    primary_response: aiResult.primary_response,
     three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
     prompt_version: loadedPrompt.versionLabel,
     prompt_source: loadedPrompt.source,
@@ -1821,6 +1838,7 @@ serve(async (req) => {
       is_regeneration: clientIsRegeneration,
       respond_stage,
       boundary_override,
+      response_intent_options,
     } = body;
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -1917,6 +1935,7 @@ serve(async (req) => {
           serviceClient, OPENAI_API_KEY, userId, message, session_id,
           communication_context, !!boundary_override, isAdminBypass,
           isRegeneration, regenIsFree,
+          Array.isArray(response_intent_options) ? response_intent_options : undefined,
         );
         logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
         return result;
