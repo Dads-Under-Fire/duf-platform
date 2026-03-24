@@ -723,12 +723,12 @@ function validateRespondTriageResult(r: Record<string, unknown>): string | null 
 
 function validateRespondResult(r: Record<string, unknown>): string | null {
   if (typeof r.recommendation_type !== "string" || !VALID_RECOMMENDATION_TYPES.includes(r.recommendation_type)) return "missing/invalid recommendation_type";
-  if (!isNonEmptyString(r.primary_rewrite)) return "missing primary_rewrite";
-  if (containsPlaceholder(r.primary_rewrite)) return "primary_rewrite contains placeholder";
+  if (!isNonEmptyString(r.primary_response)) return "missing primary_response";
+  if (containsPlaceholder(r.primary_response)) return "primary_response contains placeholder";
   if (r.recommendation_type === "respond" || r.recommendation_type === "brief_boundary_response") {
     if (!isNonEmptyString(r.shorter_version)) return "missing shorter_version";
     if (!isNonEmptyString(r.firmer_version)) return "missing firmer_version";
-    for (const field of ["primary_rewrite", "shorter_version", "firmer_version"] as const) {
+    for (const field of ["primary_response", "shorter_version", "firmer_version"] as const) {
       const unsafe = containsUnsafeLanguage(r[field]);
       if (unsafe) return `${field} unsafe: ${unsafe}`;
     }
