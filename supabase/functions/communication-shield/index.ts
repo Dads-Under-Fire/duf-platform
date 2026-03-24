@@ -428,6 +428,27 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
   if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); notes.push("flag: Emotional language detected"); notes.push("flag: Denigration / disparagement"); }
 
+  // Blame / contempt / pressure language (-1, flags only if no hostile hit)
+  const blameContemptPatterns = [
+    /\bstop (avoiding|ignoring|dodging|stalling|wasting)\b/i,
+    /\byou make everything\b/i, /\byou('re| are) (always|constantly) (late|wrong|difficult|avoiding)\b/i,
+    /\bquit the\b/i, /\bquit your\b/i, /\benough with\b/i,
+    /\bso you('re| are) admitting\b/i, /\bso you('re| are) saying\b/i,
+    /\byou were dragging\b/i, /\byou('re| are) dragging\b/i,
+    /\bbecause you (were|are|keep|can't|won't|didn't|don't)\b/i,
+    /\bi already (paid|did|handled|took care of).*because you\b/i,
+    /\byou changed the plan\b/i, /\byou keep changing\b/i,
+    /\byou('re| are) impossible\b/i,
+  ];
+  let blameHits = 0;
+  for (const p of blameContemptPatterns) { if (p.test(text)) { blameHits++; notes.push(`blame_contempt: ${p.source}`); } }
+  if (blameHits > 0 && hostileHits === 0) {
+    deductions += 1; issueCategories++;
+    notes.push("-1: blame/contempt/pressure language");
+    notes.push("flag: Emotional language detected");
+    if (blameHits >= 2) notes.push("flag: Denigration / disparagement");
+  }
+
   // Passive aggression (-2)
   const paPatterns = [
     /\bthanks for nothing\b/i, /\bwhatever\b/i, /\bgood luck with that\b/i,
