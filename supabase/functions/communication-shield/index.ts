@@ -543,7 +543,7 @@ function scoreOutputQuality(
 
   const textFields: string[] = [];
   if (mode === "respond") {
-    if (typeof result.primary_rewrite === "string") textFields.push(result.primary_rewrite);
+    if (typeof result.primary_response === "string") textFields.push(result.primary_response);
     if (result.recommendation_type !== "do_not_respond") {
       if (typeof result.shorter_version === "string") textFields.push(result.shorter_version);
       if (typeof result.firmer_version === "string") textFields.push(result.firmer_version);
