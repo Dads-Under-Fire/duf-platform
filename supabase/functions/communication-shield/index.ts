@@ -1105,11 +1105,22 @@ async function insertResult(
     }
   }
 
+  // Determine mode from session to split field mapping
+  let sessionMode: string | null = null;
+  try {
+    const { data: sessRow } = await serviceClient
+      .from("communication_shield_sessions")
+      .select("mode")
+      .eq("id", sessionId)
+      .single();
+    sessionMode = sessRow?.mode ?? null;
+  } catch {}
+
   const resultRow: Record<string, unknown> = {
     session_id: sessionId,
     result_type: normalizeResultType(resultType),
-    primary_rewrite: data.primary_rewrite ?? null,
-    primary_response: data.primary_response ?? data.primary_rewrite ?? null,
+    primary_rewrite: sessionMode === "respond" ? null : (data.primary_rewrite ?? null),
+    primary_response: data.primary_response ?? (sessionMode === "respond" ? null : data.primary_rewrite) ?? null,
     shorter_version: data.shorter_version ?? null,
     firmer_version: data.firmer_version ?? null,
     risk_flags: riskFlags,
