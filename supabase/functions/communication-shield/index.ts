@@ -397,10 +397,11 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   if (shortEmotionalHit && emotionalHits === 0) {
     emotionalHits++;
     notes.push("-2: short emotional/reactive message");
+    notes.push("flag: Emotional language detected");
     deductions += 2;
     issueCategories++;
   }
-  if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
+  if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); notes.push("flag: Emotional language detected"); }
 
   // Admission trap (-3)
   const admissionTrapPatterns = [
@@ -787,8 +788,11 @@ function extractServerFlags(notes: string[]): string[] {
 function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
   const combined = [...(flags && Array.isArray(flags) ? flags : [])];
   for (const sf of serverFlags) { if (!combined.includes(sf)) combined.push(sf); }
+  // Filter out "No risk flags" and "Safe message" if real flags exist
+  const meaningful = combined.filter(f => f !== "No risk flags" && f !== "Safe message");
+  if (meaningful.length > 0) return meaningful;
   if (combined.length === 0) return ["Safe message"];
-  return combined.filter(f => f !== "No risk flags");
+  return ["Safe message"];
 }
 
 // Deterministic fallbacks
@@ -1334,7 +1338,14 @@ async function handleRespondGenerate(
   console.log(`[${FN}] respond_generate prompt_load | source=${loadedPrompt.source} | version=${loadedPrompt.versionLabel}${loadedPrompt.fallbackReason ? ` | fallback_reason=${loadedPrompt.fallbackReason}` : ""}`);
 
   const contextInstruction = communicationContext
-    ? `\nThe user selected the following communication context: "${communicationContext}". Tailor the response to match this intent while remaining neutral, factual, and court-safe.`
+    ? `\nCRITICAL — SELECTED RESPONSE INTENT: "${communicationContext}"
+The user explicitly chose this intent. The primary_response MUST directly execute this intent.
+- If the intent says "Confirm the plan" → the reply must confirm/agree
+- If the intent says "Decline the request" → the reply must politely decline
+- If the intent says "Clarify timing" → the reply must ask for or specify timing details
+- If the intent says "Request missing details" → the reply must ask for what's missing
+- If the intent says "Set a boundary while answering" → answer the logistics AND set a clear boundary
+- Different intents MUST produce meaningfully different replies — not just tone variations of the same text.`
     : "";
 
   const typeInstruction = effectiveType === "brief_boundary_response"

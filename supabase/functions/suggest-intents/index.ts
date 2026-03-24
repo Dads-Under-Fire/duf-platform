@@ -11,7 +11,7 @@ const FN = "suggest-intents";
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60_000;
 const MODEL = "gpt-4o-mini";
-const FALLBACK = { options: ["Set a boundary", "Ask for clarification", "Acknowledge without engaging", "General neutral response"] };
+const FALLBACK = { options: ["Confirm the plan", "Decline the request", "Clarify timing", "Request missing details"] };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -49,7 +49,41 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-    const systemPrompt = `You are a custody communication specialist. Suggest 4-6 short communication intent options (2-5 words each) for this ${mode === "respond" ? "received" : "draft"} message. Always end with "General neutral response".`;
+    const systemPrompt = `You are a custody communication specialist. The user received a message from their co-parent and needs to choose HOW to respond.
+
+Generate 4-6 short, PRACTICAL response intent options (2-5 words each) that represent concrete answer paths.
+
+GOOD intent examples (use these as models):
+- Confirm the plan
+- Decline the request
+- Clarify timing
+- Request missing details
+- Confirm later
+- Keep it logistics-only
+- Set a boundary while answering
+- Confirm attendance
+- Clarify payment details
+- Request documentation
+- Decline and suggest alternative
+- Acknowledge and confirm
+
+BAD intent examples (NEVER generate these — too abstract):
+- Express frustration
+- Discuss alternatives
+- Address miscommunication
+- General neutral response
+- Address past involvement
+- Acknowledge feelings
+- Share perspective
+
+RULES:
+- Every option must map to a CONCRETE action the user could take in their reply
+- If the message contains a yes/no question, include "Confirm" and "Decline" options
+- If the message mentions scheduling, include timing-specific options
+- If the message mentions money/costs, include financial-specific options
+- Do NOT end with "General neutral response" — every option should be specific
+- Focus on WHAT the reply will say, not how it will feel`;
+
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
