@@ -1370,7 +1370,7 @@ You MUST call the provided tool with your structured output.`;
   // Deterministic fallback
   if (!aiResult) {
     const fallback = buildDeterministicFallback("respond", communicationContext);
-    await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["No risk flags"]);
+    await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", fallback as any, ["Safe message"]);
     if (!isAdminBypass) await serviceClient.rpc("increment_message_rewrites", { p_user_id: userId });
     return jsonResponse({ ...fallback, session_id: sessionId, stage: "generate" });
   }
