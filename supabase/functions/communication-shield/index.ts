@@ -1229,24 +1229,28 @@ You MUST call the provided tool with your structured output.`;
   }
   const riskFlags = normalizeRiskFlags(triageResult!.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
-  // Create session
+  // Create session with respond-specific metadata
+  const recType = triageResult!.recommendation_type as string;
   const sessionId = await createSession(serviceClient, userId, message, "respond", {
-    detected_intent: triageResult!.recommendation_type,
+    detected_intent: recType,
     detected_tone: triageResult!.recommendation_reason,
-    sendability_status: triageResult!.recommendation_type === "do_not_respond" ? "redirect" : "safe",
+    sendability_status: recType === "do_not_respond" ? "redirect" : "safe",
     sendability_reason: triageResult!.recommendation_reason,
     triage_confidence: 1.0,
     risk_flags: riskFlags,
     goal_options: null,
-    output_path: triageResult!.recommendation_type === "do_not_respond" ? "no_message"
-      : triageResult!.recommendation_type === "brief_boundary_response" ? "redirect"
-      : "rewrite",
+    output_path: recType, // store respond-specific: do_not_respond | brief_boundary_response | respond
   }, {});
 
+  // Store respond-specific metadata columns
+  await updateSession(serviceClient, sessionId, {
+    recommendation_type: recType,
+    actionable_logistics_summary: triageResult!.actionable_logistics_summary ?? null,
+  });
+
   // For do_not_respond, persist a result row immediately (triage-only outcome)
-  if (triageResult!.recommendation_type === "do_not_respond") {
+  if (recType === "do_not_respond") {
     await finalizeSessionWithResult(serviceClient, sessionId, "no_message", {
-      primary_rewrite: "",
       primary_response: "",
       shorter_version: "",
       firmer_version: "",
