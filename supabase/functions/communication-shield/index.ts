@@ -1378,9 +1378,11 @@ You MUST call the provided tool with your structured output.`;
   const outputScore = scoreOutputQuality(aiResult, "respond");
   const riskFlags = normalizeRiskFlags(aiResult.risk_flags as string[], extractServerFlags(originalScoreResult.notes));
 
-  // Persist
+  // Persist result + update session with respond-specific metadata
   await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags, {
     selected_goal: communicationContext ?? (boundaryOverride ? "boundary_override" : null),
+    selected_response_intent: communicationContext ?? null,
+    output_path: effectiveType,
   });
 
   // Usage tracking
