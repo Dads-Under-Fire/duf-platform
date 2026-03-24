@@ -1293,6 +1293,7 @@ async function handleRespondGenerate(
   isAdminBypass: boolean,
   isRegeneration: boolean = false,
   regenIsFree: boolean = false,
+  intentOptions: string[] | undefined = undefined,
 ): Promise<Response> {
   const originalScoreResult = scoreOriginalMessage(message);
 
