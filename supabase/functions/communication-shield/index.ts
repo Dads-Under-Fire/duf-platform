@@ -787,8 +787,8 @@ function extractServerFlags(notes: string[]): string[] {
 function normalizeRiskFlags(flags: string[] | undefined, serverFlags: string[] = []): string[] {
   const combined = [...(flags && Array.isArray(flags) ? flags : [])];
   for (const sf of serverFlags) { if (!combined.includes(sf)) combined.push(sf); }
-  if (combined.length === 0) return ["No risk flags"];
-  return combined;
+  if (combined.length === 0) return ["Safe message"];
+  return combined.filter(f => f !== "No risk flags");
 }
 
 // Deterministic fallbacks
