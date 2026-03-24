@@ -620,7 +620,7 @@ function scoreOutputQuality(
   if (issueCategories >= 2) { serverScore = Math.min(serverScore, 7); }
   if (issueCategories >= 3) { serverScore = Math.min(serverScore, 6); }
 
-  const aiSelfScore = typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null;
+  const aiSelfScore = typeof result.response_quality_score === "number" ? result.response_quality_score : (typeof result.rewrite_quality_score === "number" ? result.rewrite_quality_score : null);
   let total: number;
   if (aiSelfScore !== null && aiSelfScore >= 1 && aiSelfScore <= 10) {
     total = Math.min(serverScore, aiSelfScore);
