@@ -1383,6 +1383,7 @@ You MUST call the provided tool with your structured output.`;
   await finalizeSessionWithResult(serviceClient, sessionId, "respond_output", aiResult, riskFlags, {
     selected_goal: communicationContext ?? (boundaryOverride ? "boundary_override" : null),
     selected_response_intent: communicationContext ?? null,
+    response_intent_options: Array.isArray(intentOptions) ? intentOptions : null,
     output_path: effectiveType,
   });
 
