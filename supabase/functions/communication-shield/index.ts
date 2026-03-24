@@ -850,7 +850,7 @@ function buildDeterministicFallback(mode: "respond" | "rewrite", _ctx?: string) 
   if (mode === "rewrite") {
     return { mode, is_fallback: true, primary_rewrite: REWRITE_FALLBACK, three_alternatives: [] };
   }
-  return { mode, is_fallback: true, recommendation_type: "respond", primary_rewrite: RESPOND_FALLBACK_DEFAULT, primary_response: RESPOND_FALLBACK_DEFAULT, three_alternatives: [] };
+  return { mode, is_fallback: true, recommendation_type: "respond", primary_response: RESPOND_FALLBACK_DEFAULT, three_alternatives: [] };
 }
 
 // ══════════════════════════════════════════════════════════════
