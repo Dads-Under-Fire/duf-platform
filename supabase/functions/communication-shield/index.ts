@@ -211,7 +211,7 @@ const RESPOND_TOOL = {
     type: "object",
     properties: {
       recommendation_type: { type: "string", enum: ["respond", "do_not_respond", "brief_boundary_response"] },
-      primary_rewrite: { type: "string" },
+      primary_response: { type: "string" },
       shorter_version: { type: "string" },
       firmer_version: { type: "string" },
       fallback_response: { type: "string" },
@@ -224,7 +224,7 @@ const RESPOND_TOOL = {
       response_quality_score: { type: "integer" },
       response_quality_notes: { type: "array", items: { type: "string" } },
     },
-    required: ["recommendation_type", "primary_rewrite", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "response_quality_score", "response_quality_notes"],
+    required: ["recommendation_type", "primary_response", "shorter_version", "firmer_version", "fallback_response", "tone_assessment", "risk_flags", "why_this_is_safer", "three_alternatives", "original_score", "original_score_notes", "response_quality_score", "response_quality_notes"],
     additionalProperties: false,
   },
   strict: true,
