@@ -425,7 +425,7 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   ];
   let hostileHits = 0;
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
-  if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); }
+  if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); notes.push("flag: Emotional language detected"); notes.push("flag: Denigration / disparagement"); }
 
   // Passive aggression (-2)
   const paPatterns = [
