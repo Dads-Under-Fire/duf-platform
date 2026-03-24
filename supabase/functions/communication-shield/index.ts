@@ -1419,7 +1419,7 @@ You MUST call the provided tool with your structured output.`;
     recommendation_type: effectiveType,
     risk_flags: riskFlags,
     original_score: originalScoreResult.score,
-    primary_response: aiResult.primary_rewrite,
+    primary_response: aiResult.primary_response,
     three_alternatives: Array.isArray(aiResult.three_alternatives) ? aiResult.three_alternatives : [],
     prompt_version: loadedPrompt.versionLabel,
     prompt_source: loadedPrompt.source,
