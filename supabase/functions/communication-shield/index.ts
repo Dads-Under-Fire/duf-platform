@@ -1337,15 +1337,46 @@ async function handleRespondGenerate(
   const loadedPrompt = await loadActivePrompt(serviceClient, "communication_shield", "respond", "generate", message);
   console.log(`[${FN}] respond_generate prompt_load | source=${loadedPrompt.source} | version=${loadedPrompt.versionLabel}${loadedPrompt.fallbackReason ? ` | fallback_reason=${loadedPrompt.fallbackReason}` : ""}`);
 
+  // Extract logistics summary from session for context
+  let logisticsSummary = "";
+  try {
+    const { data: sessData } = await serviceClient
+      .from("communication_shield_sessions")
+      .select("actionable_logistics_summary")
+      .eq("id", sessionId)
+      .single();
+    if (sessData?.actionable_logistics_summary && sessData.actionable_logistics_summary !== "None") {
+      logisticsSummary = sessData.actionable_logistics_summary;
+    }
+  } catch { /* non-critical */ }
+
+  const logisticsInstruction = logisticsSummary
+    ? `\nACTIONABLE LOGISTICS DETECTED IN INCOMING MESSAGE: "${logisticsSummary}"
+You MUST address these specific logistics directly in your primary_response. Do NOT ignore concrete items (lunchbox, jacket, medication, school papers, pickup time, payment, etc.) even if the message is hostile. Strip the hostility, keep the logistics.`
+    : "";
+
   const contextInstruction = communicationContext
     ? `\nCRITICAL — SELECTED RESPONSE INTENT: "${communicationContext}"
-The user explicitly chose this intent. The primary_response MUST directly execute this intent.
-- If the intent says "Confirm the plan" → the reply must confirm/agree
-- If the intent says "Decline the request" → the reply must politely decline
-- If the intent says "Clarify timing" → the reply must ask for or specify timing details
-- If the intent says "Request missing details" → the reply must ask for what's missing
-- If the intent says "Set a boundary while answering" → answer the logistics AND set a clear boundary
-- Different intents MUST produce meaningfully different replies — not just tone variations of the same text.`
+The user explicitly chose this intent. The primary_response MUST directly and substantively execute this intent — not just reflect it in tone.
+
+INTENT EXECUTION RULES:
+- "Confirm the plan" / "Confirm attendance" → The reply MUST state clear agreement/confirmation. Example: "I'll have [item] ready for tomorrow."
+- "Decline the request" / "Decline and suggest alternative" → The reply MUST clearly state a refusal and optionally propose an alternative. Do NOT soften a decline into a vague question.
+- "Request payment extension" / "Propose alternative timeline" → The reply MUST clearly state the requested timeline cannot be met and propose a specific alternative. Do NOT ask permission — state the situation neutrally. Example: "I can send payment by [date]."
+- "Clarify timing" → The reply MUST ask for or specify concrete timing details.
+- "Request missing details" / "Request documentation" → The reply MUST ask for specific missing information.
+- "Set a boundary while answering" → Answer the concrete logistics AND set a clear boundary about communication tone.
+- "Keep it logistics-only" → Strip ALL emotional content, respond ONLY to the factual/logistical elements.
+- "Clarify payment details" → Ask for or confirm specific payment amounts, methods, or deadlines.
+
+ANTI-PATTERNS — DO NOT:
+- Weaken a "decline" intent into a polite question asking if it's okay
+- Weaken a "request extension" into asking permission to maybe pay later
+- Respond to a concrete logistical demand with only generic boundary language
+- Produce the same response regardless of which intent was selected
+- Use deferential phrasing like "Can you please confirm when I can..." when the intent calls for a direct statement
+
+Different intents MUST produce meaningfully different replies in SUBSTANCE, not just tone.`
     : "";
 
   const typeInstruction = effectiveType === "brief_boundary_response"
