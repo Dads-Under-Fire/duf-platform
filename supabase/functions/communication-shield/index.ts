@@ -597,7 +597,7 @@ function scoreOutputQuality(
   if (formalHits > 0) { deductions += 2; issueCategories++; notes.push("-2: overly formal"); }
 
   // Verbose (-2)
-  const primaryText = (result.primary_rewrite as string ?? "");
+  const primaryText = (mode === "respond" ? (result.primary_response as string ?? "") : (result.primary_rewrite as string ?? ""));
   const sentenceCount = primaryText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
   if (sentenceCount > 3 || primaryText.length > 400) { deductions += 2; issueCategories++; notes.push("-2: verbose"); }
 
