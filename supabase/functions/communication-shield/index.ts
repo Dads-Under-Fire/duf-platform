@@ -1174,8 +1174,9 @@ CLASSIFICATION RULES:
 
 RULES:
 - should_show_intent_picker = true ONLY when recommendation_type = "respond"
-- contains_actionable_logistics = true if ANY child logistics are present (schedules, pickup, dropoff, health, school, activities)
-- actionable_logistics_summary = brief summary of logistics found, or "None" if none
+- contains_actionable_logistics = true if ANY child logistics are present (schedules, pickup, dropoff, health, school, activities, specific items like lunchbox/jacket/medication/school papers/daycare items, payment deadlines, camp fees)
+- actionable_logistics_summary = brief summary of specific logistics found (name the items/tasks explicitly), or "None" if none
+- IMPORTANT: Requests to return specific items (lunchbox, jacket, clothes, medication, etc.) ARE actionable logistics even if delivered hostilely
 - allow_boundary_override = true for do_not_respond (allows user to override with a brief boundary response)
 - risk_flags = list of risks in the original message
 - original_score = 1-10 safety score of the incoming message (1 = very dangerous, 10 = safe)
