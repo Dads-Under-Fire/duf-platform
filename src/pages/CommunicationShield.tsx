@@ -1428,7 +1428,13 @@ const RECOMMENDATION_CONFIG: Record<RecommendationType, { icon: typeof ShieldChe
 };
 
 function RecommendationBanner({ type, fallback }: { type: RecommendationType; fallback?: string }) {
-  const config = RECOMMENDATION_CONFIG[type];
+  const normalizedType = (type || "").toLowerCase().trim() as RecommendationType;
+  const config = RECOMMENDATION_CONFIG[normalizedType] ?? {
+    icon: ShieldCheck,
+    label: "Recommendation",
+    className: "bg-muted border-border text-foreground",
+    description: "Review the response below.",
+  };
   const Icon = config.icon;
   return (
     <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${config.className}`}>

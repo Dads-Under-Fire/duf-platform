@@ -416,13 +416,16 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
 
   // Hostile/aggressive (-2)
   const hostilePatterns = [
-    /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish)\b/i,
+    /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish|impossible)\b/i,
     /\bshut up\b/i, /\bgo to hell\b/i, /\byou disgust me\b/i,
     /\bnobody (wants|likes|cares about) you\b/i,
+    /\bi hate you\b/i, /\bi despise you\b/i, /\bi loathe you\b/i,
+    /\byou('re| are) (the worst|awful|horrible|useless)\b/i,
+    /\bf+\s*u\b/i, /\bscrew you\b/i,
   ];
   let hostileHits = 0;
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
-  if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); }
+  if (hostileHits > 0) { deductions += 2; issueCategories++; notes.push("-2: hostile/aggressive tone"); notes.push("flag: Emotional language detected"); notes.push("flag: Denigration / disparagement"); }
 
   // Passive aggression (-2)
   const paPatterns = [
@@ -1274,7 +1277,12 @@ async function handleRespondGenerate(
     .eq("id", sessionId)
     .single();
 
-  const recommendationType = existingSession?.output_path as string || "respond";
+  const rawOutputPath = existingSession?.output_path as string || "respond";
+  // Map DB output_path values back to recommendation_type
+  const recommendationType = rawOutputPath === "no_message" ? "do_not_respond"
+    : rawOutputPath === "redirect" ? "brief_boundary_response"
+    : rawOutputPath === "rewrite" ? "respond"
+    : rawOutputPath;
 
   // For do_not_respond without boundary override — return explanation only
   if (recommendationType === "do_not_respond" && !boundaryOverride) {
