@@ -1387,7 +1387,10 @@ Different intents MUST produce meaningfully different replies in SUBSTANCE, not 
 
 ${loadedPrompt.promptText}
 ${contextInstruction}
+${logisticsInstruction}
 ${typeInstruction}
+
+CRITICAL RESPONSE RULE: If the incoming message contains ANY specific logistical item or request (lunchbox, jacket, medication, school papers, daycare items, pickup/dropoff timing, payment timing, camp fees, etc.), your primary_response MUST directly address that item — even if the message is hostile. Ignore the hostility, answer the logistics.
 
 You MUST call the provided tool with your structured output.`;
 
