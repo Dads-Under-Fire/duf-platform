@@ -1232,9 +1232,20 @@ You MUST call the provided tool with your structured output.`;
       : "rewrite",
   }, {});
 
-  await updateSession(serviceClient, sessionId, {
-    session_status: triageResult!.recommendation_type === "respond" ? "awaiting_intent_selection" : "triage_complete",
-  });
+  // For do_not_respond, persist a result row immediately (triage-only outcome)
+  if (triageResult!.recommendation_type === "do_not_respond") {
+    await finalizeSessionWithResult(serviceClient, sessionId, "no_message", {
+      primary_rewrite: "",
+      primary_response: "",
+      shorter_version: "",
+      firmer_version: "",
+      why_this_is_safer: "Not responding to hostile or baiting messages protects your legal position and reduces conflict.",
+    }, riskFlags, {}, "no_message_needed");
+  } else {
+    await updateSession(serviceClient, sessionId, {
+      session_status: triageResult!.recommendation_type === "respond" ? "awaiting_intent_selection" : "triage_complete",
+    });
+  }
 
   console.log(`[${FN}] respond_triage done | rec=${triageResult!.recommendation_type} | session=${sessionId} | prompt_source=${triagePrompt.source} | prompt_version=${triagePrompt.versionLabel}`);
 
