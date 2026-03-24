@@ -1836,6 +1836,7 @@ serve(async (req) => {
       is_regeneration: clientIsRegeneration,
       respond_stage,
       boundary_override,
+      response_intent_options,
     } = body;
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
