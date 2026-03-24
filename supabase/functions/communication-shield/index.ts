@@ -397,10 +397,11 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
   if (shortEmotionalHit && emotionalHits === 0) {
     emotionalHits++;
     notes.push("-2: short emotional/reactive message");
+    notes.push("flag: Emotional language detected");
     deductions += 2;
     issueCategories++;
   }
-  if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); }
+  if (emotionalHits > 0 && !shortEmotionalHit) { deductions += 2; issueCategories++; notes.push("-2: emotional language"); notes.push("flag: Emotional language detected"); }
 
   // Admission trap (-3)
   const admissionTrapPatterns = [
