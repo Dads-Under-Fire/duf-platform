@@ -1277,7 +1277,12 @@ async function handleRespondGenerate(
     .eq("id", sessionId)
     .single();
 
-  const recommendationType = existingSession?.output_path as string || "respond";
+  const rawOutputPath = existingSession?.output_path as string || "respond";
+  // Map DB output_path values back to recommendation_type
+  const recommendationType = rawOutputPath === "no_message" ? "do_not_respond"
+    : rawOutputPath === "redirect" ? "brief_boundary_response"
+    : rawOutputPath === "rewrite" ? "respond"
+    : rawOutputPath;
 
   // For do_not_respond without boundary override — return explanation only
   if (recommendationType === "do_not_respond" && !boundaryOverride) {
