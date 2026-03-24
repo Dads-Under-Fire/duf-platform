@@ -404,6 +404,7 @@ export type Database = {
       }
       communication_shield_sessions: {
         Row: {
+          actionable_logistics_summary: string | null
           created_at: string
           detected_intent: string | null
           detected_tone: string | null
@@ -413,7 +414,10 @@ export type Database = {
           mode: string
           original_message: string
           output_path: string | null
+          recommendation_type: string | null
+          response_intent_options: Json | null
           selected_goal: string | null
+          selected_response_intent: string | null
           sendability_reason: string | null
           sendability_status: string | null
           session_status: string
@@ -423,6 +427,7 @@ export type Database = {
           workflow_version: string | null
         }
         Insert: {
+          actionable_logistics_summary?: string | null
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
@@ -432,7 +437,10 @@ export type Database = {
           mode?: string
           original_message: string
           output_path?: string | null
+          recommendation_type?: string | null
+          response_intent_options?: Json | null
           selected_goal?: string | null
+          selected_response_intent?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
           session_status?: string
@@ -442,6 +450,7 @@ export type Database = {
           workflow_version?: string | null
         }
         Update: {
+          actionable_logistics_summary?: string | null
           created_at?: string
           detected_intent?: string | null
           detected_tone?: string | null
@@ -451,7 +460,10 @@ export type Database = {
           mode?: string
           original_message?: string
           output_path?: string | null
+          recommendation_type?: string | null
+          response_intent_options?: Json | null
           selected_goal?: string | null
+          selected_response_intent?: string | null
           sendability_reason?: string | null
           sendability_status?: string | null
           session_status?: string
