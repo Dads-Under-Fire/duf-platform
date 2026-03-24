@@ -416,9 +416,12 @@ function scoreOriginalMessage(originalMessage: string): { score: number; notes: 
 
   // Hostile/aggressive (-2)
   const hostilePatterns = [
-    /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish)\b/i,
+    /\byou('re| are) (pathetic|disgusting|terrible|worthless|selfish|impossible)\b/i,
     /\bshut up\b/i, /\bgo to hell\b/i, /\byou disgust me\b/i,
     /\bnobody (wants|likes|cares about) you\b/i,
+    /\bi hate you\b/i, /\bi despise you\b/i, /\bi loathe you\b/i,
+    /\byou('re| are) (the worst|awful|horrible|useless)\b/i,
+    /\bf+\s*u\b/i, /\bscrew you\b/i,
   ];
   let hostileHits = 0;
   for (const p of hostilePatterns) { if (p.test(text)) { hostileHits++; notes.push(`hostile: ${p.source}`); } }
