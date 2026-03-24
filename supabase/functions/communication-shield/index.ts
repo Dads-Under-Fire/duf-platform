@@ -1934,6 +1934,7 @@ serve(async (req) => {
           serviceClient, OPENAI_API_KEY, userId, message, session_id,
           communication_context, !!boundary_override, isAdminBypass,
           isRegeneration, regenIsFree,
+          Array.isArray(response_intent_options) ? response_intent_options : undefined,
         );
         logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
         return result;
