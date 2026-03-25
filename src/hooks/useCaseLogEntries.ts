@@ -5,7 +5,7 @@ import type { CaseLogEntryInsert } from "@/types/caseLog";
 
 interface SaveEntryParams {
   entry: Omit<CaseLogEntryInsert, "user_id">;
-  file?: File | null;
+  files?: File[];
   evidenceNote?: string;
 }
 
@@ -14,7 +14,7 @@ export function useCreateCaseLogEntry() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ entry, file, evidenceNote }: SaveEntryParams) => {
+    mutationFn: async ({ entry, files, evidenceNote }: SaveEntryParams) => {
       if (!user) throw new Error("Not authenticated");
 
       // 1. Save the entry
@@ -25,45 +25,53 @@ export function useCreateCaseLogEntry() {
         .single();
       if (entryError) throw entryError;
 
-      // 2. Upload file + create attachment record if file provided
-      if (file && savedEntry) {
-        const fileExt = file.name.split(".").pop()?.toLowerCase() || "bin";
-        const storagePath = `${user.id}/${savedEntry.case_id}/${savedEntry.id}.${fileExt}`;
+      // 2. Upload files + create attachment records
+      const attachmentErrors: string[] = [];
 
-        const { error: uploadError } = await supabase.storage
-          .from("case-log-attachments")
-          .upload(storagePath, file, {
-            contentType: file.type,
-            upsert: false,
-          });
+      if (files && files.length > 0 && savedEntry) {
+        for (const file of files) {
+          const fileExt = file.name.split(".").pop()?.toLowerCase() || "bin";
+          const uniqueId = crypto.randomUUID();
+          const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const storagePath = `${user.id}/${savedEntry.case_id}/${savedEntry.id}/${uniqueId}-${sanitizedName}`;
 
-        if (uploadError) {
-          // Entry saved but upload failed — don't throw, but note it
-          console.error("Attachment upload failed:", uploadError);
-          return { entry: savedEntry, attachmentError: uploadError.message };
-        }
+          const { error: uploadError } = await supabase.storage
+            .from("case-log-attachments")
+            .upload(storagePath, file, {
+              contentType: file.type,
+              upsert: false,
+            });
 
-        // 3. Create attachment row
-        const { error: attachError } = await supabase
-          .from("case_log_attachments")
-          .insert({
-            user_id: user.id,
-            case_id: savedEntry.case_id,
-            case_log_entry_id: savedEntry.id,
-            file_path: storagePath,
-            file_name: file.name,
-            file_type: file.type,
-            file_size_bytes: file.size,
-            evidence_note: evidenceNote?.trim() || null,
-          });
+          if (uploadError) {
+            console.error("Attachment upload failed:", uploadError);
+            attachmentErrors.push(`${file.name}: ${uploadError.message}`);
+            continue;
+          }
 
-        if (attachError) {
-          console.error("Attachment record failed:", attachError);
-          return { entry: savedEntry, attachmentError: attachError.message };
+          const { error: attachError } = await supabase
+            .from("case_log_attachments")
+            .insert({
+              user_id: user.id,
+              case_id: savedEntry.case_id,
+              case_log_entry_id: savedEntry.id,
+              file_path: storagePath,
+              file_name: file.name,
+              file_type: file.type,
+              file_size_bytes: file.size,
+              evidence_note: evidenceNote?.trim() || null,
+            });
+
+          if (attachError) {
+            console.error("Attachment record failed:", attachError);
+            attachmentErrors.push(`${file.name}: record error`);
+          }
         }
       }
 
-      return { entry: savedEntry, attachmentError: null };
+      return {
+        entry: savedEntry,
+        attachmentError: attachmentErrors.length > 0 ? attachmentErrors.join("; ") : null,
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["case_log_entries"] });
