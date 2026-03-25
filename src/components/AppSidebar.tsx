@@ -21,19 +21,27 @@ import commShield from "@/assets/communication_shield.png";
 import commShieldSelected from "@/assets/communication_shield_selected.png";
 import evidenceAnalyzer from "@/assets/evidence_analyzer.png";
 import evidenceAnalyzerSelected from "@/assets/evidence_analyzer_selected.png";
+import caseLog from "@/assets/case_log.png";
+import caseLogSelected from "@/assets/case_log_selected.png";
 
 const navItems = [
+  {
+    title: "Case Log",
+    url: "/case-log",
+    icon: caseLog,
+    iconSelected: caseLogSelected,
+  },
+  {
+    title: "Case Intelligence",
+    url: "/evidence",
+    icon: evidenceAnalyzer,
+    iconSelected: evidenceAnalyzerSelected,
+  },
   {
     title: "Communication Shield",
     url: "/",
     icon: commShield,
     iconSelected: commShieldSelected,
-  },
-  {
-    title: "Evidence Analyzer",
-    url: "/evidence",
-    icon: evidenceAnalyzer,
-    iconSelected: evidenceAnalyzerSelected,
   },
 ];
 
