@@ -19,8 +19,8 @@ import dufLogo from "@/assets/dufplatform.png";
 import fireLogo from "@/assets/fire.png";
 import commShield from "@/assets/communication_shield.png";
 import commShieldSelected from "@/assets/communication_shield_selected.png";
-import evidenceAnalyzer from "@/assets/evidence_analyzer.png";
-import evidenceAnalyzerSelected from "@/assets/evidence_analyzer_selected.png";
+import caseIntelligence from "@/assets/case_intelligence.png";
+import caseIntelligenceSelected from "@/assets/case_intelligence_selected.png";
 import caseLog from "@/assets/case_log.png";
 import caseLogSelected from "@/assets/case_log_selected.png";
 
@@ -34,8 +34,8 @@ const navItems = [
   {
     title: "Case Intelligence",
     url: "/evidence",
-    icon: evidenceAnalyzer,
-    iconSelected: evidenceAnalyzerSelected,
+    icon: caseIntelligence,
+    iconSelected: caseIntelligenceSelected,
   },
   {
     title: "Communication Shield",
@@ -90,7 +90,7 @@ export function AppSidebar() {
                     <img
                       src={isActive ? item.iconSelected : item.icon}
                       alt={item.title}
-                      className="h-5 w-5 shrink-0"
+className="h-8 w-8 shrink-0"
                     />
                     {!collapsed && <span className="text-sm">{item.title}</span>}
                   </NavLink>
