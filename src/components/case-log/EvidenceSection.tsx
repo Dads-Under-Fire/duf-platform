@@ -40,7 +40,7 @@ interface EvidenceSectionProps {
 export function EvidenceSection({
   evidenceNote,
   onEvidenceNoteChange,
-  selectedFiles,
+  selectedFiles = [],
   onFilesChange,
 }: EvidenceSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
