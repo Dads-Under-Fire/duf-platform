@@ -255,7 +255,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               variant="outline"
               size="sm"
               className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-              onClick={() => navigate("/evidence")}
+              onClick={() => navigate("/case-intelligence")}
             >
               View Case Intelligence
             </Button>

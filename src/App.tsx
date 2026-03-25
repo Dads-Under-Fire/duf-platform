@@ -24,7 +24,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<CaseLog />} />
             <Route path="/communication-shield" element={<Index />} />
-            <Route path="/evidence" element={<Evidence />} />
+            <Route path="/case-intelligence" element={<Evidence />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/account" element={<Account />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />

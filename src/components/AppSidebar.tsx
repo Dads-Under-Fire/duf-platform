@@ -33,7 +33,7 @@ const navItems = [
   },
   {
     title: "Case Intelligence",
-    url: "/evidence",
+    url: "/case-intelligence",
     icon: caseIntelligence,
     iconSelected: caseIntelligenceSelected,
   },
