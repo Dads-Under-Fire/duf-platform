@@ -2,7 +2,6 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccountBootstrap } from "@/hooks/useAccountBootstrap";
 import { AppLayout } from "@/components/AppLayout";
-import EvidenceAnalyzer from "./EvidenceAnalyzer";
 
 export default function Evidence() {
   const { user, loading } = useAuth();
@@ -28,7 +27,9 @@ export default function Evidence() {
 
   return (
     <AppLayout>
-      <EvidenceAnalyzer />
+      <div className="flex-1 flex items-center justify-center">
+        <h1 className="text-2xl font-semibold text-foreground">Case Intelligence</h1>
+      </div>
     </AppLayout>
   );
 }
