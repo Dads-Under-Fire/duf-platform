@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, Paperclip, FileText, Image, File as FileIcon, X } from "lucide-react";
+import { Upload, Paperclip, FileText, Image, File as FileIcon, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -33,52 +33,64 @@ function FileTypeIcon({ type }: { type: string }) {
 interface EvidenceSectionProps {
   evidenceNote: string;
   onEvidenceNoteChange: (note: string) => void;
-  selectedFile: File | null;
-  onFileChange: (file: File | null) => void;
+  selectedFiles: File[];
+  onFilesChange: (files: File[]) => void;
 }
 
 export function EvidenceSection({
   evidenceNote,
   onEvidenceNoteChange,
-  selectedFile,
-  onFileChange,
+  selectedFiles,
+  onFilesChange,
 }: EvidenceSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [dragOver, setDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
 
-  const validateAndSetFile = (file: File | null) => {
+  const validateAndAddFiles = (incoming: FileList | null) => {
     setFileError(null);
-    if (!file) {
-      onFileChange(null);
-      return;
+    if (!incoming || incoming.length === 0) return;
+
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    Array.from(incoming).forEach((file) => {
+      if (!ACCEPTED_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: invalid type. Only JPG, PNG, and PDF are accepted.`);
+      } else if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: too large (${formatFileSize(file.size)}). Max 10MB.`);
+      } else {
+        valid.push(file);
+      }
+    });
+
+    if (errors.length > 0) {
+      setFileError(errors.join(" "));
     }
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setFileError("Invalid file type. Only JPG, PNG, and PDF are accepted.");
-      return;
+
+    if (valid.length > 0) {
+      onFilesChange([...selectedFiles, ...valid]);
     }
-    if (file.size > MAX_FILE_SIZE) {
-      setFileError(`File is too large (${formatFileSize(file.size)}). Maximum size is 10MB.`);
-      return;
-    }
-    onFileChange(file);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    validateAndSetFile(e.target.files?.[0] ?? null);
-    // Reset input so same file can be re-selected
+    validateAndAddFiles(e.target.files);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    validateAndSetFile(e.dataTransfer.files?.[0] ?? null);
+    validateAndAddFiles(e.dataTransfer.files);
   };
 
-  const handleRemove = () => {
-    onFileChange(null);
+  const handleRemoveFile = (index: number) => {
+    onFilesChange(selectedFiles.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveAll = () => {
+    onFilesChange([]);
     setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -91,28 +103,8 @@ export function EvidenceSection({
         <div className="space-y-2">
           <Label className="text-sm font-medium">Attachments / Evidence</Label>
 
-          {selectedFile ? (
-            /* --- Uploaded file state --- */
-            <div className="border border-border rounded-lg p-4 flex items-center gap-3 bg-secondary">
-              <FileTypeIcon type={selectedFile.type} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground truncate">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {getFileExtension(selectedFile.name)} &middot; {formatFileSize(selectedFile.size)}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={handleRemove}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : isMobile ? (
-            /* --- Mobile empty state --- */
+          {/* Drop zone / add button — always shown when no files or to add more */}
+          {isMobile ? (
             <div>
               <Button
                 type="button"
@@ -121,11 +113,10 @@ export function EvidenceSection({
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
-                Upload Evidence
+                {selectedFiles.length > 0 ? "Add More Files" : "Upload Evidence"}
               </Button>
             </div>
           ) : (
-            /* --- Desktop empty state --- */
             <div
               className={`border-2 border-dashed rounded-lg p-6 flex items-center gap-4 transition-colors ${
                 dragOver ? "border-primary bg-primary/5" : "border-border"
@@ -137,7 +128,9 @@ export function EvidenceSection({
               <Upload className="h-8 w-8 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-muted-foreground">
-                  Select a file or drag and drop here
+                  {selectedFiles.length > 0
+                    ? "Drop more files here or select"
+                    : "Select a file or drag and drop here"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   JPG, PNG or PDF, file size no more than 10MB
@@ -159,10 +152,49 @@ export function EvidenceSection({
             <p className="text-sm text-destructive">{fileError}</p>
           )}
 
+          {/* Selected files list */}
+          {selectedFiles.length > 0 && (
+            <div className="space-y-2">
+              {selectedFiles.map((file, idx) => (
+                <div key={`${file.name}-${idx}`} className="border border-border rounded-lg p-3 flex items-center gap-3 bg-secondary">
+                  <FileTypeIcon type={file.type} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {getFileExtension(file.name)} &middot; {formatFileSize(file.size)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleRemoveFile(idx)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              {selectedFiles.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={handleRemoveAll}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Remove all
+                </Button>
+              )}
+            </div>
+          )}
+
           <input
             ref={fileInputRef}
             type="file"
             accept=".jpg,.jpeg,.png,.pdf"
+            multiple
             className="hidden"
             onChange={handleFileSelect}
           />

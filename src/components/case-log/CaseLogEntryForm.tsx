@@ -80,7 +80,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
 
   // Evidence
   const [evidenceNote, setEvidenceNote] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
@@ -121,14 +121,14 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       expenseAmount ||
       expenseCategory ||
       evidenceNote.trim() ||
-      selectedFile
+      selectedFiles.length > 0
     );
   }, [
     entryType, eventDate, eventTime, context, summary, childImpact,
     communicationMethod, communicationParty, communicationSummary,
     scheduledExchangeTime, actualExchangeTime, exchangeOutcome,
     providerLocation, issueSymptoms, schoolDaycareName, schoolIssueType,
-    expenseAmount, expenseCategory, evidenceNote, selectedFile,
+    expenseAmount, expenseCategory, evidenceNote, selectedFiles,
   ]);
 
   const resetForm = () => {
@@ -153,7 +153,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setExpenseAmount("");
     setExpenseCategory("");
     setEvidenceNote("");
-    setSelectedFile(null);
+    setSelectedFiles([]);
   };
 
   const handleClearForm = () => {
@@ -236,7 +236,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
           communication_involved: communicationInvolved,
           metadata: metadata as any,
         },
-        file: selectedFile,
+        files: selectedFiles,
         evidenceNote: evidenceNote,
       });
 
@@ -555,8 +555,8 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
         <EvidenceSection
           evidenceNote={evidenceNote}
           onEvidenceNoteChange={setEvidenceNote}
-          selectedFile={selectedFile}
-          onFileChange={setSelectedFile}
+          selectedFiles={selectedFiles}
+          onFilesChange={setSelectedFiles}
         />
       </div>
 
