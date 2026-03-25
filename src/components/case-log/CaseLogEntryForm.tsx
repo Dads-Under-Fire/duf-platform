@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Clock, Save } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ interface CaseLogEntryFormProps {
 
 export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
 
   // Event details
@@ -80,15 +82,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const [evidenceNote, setEvidenceNote] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // When entry type changes to communication, force communication on
-  // When switching away from communication, reset communication_involved
+  // Saving state
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     if (entryType === "communication") {
       setCommunicationInvolved(true);
     }
   }, [entryType]);
 
-  // When communication is toggled off (non-communication types), clear comm fields
   const handleCommunicationInvolvedChange = (val: boolean) => {
     setCommunicationInvolved(val);
     if (!val) {
@@ -98,7 +100,38 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     }
   };
 
-  const clearForm = () => {
+  const isFormDirty = useCallback(() => {
+    return !!(
+      entryType ||
+      eventDate ||
+      eventTime ||
+      context.trim() ||
+      summary.trim() ||
+      childImpact.trim() ||
+      communicationMethod ||
+      communicationParty ||
+      communicationSummary.trim() ||
+      scheduledExchangeTime ||
+      actualExchangeTime ||
+      exchangeOutcome ||
+      providerLocation.trim() ||
+      issueSymptoms.trim() ||
+      schoolDaycareName.trim() ||
+      schoolIssueType ||
+      expenseAmount ||
+      expenseCategory ||
+      evidenceNote.trim() ||
+      selectedFile
+    );
+  }, [
+    entryType, eventDate, eventTime, context, summary, childImpact,
+    communicationMethod, communicationParty, communicationSummary,
+    scheduledExchangeTime, actualExchangeTime, exchangeOutcome,
+    providerLocation, issueSymptoms, schoolDaycareName, schoolIssueType,
+    expenseAmount, expenseCategory, evidenceNote, selectedFile,
+  ]);
+
+  const resetForm = () => {
     setEntryType("");
     setEventDate(undefined);
     setEventTime("");
@@ -123,10 +156,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setSelectedFile(null);
   };
 
+  const handleClearForm = () => {
+    if (!isFormDirty()) return;
+    if (!window.confirm("Clear all form fields? Unsaved changes will be lost.")) return;
+    resetForm();
+  };
+
   const buildMetadata = (): EntryMetadata => {
     const meta: EntryMetadata = {};
 
-    // Communication metadata (for all types when communication is involved)
     if (communicationInvolved) {
       meta.communication = {
         method: communicationMethod || undefined,
@@ -135,7 +173,6 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       };
     }
 
-    // Type-specific metadata
     if (entryType === "parenting_time_exchange") {
       meta.parenting_time_exchange = {
         scheduled_exchange_time: scheduledExchangeTime || undefined,
@@ -171,6 +208,8 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   };
 
   const handleSave = async () => {
+    if (isSaving) return; // prevent double-click
+
     if (!entryType || !eventDate || !eventTime || !context.trim() || !summary.trim()) {
       toast({
         title: "Missing required fields",
@@ -180,32 +219,60 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       return;
     }
 
+    setIsSaving(true);
+
     const metadata = buildMetadata();
 
     try {
-      await createEntry.mutateAsync({
-        case_id: caseId,
-        entry_type: entryType as CaseLogEntryType,
-        event_date: format(eventDate, "yyyy-MM-dd"),
-        event_time: eventTime + ":00",
-        context: context.trim(),
-        summary: summary.trim(),
-        child_impact: childImpact.trim() || null,
-        communication_involved: communicationInvolved,
-        metadata: metadata as any,
+      const result = await createEntry.mutateAsync({
+        entry: {
+          case_id: caseId,
+          entry_type: entryType as CaseLogEntryType,
+          event_date: format(eventDate, "yyyy-MM-dd"),
+          event_time: eventTime + ":00",
+          context: context.trim(),
+          summary: summary.trim(),
+          child_impact: childImpact.trim() || null,
+          communication_involved: communicationInvolved,
+          metadata: metadata as any,
+        },
+        file: selectedFile,
+        evidenceNote: evidenceNote,
       });
 
-      toast({
-        title: "Entry saved",
-        description: "Your case log entry has been saved.",
-      });
-      clearForm();
+      if (result.attachmentError) {
+        toast({
+          title: "Entry saved, but attachment failed",
+          description: `Your entry was saved. File upload error: ${result.attachmentError}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Entry saved",
+          description: "Entry saved and added to Case Intelligence.",
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+              onClick={() => navigate("/evidence")}
+            >
+              View Case Intelligence
+            </Button>
+          ),
+        });
+      }
+
+      resetForm();
     } catch (err: any) {
       toast({
         title: "Error saving entry",
-        description: err.message || "Something went wrong.",
+        description: err.message || "Something went wrong. Your form data has been preserved.",
         variant: "destructive",
       });
+      // Do NOT reset form on error
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -498,18 +565,19 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
         <Button
           type="button"
           variant="ghost"
-          onClick={clearForm}
+          onClick={handleClearForm}
+          disabled={isSaving}
           className="text-primary hover:text-primary"
         >
           Clear form
         </Button>
         <Button
           onClick={handleSave}
-          disabled={createEntry.isPending}
+          disabled={isSaving}
           className="gap-2"
         >
           <Save className="h-4 w-4" />
-          {createEntry.isPending ? "Saving..." : "Save Entry"}
+          {isSaving ? "Saving..." : "Save Entry"}
         </Button>
       </div>
     </div>
