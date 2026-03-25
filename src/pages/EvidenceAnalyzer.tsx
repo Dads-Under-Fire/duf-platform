@@ -94,7 +94,7 @@ export default function EvidenceAnalyzer() {
       <div className="border-b border-border px-6 py-3">
         <div className="flex items-center gap-2">
           <FileSearch className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground">Evidence Analyzer</h1>
+          <h1 className="text-lg font-semibold text-foreground">Case Intelligence</h1>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
           Paste text evidence for AI-powered analysis — tone, contradictions, legal relevance, and more.
@@ -240,7 +240,7 @@ export default function EvidenceAnalyzer() {
       <UpgradeModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
-        lockedFeature="Evidence Analyzer"
+        lockedFeature="Case Intelligence"
       />
     </div>
   );
