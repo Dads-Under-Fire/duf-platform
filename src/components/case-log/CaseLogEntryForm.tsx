@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Clock, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,14 @@ import { EvidenceSection } from "./EvidenceSection";
 import { useCreateCaseLogEntry } from "@/hooks/useCaseLogEntries";
 import {
   ENTRY_TYPE_LABELS,
+  EXCHANGE_OUTCOMES,
+  EXCHANGE_OUTCOME_LABELS,
+  SCHOOL_ISSUE_TYPES,
+  SCHOOL_ISSUE_TYPE_LABELS,
+  EXPENSE_CATEGORIES,
+  EXPENSE_CATEGORY_LABELS,
   type CaseLogEntryType,
-  type CommunicationMetadata,
+  type EntryMetadata,
 } from "@/types/caseLog";
 import { Constants } from "@/integrations/supabase/types";
 
@@ -52,9 +58,45 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const [communicationParty, setCommunicationParty] = useState("");
   const [communicationSummary, setCommunicationSummary] = useState("");
 
+  // Parenting time exchange
+  const [scheduledExchangeTime, setScheduledExchangeTime] = useState("");
+  const [actualExchangeTime, setActualExchangeTime] = useState("");
+  const [exchangeOutcome, setExchangeOutcome] = useState("");
+
+  // Medical
+  const [providerLocation, setProviderLocation] = useState("");
+  const [issueSymptoms, setIssueSymptoms] = useState("");
+  const [otherParentInformed, setOtherParentInformed] = useState(false);
+
+  // School / daycare
+  const [schoolDaycareName, setSchoolDaycareName] = useState("");
+  const [schoolIssueType, setSchoolIssueType] = useState("");
+
+  // Expense
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("");
+
   // Evidence
   const [evidenceNote, setEvidenceNote] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // When entry type changes to communication, force communication on
+  // When switching away from communication, reset communication_involved
+  useEffect(() => {
+    if (entryType === "communication") {
+      setCommunicationInvolved(true);
+    }
+  }, [entryType]);
+
+  // When communication is toggled off (non-communication types), clear comm fields
+  const handleCommunicationInvolvedChange = (val: boolean) => {
+    setCommunicationInvolved(val);
+    if (!val) {
+      setCommunicationMethod("");
+      setCommunicationParty("");
+      setCommunicationSummary("");
+    }
+  };
 
   const clearForm = () => {
     setEntryType("");
@@ -67,8 +109,65 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setCommunicationMethod("");
     setCommunicationParty("");
     setCommunicationSummary("");
+    setScheduledExchangeTime("");
+    setActualExchangeTime("");
+    setExchangeOutcome("");
+    setProviderLocation("");
+    setIssueSymptoms("");
+    setOtherParentInformed(false);
+    setSchoolDaycareName("");
+    setSchoolIssueType("");
+    setExpenseAmount("");
+    setExpenseCategory("");
     setEvidenceNote("");
     setSelectedFile(null);
+  };
+
+  const buildMetadata = (): EntryMetadata => {
+    const meta: EntryMetadata = {};
+
+    // Communication metadata (for all types when communication is involved)
+    if (communicationInvolved) {
+      meta.communication = {
+        method: communicationMethod || undefined,
+        contact: communicationParty || undefined,
+        summary: communicationSummary || undefined,
+      };
+    }
+
+    // Type-specific metadata
+    if (entryType === "parenting_time_exchange") {
+      meta.parenting_time_exchange = {
+        scheduled_exchange_time: scheduledExchangeTime || undefined,
+        actual_exchange_time: actualExchangeTime || undefined,
+        outcome: exchangeOutcome || undefined,
+      };
+    }
+
+    if (entryType === "medical") {
+      meta.medical = {
+        provider_location: providerLocation || undefined,
+        issue_symptoms: issueSymptoms || undefined,
+        other_parent_informed: otherParentInformed,
+      };
+    }
+
+    if (entryType === "school_daycare") {
+      meta.school_daycare = {
+        school_daycare_name: schoolDaycareName || undefined,
+        issue_type: schoolIssueType || undefined,
+      };
+    }
+
+    if (entryType === "expense") {
+      const parsed = parseFloat(expenseAmount);
+      meta.expense = {
+        amount: isNaN(parsed) ? undefined : Math.round(parsed * 100) / 100,
+        expense_category: expenseCategory || undefined,
+      };
+    }
+
+    return meta;
   };
 
   const handleSave = async () => {
@@ -81,13 +180,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       return;
     }
 
-    const metadata: CommunicationMetadata | null = communicationInvolved
-      ? {
-          communication_method: communicationMethod || undefined,
-          communication_party: communicationParty || undefined,
-          communication_summary: communicationSummary || undefined,
-        }
-      : null;
+    const metadata = buildMetadata();
 
     try {
       await createEntry.mutateAsync({
@@ -115,6 +208,8 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       });
     }
   };
+
+  const isCommunicationType = entryType === "communication";
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -187,6 +282,158 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
             </div>
           </div>
 
+          {/* --- Parenting Time Exchange fields --- */}
+          {entryType === "parenting_time_exchange" && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Scheduled exchange time</Label>
+                <div className="relative">
+                  <Input
+                    type="time"
+                    value={scheduledExchangeTime}
+                    onChange={(e) => setScheduledExchangeTime(e.target.value)}
+                    className="bg-secondary border-border pr-10"
+                  />
+                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Actual exchange time</Label>
+                <div className="relative">
+                  <Input
+                    type="time"
+                    value={actualExchangeTime}
+                    onChange={(e) => setActualExchangeTime(e.target.value)}
+                    className="bg-secondary border-border pr-10"
+                  />
+                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Outcome</Label>
+                <Select value={exchangeOutcome} onValueChange={setExchangeOutcome}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select an option..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXCHANGE_OUTCOMES.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {EXCHANGE_OUTCOME_LABELS[o]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* --- Medical fields --- */}
+          {entryType === "medical" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Provider / location</Label>
+                <Input
+                  value={providerLocation}
+                  onChange={(e) => setProviderLocation(e.target.value)}
+                  placeholder="Enter the provider, clinic, hospital, or location."
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Issue / symptoms</Label>
+                <Textarea
+                  value={issueSymptoms}
+                  onChange={(e) => setIssueSymptoms(e.target.value)}
+                  placeholder="Describe the medical issue, symptoms, or reason for care."
+                  className="min-h-[80px] bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Was the other parent informed?</Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${otherParentInformed ? "border-primary" : "border-muted-foreground"}`}>
+                      {otherParentInformed && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                    </span>
+                    <input type="radio" className="sr-only" checked={otherParentInformed} onChange={() => setOtherParentInformed(true)} />
+                    <span className="text-sm text-foreground">Yes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${!otherParentInformed ? "border-muted-foreground" : "border-muted-foreground"}`}>
+                      {!otherParentInformed && <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground" />}
+                    </span>
+                    <input type="radio" className="sr-only" checked={!otherParentInformed} onChange={() => setOtherParentInformed(false)} />
+                    <span className="text-sm text-foreground">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --- School / Daycare fields --- */}
+          {entryType === "school_daycare" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">School / daycare name</Label>
+                <Input
+                  value={schoolDaycareName}
+                  onChange={(e) => setSchoolDaycareName(e.target.value)}
+                  placeholder="Enter the school or daycare name."
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Issue type</Label>
+                <Select value={schoolIssueType} onValueChange={setSchoolIssueType}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select an option..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHOOL_ISSUE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {SCHOOL_ISSUE_TYPE_LABELS[t]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* --- Expense fields --- */}
+          {entryType === "expense" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Amount ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={expenseAmount}
+                  onChange={(e) => setExpenseAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Expense category</Label>
+                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select an option..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {EXPENSE_CATEGORY_LABELS[c]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* --- Base fields (always shown) --- */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">
               Context<span className="text-primary">*</span>
@@ -227,13 +474,14 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
         {/* Communication Details */}
         <CommunicationSection
           communicationInvolved={communicationInvolved}
-          onCommunicationInvolvedChange={setCommunicationInvolved}
+          onCommunicationInvolvedChange={handleCommunicationInvolvedChange}
           communicationMethod={communicationMethod}
           onCommunicationMethodChange={setCommunicationMethod}
           communicationParty={communicationParty}
           onCommunicationPartyChange={setCommunicationParty}
           communicationSummary={communicationSummary}
           onCommunicationSummaryChange={setCommunicationSummary}
+          forcedOpen={isCommunicationType}
         />
 
         {/* Evidence */}

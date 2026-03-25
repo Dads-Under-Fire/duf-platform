@@ -23,6 +23,8 @@ interface CommunicationSectionProps {
   onCommunicationPartyChange: (val: string) => void;
   communicationSummary: string;
   onCommunicationSummaryChange: (val: string) => void;
+  /** When true, the toggle is hidden and fields are always shown (for communication entry type) */
+  forcedOpen?: boolean;
 }
 
 export function CommunicationSection({
@@ -34,54 +36,60 @@ export function CommunicationSection({
   onCommunicationPartyChange,
   communicationSummary,
   onCommunicationSummaryChange,
+  forcedOpen = false,
 }: CommunicationSectionProps) {
+  const showFields = forcedOpen || communicationInvolved;
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">Communication Details</h2>
 
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Was communication involved?</Label>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span
-              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                communicationInvolved ? "border-primary" : "border-muted-foreground"
-              }`}
-            >
-              {communicationInvolved && (
-                <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-              )}
-            </span>
-            <input
-              type="radio"
-              className="sr-only"
-              checked={communicationInvolved}
-              onChange={() => onCommunicationInvolvedChange(true)}
-            />
-            <span className="text-sm text-foreground">Yes</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span
-              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                !communicationInvolved ? "border-muted-foreground" : "border-muted-foreground"
-              }`}
-            >
-              {!communicationInvolved && (
-                <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground" />
-              )}
-            </span>
-            <input
-              type="radio"
-              className="sr-only"
-              checked={!communicationInvolved}
-              onChange={() => onCommunicationInvolvedChange(false)}
-            />
-            <span className="text-sm text-foreground">No</span>
-          </label>
+      {/* Show toggle only when not forced open */}
+      {!forcedOpen && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Was communication involved?</Label>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  communicationInvolved ? "border-primary" : "border-muted-foreground"
+                }`}
+              >
+                {communicationInvolved && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                )}
+              </span>
+              <input
+                type="radio"
+                className="sr-only"
+                checked={communicationInvolved}
+                onChange={() => onCommunicationInvolvedChange(true)}
+              />
+              <span className="text-sm text-foreground">Yes</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  !communicationInvolved ? "border-muted-foreground" : "border-muted-foreground"
+                }`}
+              >
+                {!communicationInvolved && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground" />
+                )}
+              </span>
+              <input
+                type="radio"
+                className="sr-only"
+                checked={!communicationInvolved}
+                onChange={() => onCommunicationInvolvedChange(false)}
+              />
+              <span className="text-sm text-foreground">No</span>
+            </label>
+          </div>
         </div>
-      </div>
+      )}
 
-      {communicationInvolved && (
+      {showFields && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
