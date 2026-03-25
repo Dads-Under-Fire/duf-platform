@@ -265,6 +265,143 @@ export type Database = {
         }
         Relationships: []
       }
+      case_log_attachments: {
+        Row: {
+          case_id: string
+          case_log_entry_id: string
+          created_at: string
+          evidence_note: string | null
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          file_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          case_log_entry_id: string
+          created_at?: string
+          evidence_note?: string | null
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          file_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          case_log_entry_id?: string
+          created_at?: string
+          evidence_note?: string | null
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number
+          file_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_log_attachments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_log_attachments_case_log_entry_id_fkey"
+            columns: ["case_log_entry_id"]
+            isOneToOne: false
+            referencedRelation: "case_log_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_log_entries: {
+        Row: {
+          case_id: string
+          child_impact: string | null
+          communication_involved: boolean
+          context: string
+          created_at: string
+          entry_type: Database["public"]["Enums"]["case_log_entry_type"]
+          event_date: string
+          event_time: string
+          id: string
+          metadata: Json | null
+          summary: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          child_impact?: string | null
+          communication_involved?: boolean
+          context: string
+          created_at?: string
+          entry_type: Database["public"]["Enums"]["case_log_entry_type"]
+          event_date: string
+          event_time: string
+          id?: string
+          metadata?: Json | null
+          summary: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          child_impact?: string | null
+          communication_involved?: boolean
+          context?: string
+          created_at?: string
+          entry_type?: Database["public"]["Enums"]["case_log_entry_type"]
+          event_date?: string
+          event_time?: string
+          id?: string
+          metadata?: Json | null
+          summary?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_log_entries_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cases: {
+        Row: {
+          case_name: string
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_name: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_name?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       communication_shield_history_legacy: {
         Row: {
           actionability_score: number | null
@@ -641,6 +778,13 @@ export type Database = {
       is_admin: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
+      case_log_entry_type:
+        | "general_incident"
+        | "parenting_time_exchange"
+        | "communication"
+        | "medical"
+        | "school_daycare"
+        | "expense"
       plan_type: "free" | "core" | "pro" | "case_builder"
       subscription_status:
         | "active"
@@ -775,6 +919,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      case_log_entry_type: [
+        "general_incident",
+        "parenting_time_exchange",
+        "communication",
+        "medical",
+        "school_daycare",
+        "expense",
+      ],
       plan_type: ["free", "core", "pro", "case_builder"],
       subscription_status: [
         "active",

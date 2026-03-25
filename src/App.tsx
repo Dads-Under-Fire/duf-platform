@@ -22,9 +22,9 @@ const App = () => (
         <Toaster />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<CaseLog />} />
+            <Route path="/communication-shield" element={<Index />} />
             <Route path="/evidence" element={<Evidence />} />
-            <Route path="/case-log" element={<CaseLog />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/account" element={<Account />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
