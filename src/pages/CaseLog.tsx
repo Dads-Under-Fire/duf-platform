@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccountBootstrap } from "@/hooks/useAccountBootstrap";
 import { AppLayout } from "@/components/AppLayout";
-import { useCases, useCreateCase } from "@/hooks/useCases";
+import { useCases, useCreateCase, useDeleteCase } from "@/hooks/useCases";
 import { CreateCasePrompt } from "@/components/case-log/CreateCasePrompt";
 import { CaseSelector } from "@/components/case-log/CaseSelector";
 import { CaseLogEntryForm } from "@/components/case-log/CaseLogEntryForm";
@@ -13,6 +13,7 @@ export default function CaseLog() {
   const { bootstrapped } = useAccountBootstrap();
   const { data: cases, isLoading: casesLoading } = useCases();
   const createCase = useCreateCase();
+  const deleteCase = useDeleteCase();
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
 
   // Auto-select case when cases load
@@ -21,9 +22,7 @@ export default function CaseLog() {
       setActiveCaseId(null);
       return;
     }
-    // If current selection is still valid, keep it
     if (activeCaseId && cases.some((c) => c.id === activeCaseId)) return;
-    // Auto-select the first (or only) case
     setActiveCaseId(cases[0].id);
   }, [cases]);
 
@@ -50,6 +49,10 @@ export default function CaseLog() {
     setActiveCaseId(newCase.id);
   };
 
+  const handleDeleteCase = async (caseId: string) => {
+    await deleteCase.mutateAsync(caseId);
+  };
+
   const showCreatePrompt = !casesLoading && (!cases || cases.length === 0);
 
   return (
@@ -70,6 +73,10 @@ export default function CaseLog() {
               cases={cases ?? []}
               activeCaseId={activeCaseId}
               onSelectCase={setActiveCaseId}
+              onCreateCase={handleCreateCase}
+              onDeleteCase={handleDeleteCase}
+              isCreating={createCase.isPending}
+              isDeleting={deleteCase.isPending}
             />
             {activeCaseId && <CaseLogEntryForm caseId={activeCaseId} />}
           </>
