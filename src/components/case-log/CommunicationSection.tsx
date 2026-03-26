@@ -1,12 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ClearableSelect } from "@/components/ui/clearable-select";
 import {
   COMMUNICATION_METHODS,
   COMMUNICATION_METHOD_LABELS,
@@ -94,34 +88,28 @@ export function CommunicationSection({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Communication method</Label>
-              <Select value={communicationMethod} onValueChange={onCommunicationMethodChange}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="Select an option..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {COMMUNICATION_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {COMMUNICATION_METHOD_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClearableSelect
+                value={communicationMethod}
+                onValueChange={onCommunicationMethodChange}
+                placeholder="Select an option..."
+                options={COMMUNICATION_METHODS.map((m) => ({
+                  value: m,
+                  label: COMMUNICATION_METHOD_LABELS[m],
+                }))}
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm font-medium">Who communicated with you?</Label>
-              <Select value={communicationParty} onValueChange={onCommunicationPartyChange}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="Select an option..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {COMMUNICATION_PARTIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {COMMUNICATION_PARTY_LABELS[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClearableSelect
+                value={communicationParty}
+                onValueChange={onCommunicationPartyChange}
+                placeholder="Select an option..."
+                options={COMMUNICATION_PARTIES.map((p) => ({
+                  value: p,
+                  label: COMMUNICATION_PARTY_LABELS[p],
+                }))}
+              />
             </div>
           </div>
 

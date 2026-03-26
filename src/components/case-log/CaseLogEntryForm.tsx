@@ -8,17 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ClearableSelect } from "@/components/ui/clearable-select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
@@ -285,23 +279,20 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Event Details</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">
                 Entry Type<span className="text-primary">*</span>
               </Label>
-              <Select value={entryType} onValueChange={(v) => setEntryType(v as CaseLogEntryType)}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="Select an option..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Constants.public.Enums.case_log_entry_type.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {ENTRY_TYPE_LABELS[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClearableSelect
+                value={entryType}
+                onValueChange={(v) => setEntryType(v as CaseLogEntryType | "")}
+                placeholder="Select an option..."
+                options={Constants.public.Enums.case_log_entry_type.map((t) => ({
+                  value: t,
+                  label: ENTRY_TYPE_LABELS[t],
+                }))}
+              />
             </div>
 
             <div className="space-y-2">
@@ -313,7 +304,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full md:w-[160px] justify-start text-left font-normal bg-secondary border-border",
+                      "w-full justify-start text-left font-normal bg-secondary border-border",
                       !eventDate && "text-muted-foreground"
                     )}
                   >
@@ -342,7 +333,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
                   type="time"
                   value={eventTime}
                   onChange={(e) => setEventTime(e.target.value)}
-                  className="w-full md:w-[160px] bg-secondary border-border pr-10"
+                  className="w-full bg-secondary border-border pr-10"
                 />
                 <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               </div>
@@ -378,18 +369,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Outcome</Label>
-                <Select value={exchangeOutcome} onValueChange={setExchangeOutcome}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Select an option..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXCHANGE_OUTCOMES.map((o) => (
-                      <SelectItem key={o} value={o}>
-                        {EXCHANGE_OUTCOME_LABELS[o]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ClearableSelect
+                  value={exchangeOutcome}
+                  onValueChange={setExchangeOutcome}
+                  placeholder="Select an option..."
+                  options={EXCHANGE_OUTCOMES.map((o) => ({
+                    value: o,
+                    label: EXCHANGE_OUTCOME_LABELS[o],
+                  }))}
+                />
               </div>
             </div>
           )}
@@ -451,18 +439,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Issue type</Label>
-                <Select value={schoolIssueType} onValueChange={setSchoolIssueType}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Select an option..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCHOOL_ISSUE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {SCHOOL_ISSUE_TYPE_LABELS[t]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ClearableSelect
+                  value={schoolIssueType}
+                  onValueChange={setSchoolIssueType}
+                  placeholder="Select an option..."
+                  options={SCHOOL_ISSUE_TYPES.map((t) => ({
+                    value: t,
+                    label: SCHOOL_ISSUE_TYPE_LABELS[t],
+                  }))}
+                />
               </div>
             </div>
           )}
@@ -484,18 +469,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Expense category</Label>
-                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Select an option..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {EXPENSE_CATEGORY_LABELS[c]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ClearableSelect
+                  value={expenseCategory}
+                  onValueChange={setExpenseCategory}
+                  placeholder="Select an option..."
+                  options={EXPENSE_CATEGORIES.map((c) => ({
+                    value: c,
+                    label: EXPENSE_CATEGORY_LABELS[c],
+                  }))}
+                />
               </div>
             </div>
           )}
