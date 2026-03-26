@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Clock, Save } from "lucide-react";
+import { CalendarIcon, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -335,15 +336,10 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               <Label className="text-sm font-medium">
                 Time<span className="text-primary">*</span>
               </Label>
-              <div className="relative">
-                <Input
-                  type="time"
-                  value={eventTime}
-                  onChange={(e) => setEventTime(e.target.value)}
-                  className="w-full bg-secondary border-border pr-10"
-                />
-                <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              </div>
+              <TimeInput
+                value={eventTime}
+                onChange={setEventTime}
+              />
             </div>
           </div>
 
@@ -352,27 +348,19 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Scheduled exchange time</Label>
-                <div className="relative">
-                  <Input
-                    type="time"
-                    value={scheduledExchangeTime}
-                    onChange={(e) => setScheduledExchangeTime(e.target.value)}
-                    className="bg-secondary border-border pr-10"
-                  />
-                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <TimeInput
+                  value={scheduledExchangeTime}
+                  onChange={setScheduledExchangeTime}
+                  placeholder="Select time"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Actual exchange time</Label>
-                <div className="relative">
-                  <Input
-                    type="time"
-                    value={actualExchangeTime}
-                    onChange={(e) => setActualExchangeTime(e.target.value)}
-                    className="bg-secondary border-border pr-10"
-                  />
-                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <TimeInput
+                  value={actualExchangeTime}
+                  onChange={setActualExchangeTime}
+                  placeholder="Select time"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Outcome</Label>
