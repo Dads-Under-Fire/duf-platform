@@ -204,10 +204,17 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const handleSave = async () => {
     if (isSaving) return; // prevent double-click
 
-    if (!entryType || !eventDate || !eventTime || !context.trim() || !summary.trim()) {
+    const missingFields: string[] = [];
+    if (!entryType) missingFields.push("Entry Type");
+    if (!eventDate) missingFields.push("Date");
+    if (!eventTime) missingFields.push("Time");
+    if (!context.trim()) missingFields.push("Context");
+    if (!summary.trim()) missingFields.push("Summary");
+
+    if (missingFields.length > 0) {
       toast({
         title: "Missing required fields",
-        description: "Please fill in Entry Type, Date, Time, Context, and Summary.",
+        description: `Please fill in: ${missingFields.join(", ")}`,
         variant: "destructive",
       });
       return;
