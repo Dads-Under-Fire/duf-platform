@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-import { format } from "date-fns";
-import { CalendarIcon, Save, X } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { format, parseISO } from "date-fns";
+import { CalendarIcon, Save, X, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
 import { EvidenceSection } from "./EvidenceSection";
-import { useCreateCaseLogEntry } from "@/hooks/useCaseLogEntries";
+import { RecentEntries } from "./RecentEntries";
+import { useCreateCaseLogEntry, useUpdateCaseLogEntry, useRecentCaseLogEntries } from "@/hooks/useCaseLogEntries";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ENTRY_TYPE_LABELS,
   EXCHANGE_OUTCOMES,
@@ -40,6 +42,11 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
+  const updateEntry = useUpdateCaseLogEntry();
+  const formTopRef = useRef<HTMLDivElement>(null);
+
+  // Edit mode
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   // Event details
   const [entryType, setEntryType] = useState<CaseLogEntryType | "">("");
@@ -85,6 +92,12 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
       setCommunicationInvolved(true);
     }
   }, [entryType]);
+
+  // Reset edit mode when case changes
+  useEffect(() => {
+    setEditingEntryId(null);
+    resetForm();
+  }, [caseId]);
 
   const handleCommunicationInvolvedChange = (val: boolean) => {
     setCommunicationInvolved(val);
@@ -149,12 +162,80 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setExpenseCategory("");
     setEvidenceNote("");
     setSelectedFiles([]);
+    setEditingEntryId(null);
   };
 
   const handleClearForm = () => {
-    if (!isFormDirty()) return;
+    if (!isFormDirty() && !editingEntryId) return;
     if (!window.confirm("Clear all form fields? Unsaved changes will be lost.")) return;
     resetForm();
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
+  };
+
+  const loadEntryForEdit = async (entryId: string) => {
+    try {
+      const { data: entry, error } = await supabase
+        .from("case_log_entries")
+        .select("*")
+        .eq("id", entryId)
+        .single();
+      if (error || !entry) {
+        toast({ title: "Could not load entry", variant: "destructive" });
+        return;
+      }
+
+      // Reset first to clear stale metadata
+      resetForm();
+
+      setEditingEntryId(entry.id);
+      setEntryType(entry.entry_type as CaseLogEntryType);
+      setEventDate(entry.event_date ? parseISO(entry.event_date) : undefined);
+      setEventTime(entry.event_time ? entry.event_time.slice(0, 5) : "");
+      setContext(entry.context || "");
+      setSummary(entry.summary || "");
+      setChildImpact(entry.child_impact || "");
+      setCommunicationInvolved(entry.communication_involved || false);
+
+      const meta = (entry.metadata || {}) as EntryMetadata;
+
+      if (meta.communication) {
+        setCommunicationMethod(meta.communication.method || "");
+        setCommunicationParty(meta.communication.contact || "");
+        setCommunicationSummary(meta.communication.summary || "");
+      }
+
+      if (meta.parenting_time_exchange) {
+        setScheduledExchangeTime(meta.parenting_time_exchange.scheduled_exchange_time || "");
+        setActualExchangeTime(meta.parenting_time_exchange.actual_exchange_time || "");
+        setExchangeOutcome(meta.parenting_time_exchange.outcome || "");
+      }
+
+      if (meta.medical) {
+        setProviderLocation(meta.medical.provider_location || "");
+        setIssueSymptoms(meta.medical.issue_symptoms || "");
+        setOtherParentInformed(meta.medical.other_parent_informed || false);
+      }
+
+      if (meta.school_daycare) {
+        setSchoolDaycareName(meta.school_daycare.school_daycare_name || "");
+        setSchoolIssueType(meta.school_daycare.issue_type || "");
+      }
+
+      if (meta.expense) {
+        setExpenseAmount(meta.expense.amount != null ? String(meta.expense.amount) : "");
+        setExpenseCategory(meta.expense.expense_category || "");
+      }
+
+      // Scroll to top of form
+      setTimeout(() => {
+        formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    } catch {
+      toast({ title: "Could not load entry", variant: "destructive" });
+    }
   };
 
   const buildMetadata = (): EntryMetadata => {
@@ -203,7 +284,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   };
 
   const handleSave = async () => {
-    if (isSaving) return; // prevent double-click
+    if (isSaving) return;
 
     const missingFields: string[] = [];
     if (!entryType) missingFields.push("Entry Type");
@@ -222,57 +303,85 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     }
 
     setIsSaving(true);
-
     const metadata = buildMetadata();
 
     try {
-      const result = await createEntry.mutateAsync({
-        entry: {
-          case_id: caseId,
-          entry_type: entryType as CaseLogEntryType,
-          event_date: format(eventDate, "yyyy-MM-dd"),
-          event_time: eventTime + ":00",
-          context: context.trim(),
-          summary: summary.trim(),
-          child_impact: childImpact.trim() || null,
-          communication_involved: communicationInvolved,
-          metadata: metadata as any,
-        },
-        files: selectedFiles,
-        evidenceNote: evidenceNote,
-      });
+      if (editingEntryId) {
+        // UPDATE existing entry
+        const result = await updateEntry.mutateAsync({
+          entryId: editingEntryId,
+          entry: {
+            entry_type: entryType as CaseLogEntryType,
+            event_date: format(eventDate!, "yyyy-MM-dd"),
+            event_time: eventTime + ":00",
+            context: context.trim(),
+            summary: summary.trim(),
+            child_impact: childImpact.trim() || null,
+            communication_involved: communicationInvolved,
+            metadata: metadata as any,
+          },
+          files: selectedFiles.length > 0 ? selectedFiles : undefined,
+          evidenceNote: evidenceNote,
+        });
 
-      if (result.attachmentError) {
-        toast({
-          title: "Entry saved, but attachment failed",
-          description: `Your entry was saved. File upload error: ${result.attachmentError}`,
-          variant: "destructive",
-        });
+        if (result.attachmentError) {
+          toast({
+            title: "Entry updated, but new attachment failed",
+            description: result.attachmentError,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Entry updated", description: "Your case log entry has been updated." });
+        }
       } else {
-        toast({
-          title: "Entry saved",
-          description: "Entry saved and added to Case Intelligence.",
-          action: (
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-              onClick={() => navigate("/case-intelligence")}
-            >
-              View Case Intelligence
-            </Button>
-          ),
+        // CREATE new entry
+        const result = await createEntry.mutateAsync({
+          entry: {
+            case_id: caseId,
+            entry_type: entryType as CaseLogEntryType,
+            event_date: format(eventDate!, "yyyy-MM-dd"),
+            event_time: eventTime + ":00",
+            context: context.trim(),
+            summary: summary.trim(),
+            child_impact: childImpact.trim() || null,
+            communication_involved: communicationInvolved,
+            metadata: metadata as any,
+          },
+          files: selectedFiles,
+          evidenceNote: evidenceNote,
         });
+
+        if (result.attachmentError) {
+          toast({
+            title: "Entry saved, but attachment failed",
+            description: result.attachmentError,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Entry saved",
+            description: "Entry saved and added to Case Intelligence.",
+            action: (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={() => navigate("/case-intelligence")}
+              >
+                View Case Intelligence
+              </Button>
+            ),
+          });
+        }
       }
 
       resetForm();
     } catch (err: any) {
       toast({
-        title: "Error saving entry",
+        title: editingEntryId ? "Error updating entry" : "Error saving entry",
         description: err.message || "Something went wrong. Your form data has been preserved.",
         variant: "destructive",
       });
-      // Do NOT reset form on error
     } finally {
       setIsSaving(false);
     }
@@ -282,7 +391,23 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-8 pb-24">
+      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-8 pb-8">
+        {/* Edit mode indicator */}
+        <div ref={formTopRef}>
+          {editingEntryId && (
+            <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 rounded-lg px-3 py-2 mb-2">
+              <Pencil className="h-4 w-4" />
+              <span className="font-medium">Editing existing entry</span>
+              <button
+                onClick={handleCancelEdit}
+                className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Event Details */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Event Details</h2>
@@ -548,27 +673,46 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
           selectedFiles={selectedFiles}
           onFilesChange={setSelectedFiles}
         />
-      </div>
 
-      {/* Sticky footer */}
-      <div className="fixed bottom-0 right-0 left-0 md:left-auto bg-background/95 backdrop-blur border-t border-border px-4 md:px-8 py-3 flex items-center justify-end gap-4 z-10">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleClearForm}
-          disabled={isSaving}
-          className="text-primary hover:text-primary"
-        >
-          Clear form
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="gap-2"
-        >
-          <Save className="h-4 w-4" />
-          {isSaving ? "Saving..." : "Save Entry"}
-        </Button>
+        {/* Form Actions — inline, not fixed */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          {editingEntryId && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClearForm}
+            disabled={isSaving}
+            className="text-primary hover:text-primary"
+          >
+            Clear form
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving
+              ? (editingEntryId ? "Updating..." : "Saving...")
+              : (editingEntryId ? "Update Entry" : "Save Entry")}
+          </Button>
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border" />
+
+        {/* Recent Entries */}
+        <RecentEntries caseId={caseId} onEditEntry={loadEntryForEdit} />
       </div>
     </div>
   );
