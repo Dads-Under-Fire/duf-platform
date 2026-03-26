@@ -42,3 +42,38 @@ export function useCreateCase() {
     },
   });
 }
+
+export function useDeleteCase() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (caseId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // 1. Delete attachments for this case
+      const { error: attachErr } = await supabase
+        .from("case_log_attachments")
+        .delete()
+        .eq("case_id", caseId);
+      if (attachErr) throw attachErr;
+
+      // 2. Delete entries for this case
+      const { error: entryErr } = await supabase
+        .from("case_log_entries")
+        .delete()
+        .eq("case_id", caseId);
+      if (entryErr) throw entryErr;
+
+      // 3. Delete the case itself
+      const { error: caseErr } = await supabase
+        .from("cases")
+        .delete()
+        .eq("id", caseId);
+      if (caseErr) throw caseErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cases", user?.id] });
+    },
+  });
+}
