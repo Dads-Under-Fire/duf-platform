@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Clock } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -201,19 +201,35 @@ export function TimeInput({
   const isMobile = useIsMobile();
 
   const triggerButton = (
-    <button
-      type="button"
-      className={cn(
-        "flex h-10 w-full items-center rounded-md border border-input bg-secondary px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        !value && "text-muted-foreground",
-        className
+    <div className="relative">
+      <button
+        type="button"
+        className={cn(
+          "flex h-10 w-full items-center rounded-md border border-input bg-secondary px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          !value && "text-muted-foreground",
+          value && "pr-8",
+          className
+        )}
+      >
+        <span className="flex-1 text-left">
+          {value ? formatDisplayTime(value) : placeholder}
+        </span>
+        {!value && <Clock className="h-4 w-4 opacity-50 ml-2" />}
+      </button>
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange("");
+          }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground hover:text-foreground transition-colors z-10"
+          aria-label="Clear time"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       )}
-    >
-      <span className="flex-1 text-left">
-        {value ? formatDisplayTime(value) : placeholder}
-      </span>
-      <Clock className="h-4 w-4 opacity-50 ml-2" />
-    </button>
+    </div>
   );
 
   if (isMobile) {
