@@ -180,3 +180,69 @@ export function useUpdateCaseLogEntry() {
     },
   });
 }
+
+export function useDeleteCaseLogEntry() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ entryId, caseId }: { entryId: string; caseId: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // 1. Get all attachments for this entry
+      const { data: attachments } = await supabase
+        .from("case_log_attachments")
+        .select("id, file_path")
+        .eq("case_log_entry_id", entryId)
+        .eq("user_id", user.id);
+
+      // 2. Delete files from storage
+      if (attachments && attachments.length > 0) {
+        const paths = attachments.map((a) => a.file_path);
+        await supabase.storage.from("case-log-attachments").remove(paths);
+      }
+
+      // 3. Delete attachment records
+      await supabase
+        .from("case_log_attachments")
+        .delete()
+        .eq("case_log_entry_id", entryId)
+        .eq("user_id", user.id);
+
+      // 4. Delete the entry
+      const { error } = await supabase
+        .from("case_log_entries")
+        .delete()
+        .eq("id", entryId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["case_log_entries"] });
+    },
+  });
+}
+
+export function useDeleteAttachment() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ attachmentId, filePath }: { attachmentId: string; filePath: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      await supabase.storage.from("case-log-attachments").remove([filePath]);
+
+      const { error } = await supabase
+        .from("case_log_attachments")
+        .delete()
+        .eq("id", attachmentId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["case_log_entries"] });
+      queryClient.invalidateQueries({ queryKey: ["case_log_attachments"] });
+    },
+  });
+}

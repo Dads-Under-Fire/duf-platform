@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
+import type { CaseLogAttachment } from "@/types/caseLog";
 
 const ACCEPTED_TYPES = [
   "image/jpeg",
@@ -25,8 +26,8 @@ function getFileExtension(name: string): string {
 }
 
 function FileTypeIcon({ type }: { type: string }) {
-  if (type.startsWith("image/")) return <Image className="h-5 w-5 text-primary shrink-0" />;
-  if (type === "application/pdf") return <FileText className="h-5 w-5 text-primary shrink-0" />;
+  if (type.startsWith("image/") || type.startsWith("image")) return <Image className="h-5 w-5 text-primary shrink-0" />;
+  if (type === "application/pdf" || type.toLowerCase().includes("pdf")) return <FileText className="h-5 w-5 text-primary shrink-0" />;
   return <FileIcon className="h-5 w-5 text-primary shrink-0" />;
 }
 
@@ -35,6 +36,9 @@ interface EvidenceSectionProps {
   onEvidenceNoteChange: (note: string) => void;
   selectedFiles: File[];
   onFilesChange: (files: File[]) => void;
+  existingAttachments?: CaseLogAttachment[];
+  onDeleteExistingAttachment?: (attachmentId: string) => void;
+  onDeleteAllExistingAttachments?: () => void;
 }
 
 export function EvidenceSection({
@@ -42,6 +46,9 @@ export function EvidenceSection({
   onEvidenceNoteChange,
   selectedFiles = [],
   onFilesChange,
+  existingAttachments = [],
+  onDeleteExistingAttachment,
+  onDeleteAllExistingAttachments,
 }: EvidenceSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
@@ -89,11 +96,15 @@ export function EvidenceSection({
     onFilesChange(selectedFiles.filter((_, i) => i !== index));
   };
 
-  const handleRemoveAll = () => {
+  const handleRemoveAllNew = () => {
     onFilesChange([]);
     setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const hasExisting = existingAttachments.length > 0;
+  const hasNew = selectedFiles.length > 0;
+  const hasAnyFiles = hasExisting || hasNew;
 
   return (
     <div className="space-y-4">
@@ -103,7 +114,7 @@ export function EvidenceSection({
         <div className="space-y-2">
           <Label className="text-sm font-medium">Attachments / Evidence</Label>
 
-          {/* Drop zone / add button — always shown when no files or to add more */}
+          {/* Drop zone / add button */}
           {isMobile ? (
             <div>
               <Button
@@ -113,7 +124,7 @@ export function EvidenceSection({
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
-                {selectedFiles.length > 0 ? "Add More Files" : "Upload Evidence"}
+                {hasAnyFiles ? "Add More Files" : "Upload Evidence"}
               </Button>
             </div>
           ) : (
@@ -128,7 +139,7 @@ export function EvidenceSection({
               <Upload className="h-8 w-8 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-muted-foreground">
-                  {selectedFiles.length > 0
+                  {hasAnyFiles
                     ? "Drop more files here or select"
                     : "Select a file or drag and drop here"}
                 </p>
@@ -152,9 +163,53 @@ export function EvidenceSection({
             <p className="text-sm text-destructive">{fileError}</p>
           )}
 
-          {/* Selected files list */}
-          {selectedFiles.length > 0 && (
+          {/* Existing attachments (edit mode) */}
+          {hasExisting && (
             <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Existing files</p>
+              {existingAttachments.map((att) => (
+                <div key={att.id} className="border border-border rounded-lg p-3 flex items-center gap-3 bg-secondary">
+                  <FileTypeIcon type={att.file_type} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{att.file_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {getFileExtension(att.file_name)} &middot; {formatFileSize(att.file_size_bytes)}
+                    </p>
+                  </div>
+                  {onDeleteExistingAttachment && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDeleteExistingAttachment(att.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {existingAttachments.length > 1 && onDeleteAllExistingAttachments && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={onDeleteAllExistingAttachments}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Remove all existing
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* New files to upload */}
+          {hasNew && (
+            <div className="space-y-2">
+              {hasExisting && (
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">New files</p>
+              )}
               {selectedFiles.map((file, idx) => (
                 <div key={`${file.name}-${idx}`} className="border border-border rounded-lg p-3 flex items-center gap-3 bg-secondary">
                   <FileTypeIcon type={file.type} />
@@ -181,10 +236,10 @@ export function EvidenceSection({
                   variant="ghost"
                   size="sm"
                   className="text-destructive hover:text-destructive"
-                  onClick={handleRemoveAll}
+                  onClick={handleRemoveAllNew}
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  Remove all
+                  Remove all new
                 </Button>
               )}
             </div>

@@ -1,8 +1,20 @@
+import { useState } from "react";
 import { format, parseISO } from "date-fns";
-import { Clock, Paperclip, Pencil } from "lucide-react";
+import { Clock, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useRecentCaseLogEntries } from "@/hooks/useCaseLogEntries";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useRecentCaseLogEntries, useDeleteCaseLogEntry } from "@/hooks/useCaseLogEntries";
+import { useToast } from "@/hooks/use-toast";
 import { ENTRY_TYPE_LABELS, type CaseLogEntryType } from "@/types/caseLog";
 
 interface RecentEntriesProps {
@@ -12,6 +24,21 @@ interface RecentEntriesProps {
 
 export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
   const { data: entries, isLoading } = useRecentCaseLogEntries(caseId, 5);
+  const deleteEntry = useDeleteCaseLogEntry();
+  const { toast } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteEntry.mutateAsync({ entryId: deleteTarget.id, caseId });
+      toast({ title: "Entry deleted", description: "The case log entry and all attached files have been permanently removed." });
+    } catch (err: any) {
+      toast({ title: "Error deleting entry", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -49,7 +76,7 @@ export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
           return (
             <div
               key={entry.id}
-              className="border border-border rounded-lg p-3 flex items-start gap-3 bg-secondary/50 hover:bg-secondary transition-colors group"
+              className="border border-border rounded-lg p-3 flex items-start gap-3 bg-secondary/50 hover:bg-secondary transition-colors"
             >
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -69,14 +96,24 @@ export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
                   {entry.context || entry.summary}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 h-8 w-8 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => onEditEntry(entry.id)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={() => onEditEntry(entry.id)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => setDeleteTarget({ id: entry.id, label: typeLabel })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           );
         })}
@@ -88,6 +125,27 @@ export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
       >
         View full timeline in Case Intelligence →
       </Link>
+
+      {/* Delete confirmation modal */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete case log entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this {deleteTarget?.label} entry, all attached files, and any connected data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteEntry.isPending ? "Deleting..." : "Delete Entry"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

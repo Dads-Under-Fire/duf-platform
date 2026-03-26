@@ -19,8 +19,9 @@ import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
 import { EvidenceSection } from "./EvidenceSection";
 import { RecentEntries } from "./RecentEntries";
-import { useCreateCaseLogEntry, useUpdateCaseLogEntry, useRecentCaseLogEntries } from "@/hooks/useCaseLogEntries";
+import { useCreateCaseLogEntry, useUpdateCaseLogEntry, useRecentCaseLogEntries, useDeleteAttachment } from "@/hooks/useCaseLogEntries";
 import { supabase } from "@/integrations/supabase/client";
+import type { CaseLogAttachment } from "@/types/caseLog";
 import {
   ENTRY_TYPE_LABELS,
   EXCHANGE_OUTCOMES,
@@ -43,10 +44,12 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
   const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
   const updateEntry = useUpdateCaseLogEntry();
+  const deleteAttachment = useDeleteAttachment();
   const formTopRef = useRef<HTMLDivElement>(null);
 
   // Edit mode
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<CaseLogAttachment[]>([]);
 
   // Event details
   const [entryType, setEntryType] = useState<CaseLogEntryType | "">("");
@@ -158,6 +161,7 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setOtherParentInformed(false);
     setSchoolDaycareName("");
     setSchoolIssueType("");
+    setExistingAttachments([]);
     setExpenseAmount("");
     setExpenseCategory("");
     setEvidenceNote("");
@@ -228,6 +232,13 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
         setExpenseAmount(meta.expense.amount != null ? String(meta.expense.amount) : "");
         setExpenseCategory(meta.expense.expense_category || "");
       }
+
+      // Load existing attachments
+      const { data: attachments } = await supabase
+        .from("case_log_attachments")
+        .select("*")
+        .eq("case_log_entry_id", entry.id);
+      setExistingAttachments(attachments || []);
 
       // Scroll to top of form
       setTimeout(() => {
@@ -672,6 +683,30 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
           onEvidenceNoteChange={setEvidenceNote}
           selectedFiles={selectedFiles}
           onFilesChange={setSelectedFiles}
+          existingAttachments={existingAttachments}
+          onDeleteExistingAttachment={async (attachmentId) => {
+            const att = existingAttachments.find((a) => a.id === attachmentId);
+            if (!att) return;
+            try {
+              await deleteAttachment.mutateAsync({ attachmentId, filePath: att.file_path });
+              setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+              toast({ title: "Attachment removed" });
+            } catch (err: any) {
+              toast({ title: "Failed to remove attachment", description: err.message, variant: "destructive" });
+            }
+          }}
+          onDeleteAllExistingAttachments={async () => {
+            if (!window.confirm("Remove all existing attachments? This cannot be undone.")) return;
+            try {
+              for (const att of existingAttachments) {
+                await deleteAttachment.mutateAsync({ attachmentId: att.id, filePath: att.file_path });
+              }
+              setExistingAttachments([]);
+              toast({ title: "All attachments removed" });
+            } catch (err: any) {
+              toast({ title: "Failed to remove attachments", description: err.message, variant: "destructive" });
+            }
+          }}
         />
 
         {/* Form Actions — inline, not fixed */}
