@@ -28,7 +28,10 @@ export function ClearableSelect({
   return (
     <div className={cn("relative", className)}>
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className={cn("bg-secondary border-border", value && "pr-8", triggerClassName)}>
+        <SelectTrigger
+          hideChevron={!!value}
+          className={cn("bg-secondary border-border", value && "pr-8", triggerClassName)}
+        >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -46,7 +49,7 @@ export function ClearableSelect({
             e.stopPropagation();
             onValueChange("");
           }}
-          className="absolute right-8 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Clear selection"
         >
           <X className="h-3.5 w-3.5" />
