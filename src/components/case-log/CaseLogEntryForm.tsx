@@ -8,17 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ClearableSelect } from "@/components/ui/clearable-select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
