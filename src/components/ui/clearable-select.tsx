@@ -27,7 +27,7 @@ export function ClearableSelect({
 }: ClearableSelectProps) {
   return (
     <div className={cn("relative", className)}>
-      <Select value={value || undefined} onValueChange={onValueChange}>
+      <Select key={value || "__empty__"} value={value || undefined} onValueChange={onValueChange}>
         <SelectTrigger
           hideChevron={!!value}
           className={cn("bg-secondary border-border", value && "pr-8", triggerClassName)}
