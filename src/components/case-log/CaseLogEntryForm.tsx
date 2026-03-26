@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Save } from "lucide-react";
+import { CalendarIcon, Save, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -307,29 +307,42 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
               <Label className="text-sm font-medium">
                 Date<span className="text-primary">*</span>
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal bg-secondary border-border",
-                      !eventDate && "text-muted-foreground"
-                    )}
+              <div className="relative">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal bg-secondary border-border",
+                        !eventDate && "text-muted-foreground",
+                        eventDate && "pr-8"
+                      )}
+                    >
+                      {eventDate ? format(eventDate, "MM/dd/yyyy") : <span>Select date</span>}
+                      {!eventDate && <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={eventDate}
+                      onSelect={setEventDate}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {eventDate && (
+                  <button
+                    type="button"
+                    onClick={() => setEventDate(undefined)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-sm text-muted-foreground hover:text-foreground transition-colors z-10"
+                    aria-label="Clear date"
                   >
-                    {eventDate ? format(eventDate, "MM/dd/yyyy") : <span>&nbsp;</span>}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={eventDate}
-                    onSelect={setEventDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
