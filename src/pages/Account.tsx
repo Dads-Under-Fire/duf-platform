@@ -1,9 +1,6 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { useAccountBootstrap } from "@/hooks/useAccountBootstrap";
-import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -23,29 +20,10 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
-  const { user, loading: authLoading } = useAuth();
-  const { bootstrapped } = useAccountBootstrap();
+  const { user } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) return <Navigate to="/auth" replace />;
-
-  if (!bootstrapped) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Setting up your account...</div>
-      </div>
-    );
-  }
 
   const handleManageBilling = async () => {
     setPortalLoading(true);
@@ -83,7 +61,7 @@ export default function Account() {
   const evidenceLabel = limits.evidence_uses_words ? "Evidence words" : "Evidence analyses";
 
   return (
-    <AppLayout>
+    <>
       <div className="flex-1 overflow-y-auto p-6 md:p-10">
         <div className="max-w-2xl mx-auto space-y-6">
           <h1 className="text-2xl font-semibold text-foreground">Account settings</h1>
@@ -111,7 +89,7 @@ export default function Account() {
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Email</span>
-                <span className="text-sm text-foreground">{user.email}</span>
+                <span className="text-sm text-foreground">{user?.email}</span>
               </div>
             </CardContent>
           </Card>
@@ -238,6 +216,6 @@ export default function Account() {
       </div>
 
       <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
-    </AppLayout>
+    </>
   );
 }
