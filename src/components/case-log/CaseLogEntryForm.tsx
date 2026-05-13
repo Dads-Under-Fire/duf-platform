@@ -37,9 +37,11 @@ import { Constants } from "@/integrations/supabase/types";
 
 interface CaseLogEntryFormProps {
   caseId: string;
+  initialEditEntryId?: string | null;
+  onEditLoaded?: () => void;
 }
 
-export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
+export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: CaseLogEntryFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
@@ -101,6 +103,15 @@ export function CaseLogEntryForm({ caseId }: CaseLogEntryFormProps) {
     setEditingEntryId(null);
     resetForm();
   }, [caseId]);
+
+  // Honor initialEditEntryId from query param handoff
+  useEffect(() => {
+    if (initialEditEntryId) {
+      loadEntryForEdit(initialEditEntryId);
+      onEditLoaded?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEditEntryId]);
 
   const handleCommunicationInvolvedChange = (val: boolean) => {
     setCommunicationInvolved(val);
