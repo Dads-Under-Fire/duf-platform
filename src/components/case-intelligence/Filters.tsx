@@ -29,7 +29,7 @@ export function Filters({ value, onChange }: Props) {
         <label className="text-xs text-muted-foreground block mb-1">Entry type</label>
         <ClearableSelect
           value={value.entryType}
-          onChange={(v) => onChange({ ...value, entryType: (v as CaseLogEntryType) || "" })}
+          onValueChange={(v) => onChange({ ...value, entryType: (v as CaseLogEntryType) || "" })}
           placeholder="All types"
           options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
         />
@@ -38,7 +38,7 @@ export function Filters({ value, onChange }: Props) {
         <label className="text-xs text-muted-foreground block mb-1">Sort</label>
         <ClearableSelect
           value={value.sort}
-          onChange={(v) => onChange({ ...value, sort: ((v as any) || "newest") })}
+          onValueChange={(v) => onChange({ ...value, sort: ((v as any) || "newest") })}
           placeholder="Newest first"
           options={[
             { value: "newest", label: "Newest first" },
