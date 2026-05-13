@@ -26,10 +26,10 @@ import caseLogSelected from "@/assets/case_log_selected.png";
 
 const navItems = [
   {
-    title: "Case Log",
-    url: "/",
-    icon: caseLog,
-    iconSelected: caseLogSelected,
+    title: "Communication Shield",
+    url: "/communication-shield",
+    icon: commShield,
+    iconSelected: commShieldSelected,
   },
   {
     title: "Case Intelligence",
@@ -38,10 +38,10 @@ const navItems = [
     iconSelected: caseIntelligenceSelected,
   },
   {
-    title: "Communication Shield",
-    url: "/communication-shield",
-    icon: commShield,
-    iconSelected: commShieldSelected,
+    title: "Case Log",
+    url: "/",
+    icon: caseLog,
+    iconSelected: caseLogSelected,
   },
 ];
 
