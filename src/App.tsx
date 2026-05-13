@@ -5,7 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedShell from "@/components/ProtectedShell";
 import Index from "./pages/Index";
-import Evidence from "./pages/Evidence";
+import CaseIntelligence from "./pages/CaseIntelligence";
+import EntryDetails from "./pages/EntryDetails";
 import CaseLog from "./pages/CaseLog";
 import Auth from "./pages/Auth";
 import Account from "./pages/Account";
@@ -30,7 +31,8 @@ const App = () => (
             <Route element={<ProtectedShell />}>
               <Route path="/" element={<CaseLog />} />
               <Route path="/communication-shield" element={<Index />} />
-              <Route path="/case-intelligence" element={<Evidence />} />
+              <Route path="/case-intelligence" element={<CaseIntelligence />} />
+              <Route path="/case-intelligence/entry/:entryId" element={<EntryDetails />} />
               <Route path="/account" element={<Account />} />
             </Route>
 
