@@ -265,6 +265,83 @@ export type Database = {
         }
         Relationships: []
       }
+      case_intelligence_analyses: {
+        Row: {
+          case_id: string
+          created_at: string
+          entries_snapshot_max_updated_at: string | null
+          id: string
+          status: string
+          summary: Json | null
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          entries_snapshot_max_updated_at?: string | null
+          id?: string
+          status?: string
+          summary?: Json | null
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          entries_snapshot_max_updated_at?: string | null
+          id?: string
+          status?: string
+          summary?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      case_intelligence_patterns: {
+        Row: {
+          analysis_id: string
+          case_id: string
+          created_at: string
+          explanation: string | null
+          first_event_date: string | null
+          id: string
+          last_event_date: string | null
+          name: string
+          related_entry_ids: string[]
+          user_id: string
+        }
+        Insert: {
+          analysis_id: string
+          case_id: string
+          created_at?: string
+          explanation?: string | null
+          first_event_date?: string | null
+          id?: string
+          last_event_date?: string | null
+          name: string
+          related_entry_ids?: string[]
+          user_id: string
+        }
+        Update: {
+          analysis_id?: string
+          case_id?: string
+          created_at?: string
+          explanation?: string | null
+          first_event_date?: string | null
+          id?: string
+          last_event_date?: string | null
+          name?: string
+          related_entry_ids?: string[]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_intelligence_patterns_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "case_intelligence_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_log_attachments: {
         Row: {
           case_id: string
