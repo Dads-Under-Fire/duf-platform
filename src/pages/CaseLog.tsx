@@ -1,16 +1,10 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useAccountBootstrap } from "@/hooks/useAccountBootstrap";
-import { AppLayout } from "@/components/AppLayout";
 import { useCases, useCreateCase, useDeleteCase } from "@/hooks/useCases";
 import { CreateCasePrompt } from "@/components/case-log/CreateCasePrompt";
 import { CaseSelector } from "@/components/case-log/CaseSelector";
 import { CaseLogEntryForm } from "@/components/case-log/CaseLogEntryForm";
 
 export default function CaseLog() {
-  const { user, loading } = useAuth();
-  const { bootstrapped } = useAccountBootstrap();
   const { data: cases, isLoading: casesLoading } = useCases();
   const createCase = useCreateCase();
   const deleteCase = useDeleteCase();
@@ -25,24 +19,6 @@ export default function CaseLog() {
     if (activeCaseId && cases.some((c) => c.id === activeCaseId)) return;
     setActiveCaseId(cases[0].id);
   }, [cases]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) return <Navigate to="/auth" replace />;
-
-  if (!bootstrapped) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Setting up your account...</div>
-      </div>
-    );
-  }
 
   const handleCreateCase = async (caseName: string) => {
     const newCase = await createCase.mutateAsync(caseName);
