@@ -59,7 +59,7 @@ export default function Account() {
   const evidenceLabel = limits.evidence_uses_words ? "Evidence words" : "Evidence analyses";
 
   return (
-    <AppLayout>
+    <>
       <div className="flex-1 overflow-y-auto p-6 md:p-10">
         <div className="max-w-2xl mx-auto space-y-6">
           <h1 className="text-2xl font-semibold text-foreground">Account settings</h1>
