@@ -108,8 +108,8 @@ export function AppSidebar() {
                     to={item.url}
                     onClick={() => handleNavClick(item.url)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
-                      isActive && "text-primary bg-sidebar-accent"
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent",
+                      isActive && "text-primary bg-sidebar-accent font-medium"
                     )}
                   >
                     <img
