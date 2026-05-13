@@ -1,9 +1,10 @@
+import { useState, useEffect, useCallback } from "react";
 import { User, LogOut, ChevronLeft } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -58,6 +59,28 @@ export function AppSidebar() {
   const isMobile = useIsMobile();
   const collapsed = state === "collapsed";
 
+  const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
+
+  // Reconcile optimistic state with actual route
+  useEffect(() => {
+    if (optimisticPath && location.pathname === optimisticPath) {
+      setOptimisticPath(null);
+    }
+  }, [location.pathname, optimisticPath]);
+
+  // Safety timeout: clear optimistic state if route never matches (interrupted nav, back button, etc.)
+  useEffect(() => {
+    if (!optimisticPath) return;
+    const timer = setTimeout(() => setOptimisticPath(null), 1000);
+    return () => clearTimeout(timer);
+  }, [optimisticPath]);
+
+  const handleNavClick = useCallback((url: string) => {
+    setOptimisticPath(url);
+  }, []);
+
+  const effectivePath = optimisticPath ?? location.pathname;
+
   const evidenceUsed = limits.evidence_uses_words
     ? (usage?.evidence_words_used ?? 0)
     : (usage?.evidence_analyses_used ?? 0);
@@ -77,23 +100,25 @@ export function AppSidebar() {
       <SidebarContent className="px-2">
         <SidebarMenu>
           {navItems.map((item) => {
-            const isActive = location.pathname === item.url;
+            const isActive = effectivePath === item.url;
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <NavLink
+                <SidebarMenuButton asChild isActive={isActive}>
+                  <Link
                     to={item.url}
-                    end
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                    activeClassName="text-primary bg-sidebar-accent"
+                    onClick={() => handleNavClick(item.url)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
+                      isActive && "text-primary bg-sidebar-accent"
+                    )}
                   >
                     <img
                       src={isActive ? item.iconSelected : item.icon}
                       alt={item.title}
-className="h-8 w-8 shrink-0"
+                      className="h-8 w-8 shrink-0"
                     />
                     {!collapsed && <span className="text-sm">{item.title}</span>}
-                  </NavLink>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
@@ -151,14 +176,17 @@ className="h-8 w-8 shrink-0"
           </div>
         )}
 
-        <NavLink
+        <Link
           to="/account"
-          className="flex items-center gap-3 px-3 py-2 text-sidebar-foreground hover:bg-sidebar-accent rounded-md"
-          activeClassName="text-primary"
+          onClick={() => handleNavClick("/account")}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 text-sidebar-foreground hover:bg-sidebar-accent rounded-md",
+            effectivePath === "/account" && "text-primary"
+          )}
         >
           <User className="h-5 w-5 shrink-0" />
           {!collapsed && <span className="text-sm">Account Settings</span>}
-        </NavLink>
+        </Link>
 
         <button
           onClick={signOut}
