@@ -87,7 +87,7 @@ export default function Account() {
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Email</span>
-                <span className="text-sm text-foreground">{user.email}</span>
+                <span className="text-sm text-foreground">{user?.email}</span>
               </div>
             </CardContent>
           </Card>
@@ -214,6 +214,6 @@ export default function Account() {
       </div>
 
       <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
-    </AppLayout>
+    </>
   );
 }
