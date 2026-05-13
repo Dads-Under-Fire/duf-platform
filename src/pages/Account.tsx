@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { useAccountBootstrap } from "@/hooks/useAccountBootstrap";
-import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -23,29 +19,9 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
-  const { user, loading: authLoading } = useAuth();
-  const { bootstrapped } = useAccountBootstrap();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) return <Navigate to="/auth" replace />;
-
-  if (!bootstrapped) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Setting up your account...</div>
-      </div>
-    );
-  }
 
   const handleManageBilling = async () => {
     setPortalLoading(true);
