@@ -32,32 +32,30 @@ export default function CaseLog() {
   const showCreatePrompt = !casesLoading && (!cases || cases.length === 0);
 
   return (
-    <AppLayout>
-      <div className="flex flex-col h-full">
-        {casesLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-muted-foreground">Loading cases...</div>
-          </div>
-        ) : showCreatePrompt ? (
-          <CreateCasePrompt
+    <div className="flex flex-col h-full">
+      {casesLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-muted-foreground">Loading cases...</div>
+        </div>
+      ) : showCreatePrompt ? (
+        <CreateCasePrompt
+          onCreateCase={handleCreateCase}
+          isLoading={createCase.isPending}
+        />
+      ) : (
+        <>
+          <CaseSelector
+            cases={cases ?? []}
+            activeCaseId={activeCaseId}
+            onSelectCase={setActiveCaseId}
             onCreateCase={handleCreateCase}
-            isLoading={createCase.isPending}
+            onDeleteCase={handleDeleteCase}
+            isCreating={createCase.isPending}
+            isDeleting={deleteCase.isPending}
           />
-        ) : (
-          <>
-            <CaseSelector
-              cases={cases ?? []}
-              activeCaseId={activeCaseId}
-              onSelectCase={setActiveCaseId}
-              onCreateCase={handleCreateCase}
-              onDeleteCase={handleDeleteCase}
-              isCreating={createCase.isPending}
-              isDeleting={deleteCase.isPending}
-            />
-            {activeCaseId && <CaseLogEntryForm caseId={activeCaseId} />}
-          </>
-        )}
-      </div>
-    </AppLayout>
+          {activeCaseId && <CaseLogEntryForm caseId={activeCaseId} />}
+        </>
+      )}
+    </div>
   );
 }
