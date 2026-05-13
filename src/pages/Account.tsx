@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -19,6 +19,8 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
+  const { user } = useAuth();
+  const { plan, subscription, usage, limits, intendedPlan } = (require("@/hooks/useProfile") as typeof import("@/hooks/useProfile")).useProfile();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
