@@ -111,6 +111,8 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
           <p className="text-sm text-muted-foreground">No patterns detected in the last analysis.</p>
         </div>
       )}
+
+      <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
     </div>
   );
 }
