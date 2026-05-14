@@ -54,8 +54,8 @@ export function CaseReportTab({ caseId }: { caseId: string }) {
             A structured summary of your case logs, attached evidence, and detected patterns.
           </p>
         </div>
-        <Button onClick={handleGenerate} disabled={generating}>
-          {generating ? (
+        <Button onClick={handleGenerate} disabled={generate.isPending}>
+          {generate.isPending ? (
             <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating...</>
           ) : (
             <><FileText className="h-4 w-4 mr-2" /> Generate Case Report</>
