@@ -224,6 +224,8 @@ serve(async (req) => {
     });
   } catch (err) {
     log("HANDLER_ERROR", { error: (err as Error).message });
+    // Remove the dedupe row so Stripe's automatic retry can re-process this event.
+    await supabase.from("stripe_webhook_events").delete().eq("event_id", event.id);
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
