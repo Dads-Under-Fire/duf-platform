@@ -157,15 +157,15 @@ export function AppSidebar() {
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{evidenceLabel}</p>
+              <p className="text-xs text-muted-foreground">{analysesLabel}</p>
               <p className="text-xs">
-                <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
-                <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)} used</span>
+                <span className="text-primary font-bold">{formatNumber(analysesUsed)}</span>
+                <span className="text-muted-foreground"> / {formatNumber(analysesLimit)} used</span>
               </p>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>
