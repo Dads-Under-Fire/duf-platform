@@ -58,7 +58,16 @@ export function UpgradeModal({ open, onOpenChange, lockedFeature, targetPlan: ta
       });
       if (error) throw error;
       if (data?.url) {
-        window.location.href = data.url;
+        // Break out of the (possibly iframed) preview shell. Stripe Checkout
+        // refuses to render inside iframes, so navigating the iframe itself
+        // gets stuck on a blank loading screen. Open at the top level, and
+        // fall back to a new tab if the parent frame blocks navigation.
+        try {
+          (window.top ?? window).location.href = data.url;
+        } catch {
+          window.open(data.url, "_blank", "noopener,noreferrer");
+        }
+        onOpenChange(false);
       }
     } catch (err: any) {
       console.error("Checkout error:", err);
