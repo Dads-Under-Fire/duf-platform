@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CreditCard, ExternalLink, Loader2, AlertTriangle } from "lucide-react";
+import { formatResetDate } from "@/lib/formatDate";
 
 function formatPlanLabel(plan: string): string {
   if (plan === "case_builder") return "Case Builder";
