@@ -130,7 +130,7 @@ export default function Account() {
                     {subscription.cancel_at_period_end ? "Access ends" : "Renews / credits reset"}
                   </span>
                   <span className="text-sm text-foreground">
-                    {new Date(subscription.billing_period_end).toLocaleDateString()}
+                    {formatResetDate(subscription.billing_period_end)}
                   </span>
                 </div>
               )}
