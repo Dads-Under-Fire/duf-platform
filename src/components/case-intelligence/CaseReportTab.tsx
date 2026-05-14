@@ -116,6 +116,8 @@ export function CaseReportTab({ caseId }: { caseId: string }) {
           <p className="text-sm text-muted-foreground">Click Generate Case Report to produce a written summary.</p>
         )}
       </section>
+
+      <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
     </div>
   );
 }
