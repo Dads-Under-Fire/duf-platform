@@ -722,30 +722,39 @@ export type Database = {
         Row: {
           billing_period_end: string
           billing_period_start: string
+          cancel_at_period_end: boolean
           created_at: string
           id: string
           plan: Database["public"]["Enums"]["plan_type"]
           status: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           billing_period_end?: string
           billing_period_start?: string
+          cancel_at_period_end?: boolean
           created_at?: string
           id?: string
           plan?: Database["public"]["Enums"]["plan_type"]
           status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           billing_period_end?: string
           billing_period_start?: string
+          cancel_at_period_end?: boolean
           created_at?: string
           id?: string
           plan?: Database["public"]["Enums"]["plan_type"]
           status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -804,6 +813,25 @@ export type Database = {
           limit: number
           used: number
         }[]
+      }
+      ensure_current_usage_period: {
+        Args: { p_user_id: string }
+        Returns: {
+          case_intelligence_analyses_used: number
+          created_at: string
+          id: string
+          message_rewrites_used: number
+          period_end: string
+          period_start: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "usage_counters"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       get_case_intelligence_limit: {
         Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
