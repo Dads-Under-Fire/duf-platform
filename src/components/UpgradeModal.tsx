@@ -28,13 +28,26 @@ interface UpgradeModalProps {
   onOpenChange: (open: boolean) => void;
   /** Override the feature context, e.g. "Communication Shield" */
   lockedFeature?: string;
+  /** Explicit upgrade target. Falls back to intended_plan, then next tier above current plan. */
+  targetPlan?: "core" | "pro" | "case_builder";
 }
 
-export function UpgradeModal({ open, onOpenChange, lockedFeature }: UpgradeModalProps) {
+const NEXT_TIER: Record<string, "core" | "pro" | "case_builder"> = {
+  free: "pro",
+  core: "pro",
+  pro: "case_builder",
+  case_builder: "case_builder",
+};
+
+export function UpgradeModal({ open, onOpenChange, lockedFeature, targetPlan: targetPlanProp }: UpgradeModalProps) {
   const { intendedPlan, plan } = useProfile();
   const [loading, setLoading] = useState(false);
 
-  const targetPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
+  const targetPlan =
+    targetPlanProp ??
+    (intendedPlan && intendedPlan !== "free" && intendedPlan !== plan
+      ? (intendedPlan as "core" | "pro" | "case_builder")
+      : NEXT_TIER[plan] ?? "pro");
   const features = PLAN_FEATURES[targetPlan] ?? PLAN_FEATURES.core;
 
   const handleCheckout = async () => {

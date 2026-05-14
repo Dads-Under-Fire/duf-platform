@@ -23,7 +23,13 @@ export default function Account() {
   const { user } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState(false);
+
+  const openUpgrade = (target?: "core" | "pro" | "case_builder") => {
+    setUpgradeTarget(target);
+    setShowUpgradeModal(true);
+  };
 
   const handleManageBilling = async () => {
     setPortalLoading(true);
@@ -119,7 +125,12 @@ export default function Account() {
                 {/* Upgrade */}
                 {plan !== "case_builder" ? (
                   <div className="space-y-1">
-                    <Button onClick={() => setShowUpgradeModal(true)} className="gap-2">
+                    <Button
+                      onClick={() =>
+                        openUpgrade(plan === "pro" ? "case_builder" : plan === "core" ? "pro" : undefined)
+                      }
+                      className="gap-2"
+                    >
                       <CreditCard className="h-4 w-4" />
                       {plan === "pro"
                         ? "Upgrade to Case Builder"
@@ -131,10 +142,9 @@ export default function Account() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <Button variant="outline" onClick={() => setShowUpgradeModal(true)} className="gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      View plan
-                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      You're on the highest plan. Manage billing below to update payment or cancel.
+                    </p>
                   </div>
                 )}
 
@@ -211,7 +221,7 @@ export default function Account() {
         </div>
       </div>
 
-      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} targetPlan={upgradeTarget} />
     </>
   );
 }

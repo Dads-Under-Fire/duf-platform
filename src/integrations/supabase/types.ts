@@ -809,6 +809,10 @@ export type Database = {
         Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
         Returns: number
       }
+      get_message_rewrites_limit: {
+        Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
+        Returns: number
+      }
       increment_message_rewrites: {
         Args: { p_user_id: string }
         Returns: undefined

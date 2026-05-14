@@ -17,7 +17,16 @@ export function UpgradeBanner() {
 
   if (!anyExhausted) return null;
 
-  const displayPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
+  const NEXT_TIER: Record<string, "core" | "pro" | "case_builder"> = {
+    free: "pro",
+    core: "pro",
+    pro: "case_builder",
+    case_builder: "case_builder",
+  };
+  const displayPlan =
+    intendedPlan && intendedPlan !== "free" && intendedPlan !== plan
+      ? intendedPlan
+      : NEXT_TIER[plan] ?? "pro";
 
   let creditType: string;
   if (rewritesExhausted && caseAnalysesExhausted) {
@@ -50,7 +59,7 @@ export function UpgradeBanner() {
         </div>
       </div>
 
-      <UpgradeModal open={showModal} onOpenChange={setShowModal} />
+      <UpgradeModal open={showModal} onOpenChange={setShowModal} targetPlan={displayPlan as any} />
     </>
   );
 }
