@@ -123,10 +123,10 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     await supabase.from("subscriptions").insert({ user_id: userId, plan: plan ?? "free", ...update });
   }
 
-  // Clear intended_plan once a paid plan is active
-  if (plan && (status === "active" || status === "trialing")) {
-    await supabase.from("profiles").update({ intended_plan: null }).eq("user_id", userId);
-  }
+  // Clear intended_plan after any Stripe sync — once the user has reached
+  // Stripe (whether they upgraded, downgraded, or canceled), the signup-time
+  // "intended plan" hint is no longer meaningful and should not keep nagging.
+  await supabase.from("profiles").update({ intended_plan: null }).eq("user_id", userId);
 
   log("SUB_SYNCED", { userId, plan: plan ?? "(unchanged)", status });
 }
