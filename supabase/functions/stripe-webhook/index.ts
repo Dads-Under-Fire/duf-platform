@@ -104,14 +104,20 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
   };
   if (plan) update.plan = plan;
 
-  // Upsert by user_id
+  // Upsert by user_id, but never overwrite with an older Stripe state.
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("id")
+    .select("id, billing_period_end")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (existing) {
+    const existingEnd = existing.billing_period_end ? new Date(existing.billing_period_end as string).getTime() : 0;
+    const incomingEnd = new Date(update.billing_period_end as string).getTime();
+    if (incomingEnd < existingEnd) {
+      log("STALE_EVENT_SKIPPED", { userId, existingEnd, incomingEnd, subscriptionId: stripeSub.id });
+      return;
+    }
     await supabase.from("subscriptions").update(update).eq("user_id", userId);
   } else {
     await supabase.from("subscriptions").insert({ user_id: userId, plan: plan ?? "free", ...update });
@@ -144,6 +150,24 @@ serve(async (req) => {
   }
 
   log("EVENT", { type: event.type, id: event.id });
+
+  // Idempotency: skip if we've already processed this event id.
+  const { error: dedupeError } = await supabase
+    .from("stripe_webhook_events")
+    .insert({
+      event_id: event.id,
+      event_type: event.type,
+      payload_created_at: event.created ? new Date(event.created * 1000).toISOString() : null,
+    });
+  if (dedupeError) {
+    if ((dedupeError as { code?: string }).code === "23505") {
+      log("DUPLICATE_EVENT_SKIPPED", { id: event.id });
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    log("DEDUPE_INSERT_ERROR", { error: dedupeError.message });
+  }
 
   try {
     switch (event.type) {
