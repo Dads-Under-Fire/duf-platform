@@ -1,27 +1,48 @@
 import { format, parseISO } from "date-fns";
 import { FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import {
   useCaseTimeline,
   useCaseEvidence,
   useLatestAnalysis,
   useAnalysisPatterns,
+  useGenerateCaseReport,
+  QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 import { useState } from "react";
 
 export function CaseReportTab({ caseId }: { caseId: string }) {
+  const { toast } = useToast();
+  const { caseAnalysesExhausted, refetch } = useProfile();
   const { data: entries } = useCaseTimeline(caseId);
   const { data: evidence } = useCaseEvidence(caseId);
   const { data: latest } = useLatestAnalysis(caseId);
   const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
-  const [generating, setGenerating] = useState(false);
+  const generate = useGenerateCaseReport();
   const [generated, setGenerated] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const handleGenerate = async () => {
-    setGenerating(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setGenerating(false);
-    setGenerated(true);
+    if (caseAnalysesExhausted) {
+      setShowUpgrade(true);
+      return;
+    }
+    try {
+      await generate.mutateAsync();
+      refetch();
+      setGenerated(true);
+      toast({ title: "Case report generated", description: "Your structured case report is ready." });
+    } catch (err: any) {
+      if (err instanceof QuotaExceededError) {
+        refetch();
+        setShowUpgrade(true);
+        return;
+      }
+      toast({ title: "Report failed", description: err.message, variant: "destructive" });
+    }
   };
 
   return (

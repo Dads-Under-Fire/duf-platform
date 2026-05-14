@@ -66,6 +66,7 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
           </p>
           {cta}
         </div>
+        <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
       </div>
     );
   }
