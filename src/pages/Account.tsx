@@ -237,6 +237,12 @@ export default function Account() {
                   />
                 </div>
               </div>
+
+              {usage?.period_end && (
+                <p className="text-xs text-muted-foreground pt-1">
+                  Resets on {new Date(usage.period_end).toLocaleDateString()}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
