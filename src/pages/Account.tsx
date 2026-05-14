@@ -124,16 +124,22 @@ export default function Account() {
                   {subscription?.cancel_at_period_end ? " (cancels at period end)" : ""}
                 </span>
               </div>
-              {subscription?.billing_period_end && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    {subscription.cancel_at_period_end ? "Access ends" : "Renews / credits reset"}
-                  </span>
-                  <span className="text-sm text-foreground">
-                    {formatResetDate(subscription.billing_period_end)}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const resetDate = subscription?.cancel_at_period_end
+                  ? subscription?.billing_period_end
+                  : usage?.period_end ?? subscription?.billing_period_end;
+                if (!resetDate) return null;
+                return (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {subscription?.cancel_at_period_end ? "Access ends" : "Renews / credits reset"}
+                    </span>
+                    <span className="text-sm text-foreground">
+                      {formatResetDate(resetDate)}
+                    </span>
+                  </div>
+                );
+              })()}
               {subscription?.status === "past_due" && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
