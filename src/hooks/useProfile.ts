@@ -32,40 +32,31 @@ export interface UsageCounters {
 
 export interface PlanLimits {
   message_rewrites: number;
-  evidence_analyses: number;
-  evidence_words: number;
+  /** Case Intelligence analyses per billing period (Analyze Case + Generate Case Report). */
+  case_intelligence_analyses: number;
   unlimited_rewrites: boolean;
-  evidence_uses_words: boolean;
 }
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
   free: {
     message_rewrites: 2,
-    evidence_analyses: 1,
-    evidence_words: 0,
+    case_intelligence_analyses: 1,
     unlimited_rewrites: false,
-    evidence_uses_words: false,
   },
   core: {
     message_rewrites: 100,
-    evidence_analyses: 999999,
-    evidence_words: 15000,
+    case_intelligence_analyses: 4,
     unlimited_rewrites: false,
-    evidence_uses_words: true,
   },
   pro: {
     message_rewrites: 250,
-    evidence_analyses: 999999,
-    evidence_words: 60000,
+    case_intelligence_analyses: 12,
     unlimited_rewrites: false,
-    evidence_uses_words: true,
   },
   case_builder: {
     message_rewrites: 999999,
-    evidence_analyses: 999999,
-    evidence_words: 200000,
+    case_intelligence_analyses: 30,
     unlimited_rewrites: true,
-    evidence_uses_words: true,
   },
 };
 
