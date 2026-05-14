@@ -221,7 +221,7 @@ export default function Account() {
         </div>
       </div>
 
-      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} targetPlan={upgradeTarget} />
     </>
   );
 }
