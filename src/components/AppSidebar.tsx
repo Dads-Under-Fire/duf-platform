@@ -81,13 +81,9 @@ export function AppSidebar() {
 
   const effectivePath = optimisticPath ?? location.pathname;
 
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
+  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesLimit = limits.case_intelligence_analyses;
+  const analysesLabel = "Case Intelligence";
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">

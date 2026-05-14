@@ -66,16 +66,16 @@ export function TopBar() {
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">{evidenceLabel}</span>
+                <span className="text-muted-foreground text-xs">{analysesLabel}</span>
                 <span className="text-xs">
-                  <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
-                  <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)}</span>
+                  <span className="text-primary font-bold">{formatNumber(analysesUsed)}</span>
+                  <span className="text-muted-foreground"> / {formatNumber(analysesLimit)}</span>
                 </span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>
