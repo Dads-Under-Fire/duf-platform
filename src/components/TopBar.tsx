@@ -2,6 +2,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Menu, X } from "lucide-react";
+import { formatResetDateShort } from "@/lib/formatDate";
 import dufLogo from "@/assets/dufplatform.png";
 
 function formatNumber(n: number): string {
