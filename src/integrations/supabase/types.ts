@@ -688,33 +688,6 @@ export type Database = {
         }
         Relationships: []
       }
-      evidence_analyses: {
-        Row: {
-          analysis_result: string
-          analysis_type: string
-          created_at: string
-          id: string
-          original_content: string
-          user_id: string
-        }
-        Insert: {
-          analysis_result: string
-          analysis_type?: string
-          created_at?: string
-          id?: string
-          original_content: string
-          user_id: string
-        }
-        Update: {
-          analysis_result?: string
-          analysis_type?: string
-          created_at?: string
-          id?: string
-          original_content?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           created_at: string
@@ -780,9 +753,8 @@ export type Database = {
       }
       usage_counters: {
         Row: {
+          case_intelligence_analyses_used: number
           created_at: string
-          evidence_analyses_used: number
-          evidence_words_used: number
           id: string
           message_rewrites_used: number
           period_end: string
@@ -791,9 +763,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          case_intelligence_analyses_used?: number
           created_at?: string
-          evidence_analyses_used?: number
-          evidence_words_used?: number
           id?: string
           message_rewrites_used?: number
           period_end?: string
@@ -802,9 +773,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          case_intelligence_analyses_used?: number
           created_at?: string
-          evidence_analyses_used?: number
-          evidence_words_used?: number
           id?: string
           message_rewrites_used?: number
           period_end?: string
@@ -819,15 +789,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      check_evidence_analysis_quota: {
-        Args: { p_user_id: string; p_word_count?: number }
-        Returns: {
-          allowed: boolean
-          limit: number
-          unit: string
-          used: number
-        }[]
-      }
       check_message_rewrite_quota: {
         Args: { p_user_id: string }
         Returns: {
@@ -847,18 +808,6 @@ export type Database = {
       get_case_intelligence_limit: {
         Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
         Returns: number
-      }
-      get_plan_limits: {
-        Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
-        Returns: {
-          evidence_analyses_limit: number
-          evidence_words_limit: number
-          message_rewrites_limit: number
-        }[]
-      }
-      increment_evidence_analyses: {
-        Args: { p_user_id: string; p_word_count?: number }
-        Returns: undefined
       }
       increment_message_rewrites: {
         Args: { p_user_id: string }
