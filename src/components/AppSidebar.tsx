@@ -81,7 +81,7 @@ export function AppSidebar() {
 
   const effectivePath = optimisticPath ?? location.pathname;
 
-  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesUsed = usage?.case_intelligence_analyses_used ?? 0;
   const analysesLimit = limits.case_intelligence_analyses;
   const analysesLabel = "Case Intelligence";
 
