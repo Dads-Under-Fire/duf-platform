@@ -62,6 +62,11 @@ serve(async (req) => {
     let customerId: string | undefined;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
+      // Persist on subscriptions row so the webhook can map customer -> user.
+      await serviceClient
+        .from("subscriptions")
+        .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
     }
 
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";

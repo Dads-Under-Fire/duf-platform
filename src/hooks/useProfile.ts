@@ -18,6 +18,9 @@ export interface Subscription {
   status: "active" | "inactive" | "trialing" | "canceled" | "past_due";
   billing_period_start: string;
   billing_period_end: string;
+  cancel_at_period_end?: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
 }
 
 export interface UsageCounters {
