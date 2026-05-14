@@ -23,7 +23,13 @@ export default function Account() {
   const { user } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState(false);
+
+  const openUpgrade = (target?: "core" | "pro" | "case_builder") => {
+    setUpgradeTarget(target);
+    setShowUpgradeModal(true);
+  };
 
   const handleManageBilling = async () => {
     setPortalLoading(true);
