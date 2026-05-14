@@ -111,13 +111,34 @@ export default function Account() {
                 <span className={`text-sm font-medium ${
                   subscription?.status === "active" || subscription?.status === "trialing"
                     ? "text-emerald-600"
+                    : subscription?.status === "past_due"
+                    ? "text-amber-600"
+                    : subscription?.status === "canceled"
+                    ? "text-destructive"
                     : "text-muted-foreground"
                 }`}>
                   {subscription?.status
-                    ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)
+                    ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1).replace("_", " ")
                     : "Active"}
+                  {subscription?.cancel_at_period_end ? " (cancels at period end)" : ""}
                 </span>
               </div>
+              {subscription?.billing_period_end && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {subscription.cancel_at_period_end ? "Access ends" : "Renews / credits reset"}
+                  </span>
+                  <span className="text-sm text-foreground">
+                    {new Date(subscription.billing_period_end).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+              {subscription?.status === "past_due" && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>Your last payment failed. Update your payment method via Manage billing to keep access.</span>
+                </div>
+              )}
 
               <Separator />
 
