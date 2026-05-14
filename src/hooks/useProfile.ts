@@ -111,11 +111,11 @@ export function useProfile() {
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
   const intendedPlan = profile?.intended_plan as string | null;
 
-  // Check if free credits are exhausted
+  // Check if credits are exhausted
   const rewritesExhausted = !limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites;
-  const evidenceExhausted = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0) >= limits.evidence_words
-    : (usage?.evidence_analyses_used ?? 0) >= limits.evidence_analyses;
+  // Case Intelligence analyses are tracked in the existing evidence_analyses_used counter.
+  const caseAnalysesUsed = usage?.evidence_analyses_used ?? 0;
+  const caseAnalysesExhausted = caseAnalysesUsed >= limits.case_intelligence_analyses;
 
   const refetch = () => {
     refetchProfile();
@@ -131,7 +131,10 @@ export function useProfile() {
     plan,
     intendedPlan,
     rewritesExhausted,
-    evidenceExhausted,
+    caseAnalysesUsed,
+    caseAnalysesExhausted,
+    /** @deprecated use caseAnalysesExhausted */
+    evidenceExhausted: caseAnalysesExhausted,
     refetch,
   };
 }
