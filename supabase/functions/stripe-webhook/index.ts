@@ -104,14 +104,20 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
   };
   if (plan) update.plan = plan;
 
-  // Upsert by user_id
+  // Upsert by user_id, but never overwrite with an older Stripe state.
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("id")
+    .select("id, billing_period_end")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (existing) {
+    const existingEnd = existing.billing_period_end ? new Date(existing.billing_period_end as string).getTime() : 0;
+    const incomingEnd = new Date(update.billing_period_end as string).getTime();
+    if (incomingEnd < existingEnd) {
+      log("STALE_EVENT_SKIPPED", { userId, existingEnd, incomingEnd, subscriptionId: stripeSub.id });
+      return;
+    }
     await supabase.from("subscriptions").update(update).eq("user_id", userId);
   } else {
     await supabase.from("subscriptions").insert({ user_id: userId, plan: plan ?? "free", ...update });
