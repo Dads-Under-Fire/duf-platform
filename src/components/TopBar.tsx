@@ -93,7 +93,7 @@ export function TopBar() {
           </span>
           {usage?.period_end && (
             <span className="text-muted-foreground text-xs">
-              Resets {new Date(usage.period_end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              Resets {formatResetDateShort(usage.period_end)}
             </span>
           )}
         </div>
