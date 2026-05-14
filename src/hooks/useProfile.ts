@@ -112,8 +112,8 @@ export function useProfile() {
 
   // Check if credits are exhausted
   const rewritesExhausted = !limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites;
-  // Case Intelligence analyses are tracked in the existing evidence_analyses_used counter.
-  const caseAnalysesUsed = usage?.evidence_analyses_used ?? 0;
+  // Case Intelligence analyses are tracked in case_intelligence_analyses_used.
+  const caseAnalysesUsed = usage?.case_intelligence_analyses_used ?? 0;
   const caseAnalysesExhausted = caseAnalysesUsed >= limits.case_intelligence_analyses;
 
   const refetch = () => {
