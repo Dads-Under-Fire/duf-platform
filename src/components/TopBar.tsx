@@ -54,7 +54,7 @@ export function TopBar() {
                   className="h-full rounded-full bg-primary transition-all"
                   style={{
                     width: limits.unlimited_rewrites
-                      ? `${Math.min(rewritesUsed * 0.1, 100)}%`
+                      ? "100%"
                       : `${Math.min((rewritesUsed / rewritesLimit) * 100, 100)}%`,
                   }}
                 />
