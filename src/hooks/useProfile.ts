@@ -26,8 +26,7 @@ export interface UsageCounters {
   period_start: string;
   period_end: string;
   message_rewrites_used: number;
-  evidence_analyses_used: number;
-  evidence_words_used: number;
+  case_intelligence_analyses_used: number;
 }
 
 export interface PlanLimits {
