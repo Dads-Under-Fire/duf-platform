@@ -59,7 +59,7 @@ export function UpgradeBanner() {
         </div>
       </div>
 
-      <UpgradeModal open={showModal} onOpenChange={setShowModal} />
+      <UpgradeModal open={showModal} onOpenChange={setShowModal} targetPlan={displayPlan as any} />
     </>
   );
 }
