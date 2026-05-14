@@ -718,6 +718,27 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_webhook_events: {
+        Row: {
+          event_id: string
+          event_type: string
+          payload_created_at: string | null
+          processed_at: string
+        }
+        Insert: {
+          event_id: string
+          event_type: string
+          payload_created_at?: string | null
+          processed_at?: string
+        }
+        Update: {
+          event_id?: string
+          event_type?: string
+          payload_created_at?: string | null
+          processed_at?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           billing_period_end: string
@@ -846,6 +867,7 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: { p_user_id: string }; Returns: boolean }
+      roll_forward_expired_usage_periods: { Args: never; Returns: number }
     }
     Enums: {
       case_log_entry_type:
