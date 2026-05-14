@@ -10,25 +10,25 @@ function formatPlanLabel(plan: string): string {
 }
 
 export function UpgradeBanner() {
-  const { plan, intendedPlan, rewritesExhausted, evidenceExhausted } = useProfile();
+  const { plan, intendedPlan, rewritesExhausted, caseAnalysesExhausted } = useProfile();
   const [showModal, setShowModal] = useState(false);
 
-  const anyExhausted = rewritesExhausted || evidenceExhausted;
+  const anyExhausted = rewritesExhausted || caseAnalysesExhausted;
 
   if (!anyExhausted) return null;
 
   const displayPlan = intendedPlan && intendedPlan !== "free" ? intendedPlan : "pro";
 
   let creditType: string;
-  if (rewritesExhausted && evidenceExhausted) {
+  if (rewritesExhausted && caseAnalysesExhausted) {
     creditType = "";
-  } else if (evidenceExhausted) {
-    creditType = " evidence";
+  } else if (caseAnalysesExhausted) {
+    creditType = " Case Intelligence";
   } else {
-    creditType = " message";
+    creditType = " message rewrite";
   }
 
-  const message = `Your free${creditType} credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
+  const message = `Your${creditType} credits are used up. Continue to the ${formatPlanLabel(displayPlan)} plan.`;
   const ctaLabel = "Upgrade now";
 
   return (
