@@ -186,6 +186,8 @@ serve(async (req) => {
         await syncSubscriptionFromStripe(sub);
         break;
       }
+      case "invoice.paid":
+      case "invoice.payment_succeeded":
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = invoice.subscription as string | null;
