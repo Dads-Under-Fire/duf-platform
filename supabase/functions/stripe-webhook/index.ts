@@ -151,6 +151,24 @@ serve(async (req) => {
 
   log("EVENT", { type: event.type, id: event.id });
 
+  // Idempotency: skip if we've already processed this event id.
+  const { error: dedupeError } = await supabase
+    .from("stripe_webhook_events")
+    .insert({
+      event_id: event.id,
+      event_type: event.type,
+      payload_created_at: event.created ? new Date(event.created * 1000).toISOString() : null,
+    });
+  if (dedupeError) {
+    if ((dedupeError as { code?: string }).code === "23505") {
+      log("DUPLICATE_EVENT_SKIPPED", { id: event.id });
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    log("DEDUPE_INSERT_ERROR", { error: dedupeError.message });
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
