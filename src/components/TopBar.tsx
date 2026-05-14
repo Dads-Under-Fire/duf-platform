@@ -17,14 +17,9 @@ export function TopBar() {
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
   const rewritesLimit = limits.message_rewrites;
 
-  // Evidence: free = count-based, paid = word-based
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
+  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesLimit = limits.case_intelligence_analyses;
+  const analysesLabel = "Case Intelligence";
 
   return (
     <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
