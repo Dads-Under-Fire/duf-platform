@@ -52,13 +52,9 @@ export default function Account() {
   const hasPaidSubscription = plan !== "free";
 
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceLabel = limits.evidence_uses_words ? "Evidence words" : "Evidence analyses";
+  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesLimit = limits.case_intelligence_analyses;
+  const analysesLabel = "Case Intelligence analyses";
 
   return (
     <>
@@ -197,16 +193,16 @@ export default function Account() {
               {/* Evidence */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{evidenceLabel}</span>
+                  <span className="text-sm text-muted-foreground">{analysesLabel}</span>
                   <span className="text-sm">
-                    <span className="font-medium text-foreground">{formatNumber(evidenceUsed)}</span>
-                    <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)}</span>
+                    <span className="font-medium text-foreground">{formatNumber(analysesUsed)}</span>
+                    <span className="text-muted-foreground"> / {formatNumber(analysesLimit)}</span>
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
                   />
                 </div>
               </div>

@@ -81,13 +81,9 @@ export function AppSidebar() {
 
   const effectivePath = optimisticPath ?? location.pathname;
 
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
+  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesLimit = limits.case_intelligence_analyses;
+  const analysesLabel = "Case Intelligence";
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -161,15 +157,15 @@ export function AppSidebar() {
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{evidenceLabel}</p>
+              <p className="text-xs text-muted-foreground">{analysesLabel}</p>
               <p className="text-xs">
-                <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
-                <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)} used</span>
+                <span className="text-primary font-bold">{formatNumber(analysesUsed)}</span>
+                <span className="text-muted-foreground"> / {formatNumber(analysesLimit)} used</span>
               </p>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>

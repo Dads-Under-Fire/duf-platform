@@ -17,14 +17,9 @@ export function TopBar() {
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
   const rewritesLimit = limits.message_rewrites;
 
-  // Evidence: free = count-based, paid = word-based
-  const evidenceUsed = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0)
-    : (usage?.evidence_analyses_used ?? 0);
-  const evidenceLimit = limits.evidence_uses_words
-    ? limits.evidence_words
-    : limits.evidence_analyses;
-  const evidenceLabel = limits.evidence_uses_words ? "Evidence Words" : "Evidence Analyses";
+  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesLimit = limits.case_intelligence_analyses;
+  const analysesLabel = "Case Intelligence";
 
   return (
     <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
@@ -71,16 +66,16 @@ export function TopBar() {
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">{evidenceLabel}</span>
+                <span className="text-muted-foreground text-xs">{analysesLabel}</span>
                 <span className="text-xs">
-                  <span className="text-primary font-bold">{formatNumber(evidenceUsed)}</span>
-                  <span className="text-muted-foreground"> / {formatNumber(evidenceLimit)}</span>
+                  <span className="text-primary font-bold">{formatNumber(analysesUsed)}</span>
+                  <span className="text-muted-foreground"> / {formatNumber(analysesLimit)}</span>
                 </span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min((evidenceUsed / evidenceLimit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((analysesUsed / analysesLimit) * 100, 100)}%` }}
                 />
               </div>
             </div>

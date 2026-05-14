@@ -32,40 +32,31 @@ export interface UsageCounters {
 
 export interface PlanLimits {
   message_rewrites: number;
-  evidence_analyses: number;
-  evidence_words: number;
+  /** Case Intelligence analyses per billing period (Analyze Case + Generate Case Report). */
+  case_intelligence_analyses: number;
   unlimited_rewrites: boolean;
-  evidence_uses_words: boolean;
 }
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
   free: {
     message_rewrites: 2,
-    evidence_analyses: 1,
-    evidence_words: 0,
+    case_intelligence_analyses: 1,
     unlimited_rewrites: false,
-    evidence_uses_words: false,
   },
   core: {
     message_rewrites: 100,
-    evidence_analyses: 999999,
-    evidence_words: 15000,
+    case_intelligence_analyses: 4,
     unlimited_rewrites: false,
-    evidence_uses_words: true,
   },
   pro: {
     message_rewrites: 250,
-    evidence_analyses: 999999,
-    evidence_words: 60000,
+    case_intelligence_analyses: 12,
     unlimited_rewrites: false,
-    evidence_uses_words: true,
   },
   case_builder: {
     message_rewrites: 999999,
-    evidence_analyses: 999999,
-    evidence_words: 200000,
+    case_intelligence_analyses: 30,
     unlimited_rewrites: true,
-    evidence_uses_words: true,
   },
 };
 
@@ -120,11 +111,11 @@ export function useProfile() {
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
   const intendedPlan = profile?.intended_plan as string | null;
 
-  // Check if free credits are exhausted
+  // Check if credits are exhausted
   const rewritesExhausted = !limits.unlimited_rewrites && (usage?.message_rewrites_used ?? 0) >= limits.message_rewrites;
-  const evidenceExhausted = limits.evidence_uses_words
-    ? (usage?.evidence_words_used ?? 0) >= limits.evidence_words
-    : (usage?.evidence_analyses_used ?? 0) >= limits.evidence_analyses;
+  // Case Intelligence analyses are tracked in the existing evidence_analyses_used counter.
+  const caseAnalysesUsed = usage?.evidence_analyses_used ?? 0;
+  const caseAnalysesExhausted = caseAnalysesUsed >= limits.case_intelligence_analyses;
 
   const refetch = () => {
     refetchProfile();
@@ -140,7 +131,10 @@ export function useProfile() {
     plan,
     intendedPlan,
     rewritesExhausted,
-    evidenceExhausted,
+    caseAnalysesUsed,
+    caseAnalysesExhausted,
+    /** @deprecated use caseAnalysesExhausted */
+    evidenceExhausted: caseAnalysesExhausted,
     refetch,
   };
 }
