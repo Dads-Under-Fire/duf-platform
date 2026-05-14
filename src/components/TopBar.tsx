@@ -86,9 +86,16 @@ export function TopBar() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        <span className="text-muted-foreground text-sm hidden md:block">
-          Plan: {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
-        </span>
+        <div className="hidden md:flex flex-col items-end leading-tight">
+          <span className="text-muted-foreground text-sm">
+            Plan: {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
+          </span>
+          {usage?.period_end && (
+            <span className="text-muted-foreground text-xs">
+              Resets {new Date(usage.period_end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </span>
+          )}
+        </div>
 
         {isMobile && (
           <button
