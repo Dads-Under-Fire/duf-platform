@@ -17,7 +17,7 @@ export function TopBar() {
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
   const rewritesLimit = limits.message_rewrites;
 
-  const analysesUsed = usage?.evidence_analyses_used ?? 0;
+  const analysesUsed = usage?.case_intelligence_analyses_used ?? 0;
   const analysesLimit = limits.case_intelligence_analyses;
   const analysesLabel = "Case Intelligence";
 
