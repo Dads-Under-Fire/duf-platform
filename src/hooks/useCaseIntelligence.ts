@@ -147,12 +147,40 @@ export function useAnalysisPatterns(analysisId: string | null) {
   });
 }
 
+/** Calls the consume_case_intelligence_analysis RPC. Throws QuotaExceededError on 0 remaining. */
+export class QuotaExceededError extends Error {
+  used: number;
+  limit: number;
+  constructor(used: number, limit: number) {
+    super("Out of Case Intelligence analyses for this billing period.");
+    this.name = "QuotaExceededError";
+    this.used = used;
+    this.limit = limit;
+  }
+}
+
+async function consumeCaseIntelligenceAnalysis(userId: string) {
+  const { data, error } = await (supabase.rpc as any)("consume_case_intelligence_analysis", {
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.allowed) {
+    throw new QuotaExceededError(row?.used ?? 0, row?.limit ?? 0);
+  }
+  return row as { allowed: boolean; used: number; limit: number };
+}
+
 export function useRunAnalysis(caseId: string | null) {
   const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!user || !caseId) throw new Error("Missing case");
+
+      // 1. Consume quota first — throws QuotaExceededError if out.
+      await consumeCaseIntelligenceAnalysis(user.id);
+
       const { data: entries, error: eErr } = await supabase
         .from("case_log_entries")
         .select("id, entry_type, event_date, updated_at")
@@ -207,6 +235,23 @@ export function useRunAnalysis(caseId: string | null) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["case_analysis_latest", caseId] });
       qc.invalidateQueries({ queryKey: ["case_analysis_patterns"] });
+      qc.invalidateQueries({ queryKey: ["usage_counters"] });
+    },
+  });
+}
+
+/** Mutation used by Generate Case Report — consumes 1 Case Intelligence analysis. */
+export function useGenerateCaseReport() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      await consumeCaseIntelligenceAnalysis(user.id);
+      return true;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["usage_counters"] });
     },
   });
 }

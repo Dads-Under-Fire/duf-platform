@@ -1,29 +1,45 @@
+import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import {
   useCaseTimeline,
   useLatestAnalysis,
   useAnalysisPatterns,
   useRunAnalysis,
   computeAnalysisState,
+  QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 
 export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEvents: () => void }) {
   const { toast } = useToast();
+  const { caseAnalysesExhausted, refetch } = useProfile();
   const { data: entries } = useCaseTimeline(caseId);
   const { data: latest } = useLatestAnalysis(caseId);
   const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
   const run = useRunAnalysis(caseId);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const state = computeAnalysisState(latest ?? null, entries);
 
   const handleAnalyze = async () => {
+    if (caseAnalysesExhausted) {
+      setShowUpgrade(true);
+      return;
+    }
     try {
       await run.mutateAsync();
+      refetch();
       toast({ title: "Case analyzed", description: "Patterns refreshed for this case." });
     } catch (err: any) {
+      if (err instanceof QuotaExceededError) {
+        refetch();
+        setShowUpgrade(true);
+        return;
+      }
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     }
   };
@@ -50,6 +66,7 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
           </p>
           {cta}
         </div>
+        <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
       </div>
     );
   }
@@ -95,6 +112,8 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
           <p className="text-sm text-muted-foreground">No patterns detected in the last analysis.</p>
         </div>
       )}
+
+      <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
     </div>
   );
 }

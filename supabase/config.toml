@@ -3,9 +3,6 @@ project_id = "ynbvwbfxbjlwhjuvczpe"
 [functions.communication-shield]
 verify_jwt = false
 
-[functions.evidence-analyzer]
-verify_jwt = false
-
 [functions.suggest-intents]
 verify_jwt = false
 

@@ -836,6 +836,18 @@ export type Database = {
           used: number
         }[]
       }
+      consume_case_intelligence_analysis: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+          limit: number
+          used: number
+        }[]
+      }
+      get_case_intelligence_limit: {
+        Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
+        Returns: number
+      }
       get_plan_limits: {
         Args: { p_plan: Database["public"]["Enums"]["plan_type"] }
         Returns: {
