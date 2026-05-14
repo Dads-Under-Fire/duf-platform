@@ -173,7 +173,7 @@ export function AppSidebar() {
 
             {usage?.period_end && (
               <p className="text-xs text-muted-foreground">
-                Resets on {new Date(usage.period_end).toLocaleDateString()}
+                Resets on {formatResetDate(usage.period_end)}
               </p>
             )}
           </div>
