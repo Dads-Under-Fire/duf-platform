@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -7,6 +8,7 @@ export default function CheckoutSuccess() {
   const { user, loading } = useAuth();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!user) return;
@@ -19,6 +21,13 @@ export default function CheckoutSuccess() {
         });
         if (error) throw error;
         if (data?.activated) {
+          // Force-refresh profile/subscription/usage so the rest of the app
+          // sees the new plan immediately.
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["profile", user.id] }),
+            queryClient.invalidateQueries({ queryKey: ["subscription", user.id] }),
+            queryClient.invalidateQueries({ queryKey: ["usage_counters", user.id] }),
+          ]);
           setStatus("success");
         } else {
           setStatus("error");
@@ -27,7 +36,7 @@ export default function CheckoutSuccess() {
         setStatus("error");
       }
     })();
-  }, [user, searchParams]);
+  }, [user, searchParams, queryClient]);
 
   if (loading) {
     return (
@@ -57,8 +66,8 @@ export default function CheckoutSuccess() {
           <div className="text-4xl">✓</div>
           <h1 className="text-2xl font-bold text-foreground">Subscription Activated</h1>
           <p className="text-muted-foreground">Your plan is now active. You have full access to all features.</p>
-          <a href="/" className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-colors">
-            Go to App
+          <a href="/case-intelligence" className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-colors">
+            Go to Case Intelligence
           </a>
         </div>
       </div>
@@ -69,9 +78,11 @@ export default function CheckoutSuccess() {
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center space-y-4 max-w-md">
         <h1 className="text-2xl font-bold text-foreground">Verification Issue</h1>
-        <p className="text-muted-foreground">We couldn't verify your payment. Please try refreshing or contact support.</p>
-        <a href="/" className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-colors">
-          Go to App
+        <p className="text-muted-foreground">
+          We couldn't verify your payment yet. If you just paid, it may take a moment to sync — try refreshing, or contact support.
+        </p>
+        <a href="/account" className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-colors">
+          Go to Account
         </a>
       </div>
     </div>
