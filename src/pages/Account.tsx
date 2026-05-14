@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CreditCard, ExternalLink, Loader2, AlertTriangle } from "lucide-react";
+import { formatResetDate } from "@/lib/formatDate";
 
 function formatPlanLabel(plan: string): string {
   if (plan === "case_builder") return "Case Builder";
@@ -129,7 +130,7 @@ export default function Account() {
                     {subscription.cancel_at_period_end ? "Access ends" : "Renews / credits reset"}
                   </span>
                   <span className="text-sm text-foreground">
-                    {new Date(subscription.billing_period_end).toLocaleDateString()}
+                    {formatResetDate(subscription.billing_period_end)}
                   </span>
                 </div>
               )}
@@ -240,7 +241,7 @@ export default function Account() {
 
               {usage?.period_end && (
                 <p className="text-xs text-muted-foreground pt-1">
-                  Resets on {new Date(usage.period_end).toLocaleDateString()}
+                  Resets on {formatResetDate(usage.period_end)}
                 </p>
               )}
             </CardContent>

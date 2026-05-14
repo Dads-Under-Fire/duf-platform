@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { formatResetDate } from "@/lib/formatDate";
 import {
   Sidebar,
   SidebarContent,
@@ -172,7 +173,7 @@ export function AppSidebar() {
 
             {usage?.period_end && (
               <p className="text-xs text-muted-foreground">
-                Resets on {new Date(usage.period_end).toLocaleDateString()}
+                Resets on {formatResetDate(usage.period_end)}
               </p>
             )}
           </div>

@@ -2,6 +2,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Menu, X } from "lucide-react";
+import { formatResetDateShort } from "@/lib/formatDate";
 import dufLogo from "@/assets/dufplatform.png";
 
 function formatNumber(n: number): string {
@@ -92,7 +93,7 @@ export function TopBar() {
           </span>
           {usage?.period_end && (
             <span className="text-muted-foreground text-xs">
-              Resets {new Date(usage.period_end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              Resets {formatResetDateShort(usage.period_end)}
             </span>
           )}
         </div>
