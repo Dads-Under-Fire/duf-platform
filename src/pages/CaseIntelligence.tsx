@@ -80,7 +80,7 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <div className="px-6 pt-4 flex items-center justify-between gap-4 border-b border-border">
+        <div className="px-6 pt-4 pb-4 flex items-center justify-between gap-4 border-b border-border">
           <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
             {TABS.map((t) => (
               <button

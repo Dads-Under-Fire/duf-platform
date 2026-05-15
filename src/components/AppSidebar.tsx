@@ -104,7 +104,7 @@ export function AppSidebar() {
             const isActive = effectivePath === item.url;
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild isActive={isActive} className="hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent">
+                <SidebarMenuButton asChild isActive={isActive} className="hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent data-[active=true]:text-primary">
                   <Link
                     to={item.url}
                     onClick={() => handleNavClick(item.url)}
