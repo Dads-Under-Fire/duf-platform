@@ -121,6 +121,35 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
   const intervalRaw = stripeSub.items?.data?.[0]?.price?.recurring?.interval;
   const billingInterval: "month" | "year" = intervalRaw === "year" ? "year" : "month";
 
+  // Detect a pending downgrade / scheduled plan change via subscription_schedule.
+  // The Customer Portal creates a schedule with two phases: current and the
+  // next phase that starts at the end of the current period.
+  let pendingPlan: "core" | "pro" | "case_builder" | null = null;
+  let pendingInterval: "month" | "year" | null = null;
+  let pendingEffectiveAt: string | null = null;
+  const scheduleId = (stripeSub as unknown as { schedule?: string | null }).schedule;
+  if (scheduleId) {
+    try {
+      const schedule = await stripe.subscriptionSchedules.retrieve(
+        typeof scheduleId === "string" ? scheduleId : (scheduleId as { id: string }).id,
+      );
+      // Find the first phase whose start is in the future relative to current period end.
+      const futurePhase = schedule.phases.find(
+        (p) => p.start_date && p.start_date >= periodEndUnix - 60,
+      );
+      if (futurePhase) {
+        const futurePriceId = futurePhase.items?.[0]?.price as string | undefined;
+        if (futurePriceId) {
+          pendingPlan = PRICE_TO_PLAN[futurePriceId] ?? null;
+          // We don't have full price object here; keep interval null unless mapped.
+        }
+        pendingEffectiveAt = new Date(futurePhase.start_date * 1000).toISOString();
+      }
+    } catch (e) {
+      log("SCHEDULE_FETCH_FAILED", { error: (e as Error).message, scheduleId });
+    }
+  }
+
   const update: Record<string, unknown> = {
     status,
     stripe_customer_id: customerId,
@@ -129,6 +158,9 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     billing_period_start: new Date(periodStartUnix * 1000).toISOString(),
     billing_period_end: new Date(periodEndUnix * 1000).toISOString(),
     billing_interval: billingInterval,
+    pending_plan: pendingPlan,
+    pending_interval: pendingInterval,
+    pending_effective_at: pendingEffectiveAt,
     updated_at: new Date().toISOString(),
   };
   if (plan) update.plan = plan;
