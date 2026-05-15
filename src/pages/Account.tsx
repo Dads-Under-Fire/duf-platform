@@ -177,10 +177,17 @@ export default function Account() {
               <CardTitle className="text-base">Profile</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Email</span>
-                <span className="text-sm text-foreground">{user?.email}</span>
-              </div>
+              {profileLoading && !user?.email ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <Skeleton className="h-4 w-48" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <span className="text-sm text-foreground">{user?.email}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
