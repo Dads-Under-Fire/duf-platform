@@ -31,7 +31,7 @@ export function TopBar() {
           <img src={dufLogo} alt="DUF Platform" className="h-6" />
         )}
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-10">
           {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
