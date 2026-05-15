@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Pencil, Trash2, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -33,12 +33,14 @@ import {
   type ExpenseCategory,
 } from "@/types/caseLog";
 import { PatternStatusBadge } from "@/components/case-intelligence/PatternStatusBadge";
+import { ErrorState } from "@/components/ui/state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EntryDetails() {
   const { entryId } = useParams<{ entryId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data, isLoading } = useCaseEntry(entryId ?? null);
+  const { data, isLoading, isError, error, refetch } = useCaseEntry(entryId ?? null);
   const deleteEntry = useDeleteCaseLogEntry();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -54,10 +56,48 @@ export default function EntryDetails() {
     return { state, names, isNewer: state.newEntryIds.has(data.entry.id) };
   }, [data, latest, patterns]);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
-      <div className="p-6 flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading entry...
+      <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-4">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-4">
+        <Link
+          to="/case-intelligence?tab=timeline"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Timeline
+        </Link>
+        <ErrorState
+          title="Couldn't load this entry"
+          error={error}
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-4">
+        <Link
+          to="/case-intelligence?tab=timeline"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Timeline
+        </Link>
+        <ErrorState
+          title="Entry not found"
+          description="This case log entry may have been deleted or you may not have access to it."
+        />
       </div>
     );
   }

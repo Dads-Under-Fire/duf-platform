@@ -14,12 +14,14 @@ import {
   QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 
+import { EmptyState, ErrorState, ListSkeleton, CardGridSkeleton } from "@/components/ui/state";
+
 export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEvents: () => void }) {
   const { toast } = useToast();
   const { caseAnalysesExhausted, refetch } = useProfile();
-  const { data: entries } = useCaseTimeline(caseId);
-  const { data: latest } = useLatestAnalysis(caseId);
-  const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
+  const { data: entries, isLoading: entriesLoading } = useCaseTimeline(caseId);
+  const { data: latest, isLoading: latestLoading, isError: latestError, error: latestErr, refetch: refetchLatest } = useLatestAnalysis(caseId);
+  const { data: patterns, isLoading: patternsLoading } = useAnalysisPatterns(latest?.id ?? null);
   const run = useRunAnalysis(caseId);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
@@ -54,15 +56,36 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
     </Button>
   );
 
+  if (latestLoading || entriesLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-9" />
+        <CardGridSkeleton count={4} />
+      </div>
+    );
+  }
+
+  if (latestError) {
+    return (
+      <ErrorState
+        title="Couldn't load analysis"
+        error={latestErr}
+        onRetry={() => refetchLatest()}
+      />
+    );
+  }
+
   if (state.status === "never") {
+    const noEntries = !entries || entries.length === 0;
     return (
       <div className="space-y-4">
         <div className="border border-border rounded-lg p-8 bg-card text-center max-w-2xl mx-auto">
           <Sparkles className="h-8 w-8 mx-auto text-primary mb-3" />
           <h3 className="text-lg font-semibold text-foreground">Discover patterns across your case</h3>
           <p className="text-sm text-muted-foreground mt-2 mb-5">
-            Case Intelligence reviews every saved Case Log entry and its supporting evidence to surface recurring behaviors,
-            timing patterns, and risks. Running an analysis uses 1 Case Intelligence credit.
+            {noEntries
+              ? "Add at least one Case Log entry, then run an analysis to surface recurring behaviors, timing patterns, and risks."
+              : "Case Intelligence reviews every saved Case Log entry and its supporting evidence to surface recurring behaviors, timing patterns, and risks. Running an analysis uses 1 Case Intelligence credit."}
           </p>
           {cta}
         </div>
@@ -107,10 +130,17 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
             </li>
           ))}
         </ul>
+      ) : patternsLoading ? (
+        <CardGridSkeleton count={4} />
       ) : (
-        <div className="border border-dashed border-border rounded-lg p-6 text-center">
-          <p className="text-sm text-muted-foreground">No patterns detected in the last analysis.</p>
-        </div>
+        <EmptyState
+          title="No patterns detected in the last analysis."
+          description={
+            state.status === "stale"
+              ? "New entries have been added since the last run. Re-analyze to look for new patterns."
+              : "As you add more entries, recurring behaviors and timing patterns will be surfaced here."
+          }
+        />
       )}
 
       <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />

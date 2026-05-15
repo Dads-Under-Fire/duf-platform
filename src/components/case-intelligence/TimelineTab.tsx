@@ -6,10 +6,13 @@ import { useCaseTimeline, useLatestAnalysis, useAnalysisPatterns, computeAnalysi
 import { ENTRY_TYPE_LABELS, type CaseLogEntryType } from "@/types/caseLog";
 import { Filters, defaultFilters, type FilterState } from "./Filters";
 import { PatternStatusBadge } from "./PatternStatusBadge";
+import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/state";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 export function TimelineTab({ caseId }: { caseId: string }) {
   const navigate = useNavigate();
-  const { data: entries, isLoading } = useCaseTimeline(caseId);
+  const { data: entries, isLoading, isError, error, refetch } = useCaseTimeline(caseId);
   const { data: latest } = useLatestAnalysis(caseId);
   const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
@@ -52,10 +55,28 @@ export function TimelineTab({ caseId }: { caseId: string }) {
     return Array.from(g.entries());
   }, [filtered]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading timeline...</p>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Filters value={filters} onChange={setFilters} />
+        <ListSkeleton rows={5} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Couldn't load the timeline"
+        error={error}
+        onRetry={() => refetch()}
+      />
+    );
+  }
 
   const totalLogs = entries?.length ?? 0;
   const lastDate = entries?.[0]?.event_date;
+  const filtersActive = !!(filters.entryType || filters.fromDate || filters.toDate);
 
   return (
     <div className="space-y-4">
@@ -68,9 +89,22 @@ export function TimelineTab({ caseId }: { caseId: string }) {
       <Filters value={filters} onChange={setFilters} />
 
       {grouped.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <p className="text-sm text-muted-foreground">No case log entries match the current filters.</p>
-        </div>
+        totalLogs === 0 ? (
+          <EmptyState
+            title="No case log entries yet."
+            description="Add your first entry from the Case Log to start building a timeline of events."
+            action={
+              <Button asChild size="sm">
+                <Link to="/">Go to Case Log</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No entries match the current filters."
+            description={filtersActive ? "Try clearing or adjusting the filters above." : undefined}
+          />
+        )
       ) : (
         <div className="space-y-6">
           {grouped.map(([date, items]) => (

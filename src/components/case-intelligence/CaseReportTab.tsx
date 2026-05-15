@@ -13,17 +13,20 @@ import {
   QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 import { useState } from "react";
+import { EmptyState, ErrorState } from "@/components/ui/state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CaseReportTab({ caseId }: { caseId: string }) {
   const { toast } = useToast();
   const { caseAnalysesExhausted, refetch } = useProfile();
-  const { data: entries } = useCaseTimeline(caseId);
-  const { data: evidence } = useCaseEvidence(caseId);
-  const { data: latest } = useLatestAnalysis(caseId);
-  const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
+  const { data: entries, isLoading: entriesLoading, isError: entriesErr, refetch: refetchEntries } = useCaseTimeline(caseId);
+  const { data: evidence, isLoading: evidenceLoading } = useCaseEvidence(caseId);
+  const { data: latest, isLoading: latestLoading } = useLatestAnalysis(caseId);
+  const { data: patterns, isLoading: patternsLoading } = useAnalysisPatterns(latest?.id ?? null);
   const generate = useGenerateCaseReport();
   const [generated, setGenerated] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const overviewLoading = entriesLoading || evidenceLoading || latestLoading;
 
   const handleGenerate = async () => {
     if (caseAnalysesExhausted) {
@@ -63,22 +66,42 @@ export function CaseReportTab({ caseId }: { caseId: string }) {
         </Button>
       </div>
 
+      {entriesErr && (
+        <ErrorState
+          title="Couldn't load case data"
+          onRetry={() => refetchEntries()}
+        />
+      )}
+
       <section className="border border-border rounded-lg p-4 bg-card">
         <h4 className="text-sm font-medium text-foreground mb-3">Overview</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat label="Case Logs" value={entries?.length ?? 0} />
-          <Stat label="Evidence files" value={evidence?.length ?? 0} />
-          <Stat label="Patterns" value={patterns?.length ?? 0} />
-          <Stat
-            label="Last analyzed"
-            value={latest ? format(parseISO(latest.created_at), "MMM d") : "—"}
-          />
+          {overviewLoading ? (
+            <>
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </>
+          ) : (
+            <>
+              <Stat label="Case Logs" value={entries?.length ?? 0} />
+              <Stat label="Evidence files" value={evidence?.length ?? 0} />
+              <Stat label="Patterns" value={patterns?.length ?? 0} />
+              <Stat
+                label="Last analyzed"
+                value={latest ? format(parseISO(latest.created_at), "MMM d") : "—"}
+              />
+            </>
+          )}
         </div>
       </section>
 
       <section className="border border-border rounded-lg p-4 bg-card">
         <h4 className="text-sm font-medium text-foreground mb-3">Detected patterns</h4>
-        {patterns && patterns.length > 0 ? (
+        {patternsLoading ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : patterns && patterns.length > 0 ? (
           <ul className="space-y-2">
             {patterns.map((p) => (
               <li key={p.id} className="text-sm">
@@ -94,7 +117,9 @@ export function CaseReportTab({ caseId }: { caseId: string }) {
 
       <section className="border border-border rounded-lg p-4 bg-card">
         <h4 className="text-sm font-medium text-foreground mb-3">Linked evidence</h4>
-        {evidence && evidence.length > 0 ? (
+        {evidenceLoading ? (
+          <Skeleton className="h-4 w-2/3" />
+        ) : evidence && evidence.length > 0 ? (
           <ul className="space-y-1 text-sm text-muted-foreground">
             {evidence.slice(0, 10).map((e) => (
               <li key={e.attachment.id} className="truncate">{e.attachment.file_name}</li>

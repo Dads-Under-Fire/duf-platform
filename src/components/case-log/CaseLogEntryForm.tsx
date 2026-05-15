@@ -749,10 +749,17 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
           >
             <Save className="h-4 w-4" />
             {isSaving
-              ? (editingEntryId ? "Updating..." : "Saving...")
+              ? selectedFiles.length > 0
+                ? `Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? "s" : ""}...`
+                : (editingEntryId ? "Updating..." : "Saving...")
               : (editingEntryId ? "Update Entry" : "Save Entry")}
           </Button>
         </div>
+        {isSaving && selectedFiles.length > 0 && (
+          <p className="text-xs text-muted-foreground text-right -mt-4">
+            Please keep this tab open while files upload.
+          </p>
+        )}
 
         {/* Separator */}
         <div className="border-t border-border" />

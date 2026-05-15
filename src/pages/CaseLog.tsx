@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateCase, useDeleteCase } from "@/hooks/useCases";
 import { useActiveCase } from "@/hooks/useActiveCase";
@@ -45,8 +46,8 @@ export default function CaseLog() {
   return (
     <div className="flex flex-col h-full">
       {casesLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-muted-foreground">Loading cases...</div>
+        <div className="flex-1 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading cases...
         </div>
       ) : showCreatePrompt ? (
         <CreateCasePrompt onCreateCase={handleCreateCase} isLoading={createCase.isPending} />

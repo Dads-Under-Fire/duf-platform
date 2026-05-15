@@ -19,8 +19,9 @@ export default function ProtectedShell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <p className="text-sm">Loading your account...</p>
       </div>
     );
   }
@@ -30,8 +31,9 @@ export default function ProtectedShell() {
   return (
     <AppLayout>
       {!bootstrapped ? (
-        <div className="flex-1 flex items-center justify-center h-full">
-          <div className="text-muted-foreground">Setting up your account...</div>
+        <div className="flex-1 flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <p className="text-sm">Setting up your account...</p>
         </div>
       ) : (
         <Suspense fallback={<ContentSkeleton />}>
