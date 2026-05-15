@@ -41,7 +41,7 @@ interface UpgradeModalProps {
 }
 
 const NEXT_TIER: Record<string, "core" | "pro" | "case_builder"> = {
-  free: "pro",
+  free: "core",
   core: "pro",
   pro: "case_builder",
   case_builder: "case_builder",

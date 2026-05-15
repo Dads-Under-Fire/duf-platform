@@ -226,19 +226,11 @@ export default function Account() {
                     {hasHigherPlan && (
                       <div className="space-y-1">
                         <Button
-                          onClick={() =>
-                            hasPaidSubscription
-                              ? openPortal("subscription_update")
-                              : openUpgrade(nextPlan as "core" | "pro" | "case_builder")
-                          }
+                          onClick={() => openUpgrade(nextPlan as "core" | "pro" | "case_builder")}
                           disabled={portalLoading !== null}
                           className="gap-2"
                         >
-                          {portalLoading === "subscription_update" && hasPaidSubscription ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <CreditCard className="h-4 w-4" />
-                          )}
+                          <CreditCard className="h-4 w-4" />
                           Upgrade plan
                         </Button>
                         <p className="text-xs text-muted-foreground">
