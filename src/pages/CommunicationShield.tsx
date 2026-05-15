@@ -119,6 +119,7 @@ export default function CommunicationShield() {
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
   const [respondTriageData, setRespondTriageData] = useState<RespondTriageResult | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
+  const [errorState, setErrorState] = useState<{ message: string; retry: () => void } | null>(null);
   const FREE_REGEN_LIMIT = 2;
   const MAX_MESSAGE_LENGTH = 10000;
   const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
