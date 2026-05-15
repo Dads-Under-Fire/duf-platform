@@ -950,9 +950,8 @@ export default function CommunicationShield() {
           )}
 
           {step === "respond-triage" && loading && (
-            <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-card rounded-md text-sm text-muted-foreground shrink-0">
-              <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
-              Analyzing message...
+            <div className="mt-4 px-4 py-3 bg-card rounded-md shrink-0">
+              <ResultLoadingSkeleton label="Analyzing message..." />
             </div>
           )}
 
