@@ -70,22 +70,27 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm whitespace-nowrap",
-                tab === t.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        <div className="flex items-center justify-between gap-4">
+          <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-sm whitespace-nowrap",
+                  tab === t.key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          {tab === "evidence" && activeCaseId && (
+            <EvidenceFilesCount caseId={activeCaseId} />
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
