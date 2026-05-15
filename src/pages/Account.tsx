@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,11 +22,35 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
+
+  // Detect returning from Stripe Customer Portal and show a toast
+  useEffect(() => {
+    const portal = searchParams.get("portal");
+    if (portal) {
+      if (portal === "manage") {
+        toast({ title: "Billing portal closed", description: "Your billing details have been updated." });
+      } else if (portal === "change") {
+        toast({
+          title: "Plan change completed",
+          description: "Your subscription has been updated. It may take a moment to reflect here.",
+        });
+      } else if (portal === "error") {
+        toast({
+          title: "Billing portal error",
+          description: "Something went wrong in the billing portal. Please try again.",
+          variant: "destructive",
+        });
+      }
+      // Remove query param without reloading
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const openUpgrade = (target?: "core" | "pro" | "case_builder") => {
     setUpgradeTarget(target);
@@ -34,6 +59,10 @@ export default function Account() {
 
   const openPortal = async (flow: "manage" | "subscription_update") => {
     setPortalLoading(flow);
+    toast({
+      title: flow === "manage" ? "Opening billing portal..." : "Opening plan options...",
+      description: "You'll be redirected to Stripe's secure customer portal.",
+    });
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal", {
         body: { flow },
