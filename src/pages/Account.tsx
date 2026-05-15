@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreditCard, ExternalLink, Loader2, AlertTriangle, Trash2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatResetDate } from "@/lib/formatDate";
 
 function formatPlanLabel(plan: string): string {
@@ -34,7 +35,7 @@ export default function Account() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, signOut } = useAuth();
-  const { plan, subscription, usage, limits, intendedPlan } = useProfile();
+  const { plan, subscription, usage, limits, intendedPlan, profileLoading, subscriptionLoading, usageLoading } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
