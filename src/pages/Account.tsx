@@ -31,12 +31,16 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   // Detect returning from Stripe Customer Portal and show a toast
   useEffect(() => {
