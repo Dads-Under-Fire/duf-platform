@@ -130,14 +130,16 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-2 pb-4 space-y-1">
-        <button
-          onClick={toggleSidebar}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground rounded-md w-full transition-colors"
-        >
-          <ChevronsLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
-        </button>
+        <div className={cn("flex px-1 pb-2", collapsed ? "justify-center" : "justify-end")}>
+          <button
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronsLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
+          </button>
+        </div>
 
         <div className="h-px bg-sidebar-border mx-1" />
 
