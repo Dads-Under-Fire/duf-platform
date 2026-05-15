@@ -14,12 +14,14 @@ import {
   QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 
+import { EmptyState, ErrorState, ListSkeleton, CardGridSkeleton } from "@/components/ui/state";
+
 export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEvents: () => void }) {
   const { toast } = useToast();
   const { caseAnalysesExhausted, refetch } = useProfile();
-  const { data: entries } = useCaseTimeline(caseId);
-  const { data: latest } = useLatestAnalysis(caseId);
-  const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
+  const { data: entries, isLoading: entriesLoading } = useCaseTimeline(caseId);
+  const { data: latest, isLoading: latestLoading, isError: latestError, error: latestErr, refetch: refetchLatest } = useLatestAnalysis(caseId);
+  const { data: patterns, isLoading: patternsLoading } = useAnalysisPatterns(latest?.id ?? null);
   const run = useRunAnalysis(caseId);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
