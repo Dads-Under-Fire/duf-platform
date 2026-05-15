@@ -1,6 +1,7 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useActiveCase } from "@/hooks/useActiveCase";
 import { useCreateCase, useDeleteCase } from "@/hooks/useCases";
+import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
 import { CaseSelector } from "@/components/case-log/CaseSelector";
 import { CreateCasePrompt } from "@/components/case-log/CreateCasePrompt";
 import { EvidenceTab } from "@/components/case-intelligence/EvidenceTab";
