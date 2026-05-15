@@ -747,6 +747,9 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           id: string
+          pending_effective_at: string | null
+          pending_interval: string | null
+          pending_plan: Database["public"]["Enums"]["plan_type"] | null
           plan: Database["public"]["Enums"]["plan_type"]
           status: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id: string | null
@@ -761,6 +764,9 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           id?: string
+          pending_effective_at?: string | null
+          pending_interval?: string | null
+          pending_plan?: Database["public"]["Enums"]["plan_type"] | null
           plan?: Database["public"]["Enums"]["plan_type"]
           status?: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id?: string | null
@@ -775,6 +781,9 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           id?: string
+          pending_effective_at?: string | null
+          pending_interval?: string | null
+          pending_plan?: Database["public"]["Enums"]["plan_type"] | null
           plan?: Database["public"]["Enums"]["plan_type"]
           status?: Database["public"]["Enums"]["subscription_status"]
           stripe_customer_id?: string | null
