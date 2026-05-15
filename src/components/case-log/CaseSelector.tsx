@@ -84,7 +84,7 @@ export function CaseSelector({
           </SelectContent>
         </Select>
 
-        <div className="absolute right-0 flex items-center gap-1">
+        <div className="absolute right-4 md:right-6 flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
