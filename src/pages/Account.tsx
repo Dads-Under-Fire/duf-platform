@@ -46,10 +46,13 @@ export default function Account() {
       const errorBody = err?.context?.body ? await err.context.json?.().catch(() => null) : null;
       const message = errorBody?.error || err?.message || "";
       console.error("Portal error:", err);
+      const isConfigDisabled = message.includes("subscription update feature") || message.includes("portal configuration");
       toast({
         title: "Billing portal error",
         description: message.includes("No Stripe customer") || message.includes("No active subscription")
           ? "You need an active paid subscription first. Please upgrade your plan."
+          : isConfigDisabled
+          ? "Stripe Customer Portal isn't configured for plan changes yet. Enable 'Customers can switch plans' in your Stripe Dashboard portal settings."
           : "Could not open billing portal. Please try again.",
         variant: "destructive",
       });
