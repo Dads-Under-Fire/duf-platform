@@ -439,6 +439,8 @@ export default function Account() {
                   Resets on {formatResetDate(usage.period_end)}
                 </p>
               )}
+              </>
+              )}
             </CardContent>
           </Card>
 
