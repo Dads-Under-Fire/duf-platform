@@ -26,26 +26,26 @@ export function TopBar() {
   return (
     <div className="border-b border-border flex items-start justify-between pl-4 pr-6 pt-4 pb-3 bg-background shrink-0">
       {/* Left side */}
-      <div className="flex items-start gap-6">
+      <div className="flex items-start gap-4">
         {isMobile && (
           <img src={dufLogo} alt="DUF Platform" className="h-6" />
         )}
 
-        <div className="hidden md:flex items-start gap-6">
+        <div className="hidden md:flex items-start gap-4">
           {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">Message Rewrites</span>
+                <span className="text-foreground text-xs">Message Rewrites</span>
                 <span className="text-xs">
                   {limits.unlimited_rewrites ? (
                     <>
-                      <span className="text-primary font-bold">{rewritesUsed}</span>
+                      <span className="text-primary font-semibold">{rewritesUsed}</span>
                       <span className="text-muted-foreground"> / ∞</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-primary font-bold">{rewritesUsed}</span>
+                      <span className="text-primary font-semibold">{rewritesUsed}</span>
                       <span className="text-muted-foreground"> / {rewritesLimit}</span>
                     </>
                   )}
@@ -68,9 +68,9 @@ export function TopBar() {
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">{analysesLabel}</span>
+                <span className="text-foreground text-xs">{analysesLabel}</span>
                 <span className="text-xs">
-                  <span className="text-primary font-bold">{formatNumber(analysesUsed)}</span>
+                  <span className="text-primary font-semibold">{formatNumber(analysesUsed)}</span>
                   <span className="text-muted-foreground"> / {formatNumber(analysesLimit)}</span>
                 </span>
               </div>
@@ -85,7 +85,7 @@ export function TopBar() {
 
           <Link
             to="/account"
-            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors self-center"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors self-center whitespace-nowrap"
           >
             Add more credits
           </Link>
@@ -98,8 +98,8 @@ export function TopBar() {
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
-            <span className="text-muted-foreground font-normal">Plan: </span>
-            <span className="text-primary font-semibold">
+            <span className="text-foreground font-normal">Plan: </span>
+            <span className="text-foreground font-semibold">
               {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
             </span>
           </span>
