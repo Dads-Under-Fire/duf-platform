@@ -206,7 +206,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                   isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
                 )}
               >
-                <div className="flex-1 min-w-0 space-y-5">
+                <div className="flex-1 min-w-0 space-y-4">
                   {/* A. Header line */}
                   <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                     <span className={cn("font-semibold", typeColor)}>{typeLabel}</span>
