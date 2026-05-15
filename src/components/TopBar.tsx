@@ -98,7 +98,7 @@ export function TopBar() {
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
-            <span className="text-foreground font-normal">Plan: </span>
+            <span className="text-muted-foreground font-normal">Plan: </span>
             <span className="text-primary font-semibold">
               {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
             </span>
