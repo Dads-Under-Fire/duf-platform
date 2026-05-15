@@ -192,10 +192,8 @@ export function AppSidebar() {
           to="/account"
           onClick={() => handleNavClick("/account")}
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-            effectivePath === "/account"
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground"
+            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-foreground hover:text-foreground/80",
+            effectivePath === "/account" && "text-primary"
           )}
         >
           <User className="h-5 w-5 shrink-0" />
@@ -204,7 +202,7 @@ export function AppSidebar() {
 
         <button
           onClick={signOut}
-          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground rounded-md w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2 text-foreground hover:text-foreground/80 rounded-md w-full transition-colors"
         >
           <LogOut className="h-5 w-5 shrink-0" />
           {!collapsed && <span className="text-sm">Logout</span>}
