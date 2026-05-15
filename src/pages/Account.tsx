@@ -43,8 +43,16 @@ export default function Account() {
         window.open(data.url, "_blank");
       }
     } catch (err: any) {
-      const errorBody = err?.context?.body ? await err.context.json?.().catch(() => null) : null;
-      const message = errorBody?.error || err?.message || "";
+      // FunctionsHttpError exposes the underlying Response on err.context — read its body.
+      let serverMsg = "";
+      try {
+        const res = err?.context as Response | undefined;
+        if (res && typeof res.clone === "function") {
+          const parsed = await res.clone().json().catch(() => null);
+          serverMsg = parsed?.error || "";
+        }
+      } catch { /* ignore */ }
+      const message = serverMsg || err?.message || "";
       console.error("Portal error:", err);
       const isConfigDisabled = message.includes("subscription update feature") || message.includes("portal configuration");
       toast({
