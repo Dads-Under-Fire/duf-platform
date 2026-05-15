@@ -280,8 +280,6 @@ export const ENTRY_TYPES_LIST: CaseLogEntryType[] = [
   "expense",
 ];
 
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+// Re-export for backwards compatibility — single source of truth in lib/format.
+export { formatFileSize } from "@/lib/format";
+
