@@ -8,11 +8,20 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Map plan names to Stripe price IDs
-const PLAN_PRICES: Record<string, string> = {
-  core: "price_1TC76iQ4McEga1ntR2G3pFyi",
-  pro: "price_1TC78UQ4McEga1nt9zrLyy3U",
-  case_builder: "price_1TC79BQ4McEga1ntkZGRxRbj",
+// Plan -> { month, year } Stripe price IDs.
+const PLAN_PRICES: Record<string, { month: string; year: string }> = {
+  core: {
+    month: "price_1TC76iQ4McEga1ntR2G3pFyi",
+    year: "price_1TX9DWQ4McEga1ntT2QqQ3kL",
+  },
+  pro: {
+    month: "price_1TC78UQ4McEga1nt9zrLyy3U",
+    year: "price_1TX9DFQ4McEga1ntZvpLfmcf",
+  },
+  case_builder: {
+    month: "price_1TC79BQ4McEga1ntkZGRxRbj",
+    year: "price_1TX9CvQ4McEga1ntkdqUgdEL",
+  },
 };
 
 serve(async (req) => {
@@ -39,8 +48,13 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     let plan = body.plan;
+    const rawInterval = (body.interval ?? "month").toString().toLowerCase();
+    // Accept both 'annual'/'annually' and 'yearly' as aliases for year.
+    const interval: "month" | "year" =
+      rawInterval === "year" || rawInterval === "annual" || rawInterval === "annually" || rawInterval === "yearly"
+        ? "year"
+        : "month";
 
-    // If no plan specified, read intended_plan from profile
     if (!plan) {
       const { data: profile } = await serviceClient
         .from("profiles")
@@ -50,19 +64,19 @@ serve(async (req) => {
       plan = profile?.intended_plan;
     }
 
-    const priceId = PLAN_PRICES[plan];
-    if (!priceId) throw new Error(`Invalid plan: ${plan}`);
+    const priceMap = PLAN_PRICES[plan];
+    if (!priceMap) throw new Error(`Invalid plan: ${plan}`);
+    const priceId = priceMap[interval];
+    if (!priceId) throw new Error(`No ${interval} price for plan ${plan}`);
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Find or reference existing Stripe customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId: string | undefined;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
-      // Persist on subscriptions row so the webhook can map customer -> user.
       await serviceClient
         .from("subscriptions")
         .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
@@ -81,6 +95,7 @@ serve(async (req) => {
       metadata: {
         supabase_user_id: user.id,
         plan,
+        interval,
       },
     });
 

@@ -741,6 +741,7 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          billing_interval: string
           billing_period_end: string
           billing_period_start: string
           cancel_at_period_end: boolean
@@ -754,6 +755,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          billing_interval?: string
           billing_period_end?: string
           billing_period_start?: string
           cancel_at_period_end?: boolean
@@ -767,6 +769,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          billing_interval?: string
           billing_period_end?: string
           billing_period_start?: string
           cancel_at_period_end?: boolean

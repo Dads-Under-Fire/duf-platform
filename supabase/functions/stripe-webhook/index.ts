@@ -11,10 +11,17 @@ const corsHeaders = {
 };
 
 // Map by price.id (more deterministic than product). Mirror of create-checkout.
+// Includes both monthly and annual prices for each paid plan.
 const PRICE_TO_PLAN: Record<string, "core" | "pro" | "case_builder"> = {
-  price_1TC76iQ4McEga1ntR2G3pFyi: "core",
-  price_1TC78UQ4McEga1nt9zrLyy3U: "pro",
-  price_1TC79BQ4McEga1ntkZGRxRbj: "case_builder",
+  // Core
+  price_1TC76iQ4McEga1ntR2G3pFyi: "core",         // monthly
+  price_1TX9DWQ4McEga1ntT2QqQ3kL: "core",         // annual
+  // Pro
+  price_1TC78UQ4McEga1nt9zrLyy3U: "pro",          // monthly
+  price_1TX9DFQ4McEga1ntZvpLfmcf: "pro",          // annual
+  // Case Builder
+  price_1TC79BQ4McEga1ntkZGRxRbj: "case_builder", // monthly
+  price_1TX9CvQ4McEga1ntkdqUgdEL: "case_builder", // annual
 };
 
 const log = (step: string, details?: unknown) =>
@@ -111,6 +118,9 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     throw new Error(`Subscription ${stripeSub.id} missing current_period_start/end`);
   }
 
+  const intervalRaw = stripeSub.items?.data?.[0]?.price?.recurring?.interval;
+  const billingInterval: "month" | "year" = intervalRaw === "year" ? "year" : "month";
+
   const update: Record<string, unknown> = {
     status,
     stripe_customer_id: customerId,
@@ -118,6 +128,7 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     cancel_at_period_end: stripeSub.cancel_at_period_end ?? false,
     billing_period_start: new Date(periodStartUnix * 1000).toISOString(),
     billing_period_end: new Date(periodEndUnix * 1000).toISOString(),
+    billing_interval: billingInterval,
     updated_at: new Date().toISOString(),
   };
   if (plan) update.plan = plan;
