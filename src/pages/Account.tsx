@@ -277,7 +277,9 @@ export default function Account() {
                           </button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Update payment method, view invoices, or change/downgrade your plan
+                          {subscription?.pending_plan && subscription.pending_plan !== plan
+                            ? "You have a scheduled change. Opening the portal will let you modify or cancel it."
+                            : "Update payment method, view invoices, or change/downgrade your plan"}
                         </p>
                       </div>
                     ) : (
