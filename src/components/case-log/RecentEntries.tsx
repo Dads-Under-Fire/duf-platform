@@ -84,7 +84,7 @@ export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
       <div className="space-y-2">
         {entries.map((entry) => {
           const typeLabel = ENTRY_TYPE_LABELS[entry.entry_type as CaseLogEntryType] || entry.entry_type;
-          const eventDate = entry.event_date ? format(parseISO(entry.event_date), "MM/dd/yyyy") : "";
+          const eventDate = entry.event_date ? format(parseISO(entry.event_date), "MMM d, yyyy") : "";
           const eventTime = entry.event_time ? entry.event_time.slice(0, 5) : "";
 
           return (

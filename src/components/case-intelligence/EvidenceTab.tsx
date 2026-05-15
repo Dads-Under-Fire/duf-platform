@@ -69,7 +69,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
         <ul className="space-y-2">
           {filtered.map(({ attachment, entry }) => {
             const typeLabel = entry ? ENTRY_TYPE_LABELS[entry.entry_type as CaseLogEntryType] : "Unknown";
-            const eventDate = entry?.event_date ? format(parseISO(entry.event_date), "MM/dd/yyyy") : "";
+            const eventDate = entry?.event_date ? format(parseISO(entry.event_date), "MMM d, yyyy") : "";
             return (
               <li key={attachment.id} className="border border-border rounded-lg p-4 bg-card flex flex-col md:flex-row md:items-center gap-3">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
