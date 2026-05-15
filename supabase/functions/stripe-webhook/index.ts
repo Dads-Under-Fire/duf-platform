@@ -290,6 +290,22 @@ serve(async (req) => {
         }
         break;
       }
+      case "subscription_schedule.created":
+      case "subscription_schedule.updated":
+      case "subscription_schedule.canceled":
+      case "subscription_schedule.released":
+      case "subscription_schedule.aborted":
+      case "subscription_schedule.completed": {
+        const schedule = event.data.object as Stripe.SubscriptionSchedule;
+        const subId = typeof schedule.subscription === "string"
+          ? schedule.subscription
+          : schedule.subscription?.id;
+        if (subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          await syncSubscriptionFromStripe(sub);
+        }
+        break;
+      }
       default:
         log("IGNORED", { type: event.type });
     }
