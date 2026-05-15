@@ -24,7 +24,7 @@ export function TopBar() {
   const analysesLabel = "Case Intelligence";
 
   return (
-    <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
+    <div className="border-b border-border flex items-start justify-between pl-4 pr-6 pt-4 pb-3 bg-background shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-6">
         {isMobile && (
