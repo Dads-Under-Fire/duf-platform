@@ -83,7 +83,7 @@ export function TimelineTab({ caseId }: { caseId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {totalLogs} Case Log{totalLogs !== 1 ? "s" : ""}
-          {lastDate ? ` · Last entry: ${format(parseISO(lastDate), "MM/dd/yy")}` : ""}
+          {lastDate ? ` · Last entry: ${format(parseISO(lastDate), "MMM d, yyyy")}` : ""}
         </p>
       </div>
       <Filters value={filters} onChange={setFilters} />
