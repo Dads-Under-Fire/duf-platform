@@ -32,7 +32,12 @@ export default function CaseIntelligence() {
   const deleteCase = useDeleteCase();
 
   if (casesLoading) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading cases...</div>;
+    return (
+      <div className="p-6 space-y-3">
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        <div className="h-32 w-full bg-muted/50 rounded animate-pulse" />
+      </div>
+    );
   }
 
   if (cases.length === 0) {
