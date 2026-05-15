@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreditCard, ExternalLink, Loader2, AlertTriangle, Trash2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatResetDate } from "@/lib/formatDate";
 
 function formatPlanLabel(plan: string): string {
@@ -34,7 +35,7 @@ export default function Account() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, signOut } = useAuth();
-  const { plan, subscription, usage, limits, intendedPlan } = useProfile();
+  const { plan, subscription, usage, limits, intendedPlan, profileLoading, subscriptionLoading, usageLoading } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
@@ -176,10 +177,17 @@ export default function Account() {
               <CardTitle className="text-base">Profile</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Email</span>
-                <span className="text-sm text-foreground">{user?.email}</span>
-              </div>
+              {profileLoading && !user?.email ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <Skeleton className="h-4 w-48" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <span className="text-sm text-foreground">{user?.email}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -189,6 +197,28 @@ export default function Account() {
               <CardTitle className="text-base">Subscription</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {subscriptionLoading && !subscription ? (
+                <div className="space-y-4" aria-busy="true" aria-label="Loading subscription">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Plan</span>
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Renews / credits reset</span>
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Separator />
+                  <div className="space-y-3">
+                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                </div>
+              ) : (
+                <>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Plan</span>
                 <span className="text-sm font-medium text-foreground">
@@ -330,6 +360,8 @@ export default function Account() {
                   </div>
                 );
               })()}
+              </>
+              )}
             </CardContent>
           </Card>
 
@@ -339,6 +371,26 @@ export default function Account() {
               <CardTitle className="text-base">Usage this period</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {usageLoading && !usage ? (
+                <div className="space-y-4" aria-busy="true" aria-label="Loading usage">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Message rewrites</span>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{analysesLabel}</span>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ) : (
+                <>
               {/* Rewrites */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -381,6 +433,8 @@ export default function Account() {
                 <p className="text-xs text-muted-foreground pt-1">
                   Resets on {formatResetDate(usage.period_end)}
                 </p>
+              )}
+              </>
               )}
             </CardContent>
           </Card>
