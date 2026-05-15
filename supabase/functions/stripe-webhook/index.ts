@@ -11,10 +11,17 @@ const corsHeaders = {
 };
 
 // Map by price.id (more deterministic than product). Mirror of create-checkout.
+// Includes both monthly and annual prices for each paid plan.
 const PRICE_TO_PLAN: Record<string, "core" | "pro" | "case_builder"> = {
-  price_1TC76iQ4McEga1ntR2G3pFyi: "core",
-  price_1TC78UQ4McEga1nt9zrLyy3U: "pro",
-  price_1TC79BQ4McEga1ntkZGRxRbj: "case_builder",
+  // Core
+  price_1TC76iQ4McEga1ntR2G3pFyi: "core",         // monthly
+  price_1TX9DWQ4McEga1ntT2QqQ3kL: "core",         // annual
+  // Pro
+  price_1TC78UQ4McEga1nt9zrLyy3U: "pro",          // monthly
+  price_1TX9DFQ4McEga1ntZvpLfmcf: "pro",          // annual
+  // Case Builder
+  price_1TC79BQ4McEga1ntkZGRxRbj: "case_builder", // monthly
+  price_1TX9CvQ4McEga1ntkdqUgdEL: "case_builder", // annual
 };
 
 const log = (step: string, details?: unknown) =>
