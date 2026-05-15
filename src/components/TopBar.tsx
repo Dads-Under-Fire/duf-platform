@@ -94,7 +94,7 @@ export function TopBar() {
       </div>
 
       {/* Right side */}
-      <div className="flex items-start gap-6">
+      <div className="flex items-center gap-6">
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
