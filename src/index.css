@@ -2,48 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 20 10% 8%;
-    --foreground: 30 10% 90%;
+    /* Figma-aligned dark surface palette */
+    --background: 0 0% 6%;          /* #0f0f0f */
+    --foreground: 0 0% 90%;          /* #e5e5e5 */
 
-    --card: 20 8% 12%;
-    --card-foreground: 30 10% 90%;
+    --card: 0 0% 8%;                 /* #141414 — row 1 */
+    --card-foreground: 0 0% 90%;
 
-    --popover: 20 8% 12%;
-    --popover-foreground: 30 10% 90%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 90%;
 
-    --primary: 25 90% 50%;
+    --primary: 19 83% 47%;           /* #DD5E13 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 20 8% 18%;
-    --secondary-foreground: 30 10% 90%;
+    --secondary: 0 0% 11%;           /* #1c1c1c — row 2 */
+    --secondary-foreground: 0 0% 90%;
 
-    --muted: 20 6% 16%;
-    --muted-foreground: 25 8% 55%;
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 56%;    /* #909090 */
 
-    --accent: 25 90% 50%;
+    --accent: 19 83% 47%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 6% 20%;
-    --input: 20 6% 20%;
-    --ring: 25 90% 50%;
+    --border: 0 0% 14%;
+    --input: 0 0% 14%;
+    --ring: 19 83% 47%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 20 10% 6%;
-    --sidebar-foreground: 30 10% 70%;
-    --sidebar-primary: 25 90% 50%;
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 19 83% 47%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 20 8% 14%;
-    --sidebar-accent-foreground: 30 10% 90%;
-    --sidebar-border: 20 6% 16%;
-    --sidebar-ring: 25 90% 50%;
+    --sidebar-accent: 0 0% 11%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 19 83% 47%;
   }
 }
 
@@ -54,6 +55,6 @@
 
   body {
     @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Montserrat', sans-serif;
   }
 }
