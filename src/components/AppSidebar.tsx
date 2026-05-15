@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { User, LogOut, ChevronLeft } from "lucide-react";
+import { User, LogOut, ChevronsLeft } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
