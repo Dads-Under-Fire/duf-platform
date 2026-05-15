@@ -3,6 +3,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { UpgradeBanner } from "./UpgradeBanner";
+import { DevDebugPanel } from "./DevDebugPanel";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <UpgradeBanner />
           <main className="flex-1 overflow-hidden">{children}</main>
         </div>
+        <DevDebugPanel />
       </div>
     </SidebarProvider>
   );
