@@ -17,7 +17,7 @@ export default function CheckoutCancel() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center space-y-4 max-w-md">
-        <h1 className="text-2xl font-bold text-foreground">Checkout Canceled</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Checkout Canceled</h1>
         <p className="text-muted-foreground">
           Your subscription was not activated. You can continue using the free plan or try upgrading again.
         </p>

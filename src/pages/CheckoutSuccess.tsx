@@ -64,7 +64,7 @@ export default function CheckoutSuccess() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md">
           <div className="text-4xl">✓</div>
-          <h1 className="text-2xl font-bold text-foreground">Subscription Activated</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Subscription Activated</h1>
           <p className="text-muted-foreground">Your plan is now active. You have full access to all features.</p>
           <a href="/case-intelligence" className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-md font-medium hover:bg-primary/90 transition-colors">
             Go to Case Intelligence
@@ -77,7 +77,7 @@ export default function CheckoutSuccess() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center space-y-4 max-w-md">
-        <h1 className="text-2xl font-bold text-foreground">Verification Issue</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Verification Issue</h1>
         <p className="text-muted-foreground">
           We couldn't verify your payment yet. If you just paid, it may take a moment to sync — try refreshing, or contact support.
         </p>
