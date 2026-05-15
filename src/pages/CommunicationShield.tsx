@@ -515,6 +515,7 @@ export default function CommunicationShield() {
   // Reset state is handled inline in handleSubmitMessage
 
   const handleBackToCompose = () => {
+    setErrorState(null);
     if (step === "goal-selection") {
       setStep("input");
       setResult(null);
