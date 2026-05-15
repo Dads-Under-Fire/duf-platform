@@ -16,6 +16,7 @@ import {
 import { useRecentCaseLogEntries, useDeleteCaseLogEntry } from "@/hooks/useCaseLogEntries";
 import { useToast } from "@/hooks/use-toast";
 import { ENTRY_TYPE_LABELS, type CaseLogEntryType } from "@/types/caseLog";
+import { ErrorState, ListSkeleton } from "@/components/ui/state";
 
 interface RecentEntriesProps {
   caseId: string;
@@ -23,7 +24,7 @@ interface RecentEntriesProps {
 }
 
 export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
-  const { data: entries, isLoading } = useRecentCaseLogEntries(caseId, 5);
+  const { data: entries, isLoading, isError, error, refetch } = useRecentCaseLogEntries(caseId, 5);
   const deleteEntry = useDeleteCaseLogEntry();
   const { toast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
@@ -44,7 +45,20 @@ export function RecentEntries({ caseId, onEditEntry }: RecentEntriesProps) {
     return (
       <div className="space-y-3">
         <h2 className="text-lg font-semibold text-foreground">Recent Entries</h2>
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <ListSkeleton rows={3} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Recent Entries</h2>
+        <ErrorState
+          title="Couldn't load recent entries"
+          error={error}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
