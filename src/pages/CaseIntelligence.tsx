@@ -18,6 +18,16 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "report", label: "Case Report" },
 ];
 
+function EvidenceFilesCount({ caseId }: { caseId: string }) {
+  const { data } = useCaseEvidence(caseId);
+  const total = data?.length ?? 0;
+  return (
+    <p className="text-sm text-foreground whitespace-nowrap">
+      Evidence Files <span className="text-muted-foreground">({total})</span>
+    </p>
+  );
+}
+
 export default function CaseIntelligence() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
