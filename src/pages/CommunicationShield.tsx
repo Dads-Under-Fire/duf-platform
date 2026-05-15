@@ -3,7 +3,7 @@ import { ArrowUp, ArrowLeft, Copy, RefreshCw, Check, MessageSquarePlus, Info, X,
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { toast } from "@/hooks/use-toast";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
@@ -94,6 +94,56 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** Animated skeleton mimicking the result card structure during generation */
+function ResultLoadingSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-live="polite">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <RefreshCw className="h-4 w-4 animate-spin" />
+        <span>{label}</span>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-24 bg-muted rounded" />
+        <div className="h-3 w-full bg-muted rounded" />
+        <div className="h-3 w-11/12 bg-muted rounded" />
+        <div className="h-3 w-4/5 bg-muted rounded" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-28 bg-muted rounded" />
+        <div className="h-3 w-10/12 bg-muted rounded" />
+        <div className="h-3 w-3/4 bg-muted rounded" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-32 bg-muted rounded" />
+        <div className="h-3 w-9/12 bg-muted rounded" />
+      </div>
+    </div>
+  );
+}
+
+/** Inline error block with Retry, used inside the result area instead of toast-only */
+function ResultErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3" role="alert">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-destructive">Something went wrong</p>
+          <p className="text-xs text-muted-foreground">{message}</p>
+          <p className="text-xs text-muted-foreground">Your message is preserved. You can retry below.</p>
+        </div>
+      </div>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export default function CommunicationShield() {
   const { user } = useAuth();
   const { usage, limits, intendedPlan, rewritesExhausted, refetch: refetchProfile } = useProfile();
@@ -119,6 +169,7 @@ export default function CommunicationShield() {
   const [triageData, setTriageData] = useState<Partial<AIResult> | null>(null);
   const [respondTriageData, setRespondTriageData] = useState<RespondTriageResult | null>(null);
   const [freeRegensUsed, setFreeRegensUsed] = useState(0);
+  const [errorState, setErrorState] = useState<{ message: string; retry: () => void } | null>(null);
   const FREE_REGEN_LIMIT = 2;
   const MAX_MESSAGE_LENGTH = 10000;
   const isOverLimit = inputMessage.length > MAX_MESSAGE_LENGTH;
@@ -142,6 +193,7 @@ export default function CommunicationShield() {
     setRespondTriageData(null);
     setFreeRegensUsed(0);
     setLoading(false);
+    setErrorState(null);
   };
 
   const handleSubmitMessage = async () => {
@@ -165,7 +217,13 @@ export default function CommunicationShield() {
     setTriageData(null);
     setRespondTriageData(null);
     setFreeRegensUsed(0);
+    setErrorState(null);
 
+    await runInitialSubmit(msg);
+  };
+
+  const runInitialSubmit = async (msg: string) => {
+    setErrorState(null);
     if (mode === "rewrite") {
       // Staged rewrite: call triage first
       setStep("result");
@@ -179,7 +237,6 @@ export default function CommunicationShield() {
 
         const aiData = data as AIResult;
 
-        // Check if this is a no_message terminal result from triage
         if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
           const noMsgResult = { ...aiData, _noMessageNeeded: true };
           setResult(noMsgResult);
@@ -189,7 +246,6 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Check if goal selection is needed (salvageable or redirect_choice)
         if (aiData.needs_goal_selection) {
           setSessionId(aiData.session_id ?? null);
           setGoalOptions(aiData.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"]);
@@ -199,15 +255,16 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Final result (safe path — direct rewrite)
         setResult(aiData);
         setAllResults(prev => [...prev, aiData]);
         setSessionId(aiData.session_id ?? null);
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
-        toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
-        setStep("input");
+        setErrorState({
+          message: err.message || "Failed to generate rewrite. Please try again.",
+          retry: () => runInitialSubmit(msg),
+        });
       } finally {
         setLoading(false);
       }
@@ -215,7 +272,6 @@ export default function CommunicationShield() {
     }
 
     // ── RESPOND MODE — 2-stage flow ──
-    // Stage 1: Triage
     setStep("respond-triage");
     setLoading(true);
     try {
@@ -230,14 +286,12 @@ export default function CommunicationShield() {
       setSessionId(triage.session_id ?? null);
 
       if (triage.recommendation_type === "do_not_respond") {
-        // Show do_not_respond card — no generation yet
         setStep("respond-triage");
         setLoading(false);
         return;
       }
 
       if (triage.recommendation_type === "brief_boundary_response") {
-        // Auto-generate brief boundary response
         setStep("result");
         const { data: genData, error: genError } = await supabase.functions.invoke("communication-shield", {
           body: {
@@ -291,8 +345,10 @@ export default function CommunicationShield() {
         }
       }
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to analyze message. Please try again.", variant: "destructive" });
-      setStep("input");
+      setErrorState({
+        message: err.message || "Failed to analyze message. Please try again.",
+        retry: () => runInitialSubmit(msg),
+      });
       setLoading(false);
     }
   };
@@ -333,6 +389,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -350,8 +407,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
-      setStep("goal-selection");
+      setErrorState({
+        message: err.message || "Failed to generate rewrite. Please try again.",
+        retry: () => handleSelectGoal(goal),
+      });
     } finally {
       setLoading(false);
     }
@@ -363,6 +422,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -382,8 +442,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
-      setStep("select-intent");
+      setErrorState({
+        message: err.message || "Failed to generate response. Please try again.",
+        retry: () => handleSelectIntent(option),
+      });
     } finally {
       setLoading(false);
     }
@@ -394,6 +456,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -412,8 +475,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
-      setStep("respond-triage");
+      setErrorState({
+        message: err.message || "Failed to generate response. Please try again.",
+        retry: () => handleBoundaryOverride(),
+      });
     } finally {
       setLoading(false);
     }
@@ -431,6 +496,7 @@ export default function CommunicationShield() {
   };
 
   const handleRegenerate = () => {
+    setErrorState(null);
     if (mode === "rewrite" && submittedMessage) {
       setLoading(true);
       const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite", is_regeneration: true };
@@ -445,7 +511,10 @@ export default function CommunicationShield() {
           if (data?.quota_exhausted) {
             setShowUpgradeModal(true);
           } else {
-            toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+            setErrorState({
+              message: data?.error || error?.message || "Unable to generate rewrite. Please try again.",
+              retry: () => handleRegenerate(),
+            });
           }
         } else {
           const aiData = data as AIResult;
@@ -463,7 +532,6 @@ export default function CommunicationShield() {
         }
       }).finally(() => setLoading(false));
     } else if (mode === "respond" && submittedMessage && sessionId) {
-      // Respond mode regeneration
       setLoading(true);
       const body: Record<string, unknown> = {
         message: submittedMessage,
@@ -478,7 +546,10 @@ export default function CommunicationShield() {
           if (data?.quota_exhausted) {
             setShowUpgradeModal(true);
           } else {
-            toast({ title: "Error", description: data?.error || "Unable to regenerate. Please try again.", variant: "destructive" });
+            setErrorState({
+              message: data?.error || error?.message || "Unable to regenerate. Please try again.",
+              retry: () => handleRegenerate(),
+            });
           }
         } else {
           const aiData = data as AIResult;
@@ -494,6 +565,7 @@ export default function CommunicationShield() {
   // Reset state is handled inline in handleSubmitMessage
 
   const handleBackToCompose = () => {
+    setErrorState(null);
     if (step === "goal-selection") {
       setStep("input");
       setResult(null);
@@ -552,7 +624,7 @@ export default function CommunicationShield() {
             <div className="h-px bg-border" />
 
             {/* Respond triage result */}
-            {step === "respond-triage" && respondTriageData && !loading && (
+            {step === "respond-triage" && respondTriageData && !loading && !errorState && (
               <RespondTriageCard
                 triage={respondTriageData}
                 onBoundaryOverride={handleBoundaryOverride}
@@ -561,14 +633,11 @@ export default function CommunicationShield() {
             )}
 
             {step === "respond-triage" && loading && (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Analyzing message...
-              </div>
+              <ResultLoadingSkeleton label="Analyzing message..." />
             )}
 
             {/* Goal selection step (handles both salvageable and redirect) */}
-            {step === "goal-selection" && (
+            {step === "goal-selection" && !errorState && (
               <GoalSelectionPanel
                 triageData={triageData}
                 goalOptions={goalOptions}
@@ -581,20 +650,25 @@ export default function CommunicationShield() {
               />
             )}
 
+            {errorState && (
+              <ResultErrorState
+                message={errorState.message}
+                onRetry={errorState.retry}
+              />
+            )}
+
             {step === "result" && loading && allResults.length === 0 ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
-              </div>
+              <ResultLoadingSkeleton
+                label={mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
+              />
             ) : step === "result" && allResults.length > 0 ? (
               <>
                 {allResults.map((r, idx) => (
                   <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
                 ))}
                 {loading && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Generating new version...
+                  <div className="pt-2">
+                    <ResultLoadingSkeleton label="Generating new version..." />
                   </div>
                 )}
               </>
@@ -876,9 +950,8 @@ export default function CommunicationShield() {
           )}
 
           {step === "respond-triage" && loading && (
-            <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-card rounded-md text-sm text-muted-foreground shrink-0">
-              <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
-              Analyzing message...
+            <div className="mt-4 px-4 py-3 bg-card rounded-md shrink-0">
+              <ResultLoadingSkeleton label="Analyzing message..." />
             </div>
           )}
 
@@ -976,22 +1049,23 @@ export default function CommunicationShield() {
             <div className="h-px bg-border mb-3 shrink-0" />
 
             <div className="flex-1 overflow-auto min-h-0">
-              {allResults.length > 0 ? (
+              {errorState ? (
+                <ResultErrorState message={errorState.message} onRetry={errorState.retry} />
+              ) : allResults.length > 0 ? (
                 <div className="space-y-0 text-sm">
                   {allResults.map((r, idx) => (
                     <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
                   ))}
                   {loading && (
-                    <div className="flex items-center gap-2 text-muted-foreground py-4 justify-center">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Generating new version...
+                    <div className="pt-3">
+                      <ResultLoadingSkeleton label="Generating new version..." />
                     </div>
                   )}
                 </div>
               ) : loading ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
-                </div>
+                <ResultLoadingSkeleton
+                  label={mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
+                />
               ) : step === "respond-triage" && respondTriageData ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>
@@ -1009,8 +1083,13 @@ export default function CommunicationShield() {
                   <p>Select a response intent on the left to generate your court-safe reply.</p>
                 </div>
               ) : (
-                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
-                  <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
+                <div className="flex-1 flex flex-col items-start gap-2 text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <ShieldCheck className="h-5 w-5 text-primary/60" />
+                  <p>
+                    {mode === "rewrite"
+                      ? "We'll rewrite your message into a clearer, court-safe version."
+                      : "Paste a message on the left to see a court-safe reply here."}
+                  </p>
                 </div>
               )}
             </div>
