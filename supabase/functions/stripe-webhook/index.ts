@@ -123,37 +123,64 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     throw new Error(`Subscription ${stripeSub.id} missing current_period_start/end`);
   }
 
-  const intervalRaw = stripeSub.items?.data?.[0]?.price?.recurring?.interval;
-  const billingInterval: "month" | "year" = intervalRaw === "year" ? "year" : "month";
-
-  // Detect a pending downgrade / scheduled plan change via subscription_schedule.
-  // The Customer Portal creates a schedule with two phases: current and the
-  // next phase that starts at the end of the current period.
+  // Determine current vs pending plan. If a subscription_schedule is attached,
+  // it is the source of truth: the *current* phase reflects what the user is
+  // actually paying for right now, and the *next* phase reflects any scheduled
+  // change. Without this, Portal-driven scheduled downgrades can carry the
+  // future price on items.data[0] and overwrite the live plan early.
+  const nowUnix = Math.floor(Date.now() / 1000);
+  let currentPriceId: string | null = stripeSub.items.data[0]?.price?.id ?? null;
+  let currentInterval: "month" | "year" =
+    stripeSub.items.data[0]?.price?.recurring?.interval === "year" ? "year" : "month";
   let pendingPlan: "core" | "pro" | "case_builder" | null = null;
   let pendingInterval: "month" | "year" | null = null;
   let pendingEffectiveAt: string | null = null;
-  const scheduleId = (stripeSub as unknown as { schedule?: string | null }).schedule;
+
+  const scheduleIdRaw = (stripeSub as unknown as { schedule?: string | { id: string } | null }).schedule;
+  const scheduleId = typeof scheduleIdRaw === "string"
+    ? scheduleIdRaw
+    : scheduleIdRaw && typeof scheduleIdRaw === "object" ? scheduleIdRaw.id : null;
+
   if (scheduleId) {
     try {
-      const schedule = await stripe.subscriptionSchedules.retrieve(
-        typeof scheduleId === "string" ? scheduleId : (scheduleId as { id: string }).id,
-      );
-      // Find the first phase whose start is in the future relative to current period end.
-      const futurePhase = schedule.phases.find(
-        (p) => p.start_date && p.start_date >= periodEndUnix - 60,
-      );
+      const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId, {
+        expand: ["phases.items.price"],
+      });
+      const phases = schedule.phases ?? [];
+      const currentPhase = phases.find(
+        (p) =>
+          (!p.start_date || p.start_date <= nowUnix) &&
+          (!p.end_date || nowUnix < p.end_date),
+      ) ?? phases[0];
+      const futurePhase = phases.find((p) => p.start_date && p.start_date > nowUnix);
+
+      if (currentPhase) {
+        const cp = currentPhase.items?.[0]?.price as string | Stripe.Price | undefined;
+        const cpId = priceIdOf(cp);
+        if (cpId) currentPriceId = cpId;
+        const cpInt = intervalOf(cp);
+        if (cpInt) currentInterval = cpInt;
+      }
       if (futurePhase) {
-        const futurePriceId = futurePhase.items?.[0]?.price as string | undefined;
-        if (futurePriceId) {
-          pendingPlan = PRICE_TO_PLAN[futurePriceId] ?? null;
-          // We don't have full price object here; keep interval null unless mapped.
+        const fp = futurePhase.items?.[0]?.price as string | Stripe.Price | undefined;
+        const fpId = priceIdOf(fp);
+        if (fpId) pendingPlan = PRICE_TO_PLAN[fpId] ?? null;
+        pendingInterval = intervalOf(fp);
+        if (futurePhase.start_date) {
+          pendingEffectiveAt = new Date(futurePhase.start_date * 1000).toISOString();
         }
-        pendingEffectiveAt = new Date(futurePhase.start_date * 1000).toISOString();
       }
     } catch (e) {
       log("SCHEDULE_FETCH_FAILED", { error: (e as Error).message, scheduleId });
     }
   }
+
+  const plan = currentPriceId ? PRICE_TO_PLAN[currentPriceId] : undefined;
+  if (!plan) {
+    log("UNKNOWN_PRICE_NO_FALLBACK", { currentPriceId, subscriptionId: stripeSub.id });
+    // Don't silently downgrade — leave plan untouched, only update status fields.
+  }
+  const billingInterval = currentInterval;
 
   const update: Record<string, unknown> = {
     status,
