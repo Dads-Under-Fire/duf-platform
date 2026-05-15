@@ -22,6 +22,9 @@ export interface Subscription {
   cancel_at_period_end?: boolean;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
+  pending_plan?: "core" | "pro" | "case_builder" | null;
+  pending_interval?: "month" | "year" | null;
+  pending_effective_at?: string | null;
 }
 
 export interface UsageCounters {

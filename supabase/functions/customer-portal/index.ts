@@ -31,6 +31,9 @@ serve(async (req) => {
     const user = userData.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
+    const body = await req.json().catch(() => ({}));
+    const flow = (body?.flow ?? "manage").toString(); // "manage" | "subscription_update"
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     if (customers.data.length === 0) {
@@ -39,11 +42,34 @@ serve(async (req) => {
 
     const customerId = customers.data[0].id;
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";
+    const returnUrl = `${origin}/account`;
 
-    const portalSession = await stripe.billingPortal.sessions.create({
+    // For the subscription_update flow, deep-link into the change-plan screen
+    // for the customer's current live subscription (Stripe requires the sub id).
+    const params: Stripe.BillingPortal.SessionCreateParams = {
       customer: customerId,
-      return_url: `${origin}/account`,
-    });
+      return_url: returnUrl,
+    };
+
+    if (flow === "subscription_update") {
+      const [activeList, trialingList, pastDueList] = await Promise.all([
+        stripe.subscriptions.list({ customer: customerId, status: "active", limit: 5 }),
+        stripe.subscriptions.list({ customer: customerId, status: "trialing", limit: 5 }),
+        stripe.subscriptions.list({ customer: customerId, status: "past_due", limit: 5 }),
+      ]);
+      const liveSubs = [...activeList.data, ...trialingList.data, ...pastDueList.data]
+        .sort((a, b) => b.created - a.created);
+      if (liveSubs.length === 0) {
+        throw new Error("No active subscription to change. Please subscribe first.");
+      }
+      params.flow_data = {
+        type: "subscription_update",
+        subscription_update: { subscription: liveSubs[0].id },
+        after_completion: { type: "redirect", redirect: { return_url: returnUrl } },
+      } as Stripe.BillingPortal.SessionCreateParams.FlowData;
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create(params);
 
     return new Response(JSON.stringify({ url: portalSession.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

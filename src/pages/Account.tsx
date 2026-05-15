@@ -25,17 +25,19 @@ export default function Account() {
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
 
   const openUpgrade = (target?: "core" | "pro" | "case_builder") => {
     setUpgradeTarget(target);
     setShowUpgradeModal(true);
   };
 
-  const handleManageBilling = async () => {
-    setPortalLoading(true);
+  const openPortal = async (flow: "manage" | "subscription_update") => {
+    setPortalLoading(flow);
     try {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
+      const { data, error } = await supabase.functions.invoke("customer-portal", {
+        body: { flow },
+      });
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, "_blank");
@@ -46,13 +48,13 @@ export default function Account() {
       console.error("Portal error:", err);
       toast({
         title: "Billing portal error",
-        description: message.includes("No Stripe customer")
+        description: message.includes("No Stripe customer") || message.includes("No active subscription")
           ? "You need an active paid subscription first. Please upgrade your plan."
           : "Could not open billing portal. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setPortalLoading(false);
+      setPortalLoading(null);
     }
   };
 
@@ -156,29 +158,48 @@ export default function Account() {
 
               <Separator />
 
+              {/* Pending scheduled change */}
+              {hasPaidSubscription && subscription?.pending_plan && subscription.pending_plan !== plan && (
+                <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                  <span>
+                    Scheduled change: <span className="font-medium">{formatPlanLabel(subscription.pending_plan)}</span>
+                    {subscription.pending_interval && (
+                      <> — billed {subscription.pending_interval === "year" ? "annually" : "monthly"}</>
+                    )}
+                    {subscription.pending_effective_at && (
+                      <> · effective {formatResetDate(subscription.pending_effective_at)}</>
+                    )}
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-col gap-4">
-                {/* Upgrade */}
-                {plan !== "case_builder" ? (
+                {/* Free user: keep the in-app upgrade modal flow */}
+                {!hasPaidSubscription ? (
                   <div className="space-y-1">
-                    <Button
-                      onClick={() =>
-                        openUpgrade(plan === "pro" ? "case_builder" : plan === "core" ? "pro" : undefined)
-                      }
-                      className="gap-2"
-                    >
+                    <Button onClick={() => openUpgrade(undefined)} className="gap-2">
                       <CreditCard className="h-4 w-4" />
-                      {plan === "pro"
-                        ? "Upgrade to Case Builder"
-                        : plan === "core"
-                        ? "Upgrade to Pro"
-                        : "Upgrade plan"}
+                      Upgrade plan
                     </Button>
                     <p className="text-xs text-muted-foreground">Unlock higher limits and advanced features</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">
-                      You're on the highest plan. Manage billing below to update payment or cancel.
+                    <Button
+                      onClick={() => openPortal("subscription_update")}
+                      disabled={portalLoading !== null}
+                      className="gap-2"
+                    >
+                      {portalLoading === "subscription_update" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4" />
+                      )}
+                      Change plan
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Upgrade now or schedule a downgrade for the end of your billing period
                     </p>
                   </div>
                 )}
@@ -187,11 +208,11 @@ export default function Account() {
                 <div className="space-y-1">
                   <Button
                     variant="outline"
-                    onClick={handleManageBilling}
-                    disabled={portalLoading || !hasPaidSubscription}
+                    onClick={() => openPortal("manage")}
+                    disabled={portalLoading !== null || !hasPaidSubscription}
                     className="gap-2"
                   >
-                    {portalLoading ? (
+                    {portalLoading === "manage" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <ExternalLink className="h-4 w-4" />
