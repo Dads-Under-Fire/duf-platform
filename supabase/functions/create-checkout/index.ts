@@ -85,6 +85,64 @@ serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";
 
+    // If the customer already has any non-terminal subscriptions, we MUST modify
+    // (or cancel + replace) instead of creating another Checkout — otherwise
+    // they end up paying for two plans simultaneously. We treat
+    // active/trialing/past_due as "live" subs.
+    let liveSubs: Stripe.Subscription[] = [];
+    if (customerId) {
+      const [activeList, trialingList, pastDueList] = await Promise.all([
+        stripe.subscriptions.list({ customer: customerId, status: "active", limit: 10 }),
+        stripe.subscriptions.list({ customer: customerId, status: "trialing", limit: 10 }),
+        stripe.subscriptions.list({ customer: customerId, status: "past_due", limit: 10 }),
+      ]);
+      liveSubs = [...activeList.data, ...trialingList.data, ...pastDueList.data];
+    }
+
+    if (liveSubs.length > 0) {
+      // Keep the most recently created one and cancel any extras (this also
+      // self-heals the duplicate-subscription state from earlier checkouts).
+      liveSubs.sort((a, b) => b.created - a.created);
+      const keep = liveSubs[0];
+      const extras = liveSubs.slice(1);
+
+      for (const extra of extras) {
+        try {
+          await stripe.subscriptions.cancel(extra.id, { invoice_now: false, prorate: true });
+          console.log(`[create-checkout] canceled duplicate sub ${extra.id}`);
+        } catch (e) {
+          console.error(`[create-checkout] failed to cancel duplicate sub ${extra.id}:`, (e as Error).message);
+        }
+      }
+
+      // Swap the kept subscription to the newly selected price (handles plan
+      // change AND monthly<->annual change in one call). No-op if it's already
+      // on the requested price and nothing else needed canceling.
+      const currentItem = keep.items.data[0];
+      const alreadyOnPrice = currentItem?.price.id === priceId;
+      if (!alreadyOnPrice) {
+        await stripe.subscriptions.update(keep.id, {
+          items: [{ id: currentItem.id, price: priceId }],
+          proration_behavior: "create_prorations",
+          cancel_at_period_end: false,
+          metadata: {
+            supabase_user_id: user.id,
+            plan,
+            interval,
+          },
+        });
+        console.log(`[create-checkout] updated sub ${keep.id} -> ${plan}/${interval}`);
+      }
+
+      // No Checkout needed — send the user straight to the success page so
+      // verify-subscription re-syncs the subscriptions table from Stripe.
+      return new Response(JSON.stringify({ url: `${origin}/checkout/success` }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // No existing live subscription — normal first-time Checkout flow.
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
