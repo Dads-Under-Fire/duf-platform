@@ -70,9 +70,9 @@ export function CaseSelector({
 
   return (
     <>
-      <div className="relative w-full flex items-center justify-center pl-4 pr-6 py-1 border-b border-border" style={{ paddingTop: 4, paddingBottom: 4 }}>
+      <div className="relative w-full flex items-center justify-center pl-4 pr-6 border-b border-border" style={{ paddingTop: 2, paddingBottom: 2 }}>
         <Select value={activeCaseId ?? undefined} onValueChange={onSelectCase}>
-          <SelectTrigger className="w-auto min-w-[220px] h-8 border-0 bg-transparent text-foreground justify-center gap-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
+          <SelectTrigger className="w-auto min-w-[220px] h-7 border-0 bg-transparent text-foreground justify-center gap-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
             <SelectValue placeholder="Select a case..." />
           </SelectTrigger>
           <SelectContent>

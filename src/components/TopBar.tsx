@@ -24,14 +24,14 @@ export function TopBar() {
   const analysesLabel = "Case Intelligence";
 
   return (
-    <div className="border-b border-border flex items-start justify-between pl-4 pr-6 pt-4 pb-3 bg-background shrink-0">
+    <div className="border-b border-border flex items-center justify-between px-6 pt-4 pb-4 bg-background shrink-0">
       {/* Left side */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-center gap-4">
         {isMobile && (
           <img src={dufLogo} alt="DUF Platform" className="h-6" />
         )}
 
-        <div className="hidden md:flex items-start gap-4">
+        <div className="hidden md:flex items-center gap-3">
           {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
@@ -94,12 +94,12 @@ export function TopBar() {
       </div>
 
       {/* Right side */}
-      <div className="flex items-start gap-6">
+      <div className="flex items-center gap-6">
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
             <span className="text-foreground font-normal">Plan: </span>
-            <span className="text-foreground font-semibold">
+            <span className="text-primary font-semibold">
               {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
             </span>
           </span>

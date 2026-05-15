@@ -88,18 +88,18 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
-      <SidebarHeader className="px-4 pt-4 pb-6">
+      <SidebarHeader className="px-4 pt-5 pb-8">
         <div className="flex items-center">
           <img
             src={collapsed ? fireLogo : dufLogo}
             alt="DUF Platform"
-            className={collapsed ? "h-8 w-8 shrink-0" : "h-8 shrink-0"}
+            className={collapsed ? "h-8 w-8 shrink-0 object-contain" : "h-7 w-auto shrink-0 object-contain"}
           />
         </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        <SidebarMenu className="gap-2">
+        <SidebarMenu className="gap-3">
           {navItems.map((item) => {
             const isActive = effectivePath === item.url;
             return (
@@ -135,7 +135,7 @@ export function AppSidebar() {
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-foreground hover:text-foreground/80 transition-colors"
           >
             <ChevronsLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           </button>

@@ -80,7 +80,7 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <div className="px-4 md:px-6 flex items-center justify-between gap-4 border-b border-border">
+        <div className="px-6 pt-4 flex items-center justify-between gap-4 border-b border-border">
           <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
             {TABS.map((t) => (
               <button
@@ -103,9 +103,9 @@ export default function CaseIntelligence() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className={cn("flex-1 overflow-auto", tab === "evidence" ? "" : "p-4 md:p-6")}>
         {!activeCaseId ? (
-          <p className="text-sm text-muted-foreground">Select a case to continue.</p>
+          <p className="text-sm text-muted-foreground p-6">Select a case to continue.</p>
         ) : tab === "evidence" ? (
           <EvidenceTab caseId={activeCaseId} />
         ) : tab === "timeline" ? (

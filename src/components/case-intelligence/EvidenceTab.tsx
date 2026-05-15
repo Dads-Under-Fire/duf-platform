@@ -73,13 +73,13 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
   const filtersActive = !!(filters.entryType || filters.fromDate || filters.toDate);
 
   return (
-    <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6">
-      {/* Sticky control row with subtle fade so cards softly disappear underneath */}
-      <div className="sticky top-0 z-20 bg-background pt-4 pb-6 px-6 flex items-center justify-between gap-3 border-b border-border">
-        {/* fade overlay below the sticky bar */}
+    <div>
+      {/* Sticky control row directly under the tabs row */}
+      <div className="sticky top-0 z-20 bg-background pt-4 pb-6 px-6 flex items-center justify-between gap-3">
+        {/* very subtle fade so cards softly disappear underneath */}
         <div
           aria-hidden
-          className="pointer-events-none absolute left-0 right-0 -bottom-4 h-4 bg-gradient-to-b from-background to-transparent"
+          className="pointer-events-none absolute left-0 right-0 -bottom-2 h-2 bg-gradient-to-b from-background/80 to-transparent"
         />
         <div className="min-w-[180px]">
           <ClearableSelect
