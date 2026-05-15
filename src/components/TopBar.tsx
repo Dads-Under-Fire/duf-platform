@@ -66,7 +66,7 @@ export function TopBar() {
 
           {/* Evidence */}
           <div className="flex items-center gap-3">
-            <div className="space-y-0.5 min-w-[160px]">
+            <div className="space-y-2 min-w-[160px]">
               <div className="flex items-center justify-between">
                 <span className="text-foreground text-xs">{analysesLabel}</span>
                 <span className="text-xs">
