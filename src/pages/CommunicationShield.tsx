@@ -372,6 +372,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -391,8 +392,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
-      setStep("select-intent");
+      setErrorState({
+        message: err.message || "Failed to generate response. Please try again.",
+        retry: () => handleSelectIntent(option),
+      });
     } finally {
       setLoading(false);
     }
@@ -403,6 +406,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -421,8 +425,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate response", variant: "destructive" });
-      setStep("respond-triage");
+      setErrorState({
+        message: err.message || "Failed to generate response. Please try again.",
+        retry: () => handleBoundaryOverride(),
+      });
     } finally {
       setLoading(false);
     }
