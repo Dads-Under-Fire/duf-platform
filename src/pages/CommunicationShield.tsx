@@ -94,6 +94,56 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** Animated skeleton mimicking the result card structure during generation */
+function ResultLoadingSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-live="polite">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <RefreshCw className="h-4 w-4 animate-spin" />
+        <span>{label}</span>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-24 bg-muted rounded" />
+        <div className="h-3 w-full bg-muted rounded" />
+        <div className="h-3 w-11/12 bg-muted rounded" />
+        <div className="h-3 w-4/5 bg-muted rounded" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-28 bg-muted rounded" />
+        <div className="h-3 w-10/12 bg-muted rounded" />
+        <div className="h-3 w-3/4 bg-muted rounded" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-32 bg-muted rounded" />
+        <div className="h-3 w-9/12 bg-muted rounded" />
+      </div>
+    </div>
+  );
+}
+
+/** Inline error block with Retry, used inside the result area instead of toast-only */
+function ResultErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3" role="alert">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-destructive">Something went wrong</p>
+          <p className="text-xs text-muted-foreground">{message}</p>
+          <p className="text-xs text-muted-foreground">Your message is preserved. You can retry below.</p>
+        </div>
+      </div>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export default function CommunicationShield() {
   const { user } = useAuth();
   const { usage, limits, intendedPlan, rewritesExhausted, refetch: refetchProfile } = useProfile();
