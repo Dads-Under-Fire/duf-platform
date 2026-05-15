@@ -67,7 +67,7 @@ export default function CaseIntelligence() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="border-b border-border px-4 md:px-6 pt-4 pb-2 space-y-3 shrink-0">
+      <div className="shrink-0">
         <CaseSelector
           cases={cases}
           activeCaseId={activeCaseId}
@@ -80,17 +80,17 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <div className="flex items-center justify-between gap-4">
+        <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4 border-b border-border">
           <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-sm whitespace-nowrap",
+                  "px-4 py-2 rounded-md text-sm whitespace-nowrap transition-colors",
                   tab === t.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {t.label}
