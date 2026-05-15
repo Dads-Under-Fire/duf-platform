@@ -75,8 +75,8 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
   return (
     <div className="-mx-4 md:-mx-6">
       {/* Compact control row */}
-      <div className="px-4 md:px-6 pb-4 flex items-center justify-between gap-3">
-        <div className="min-w-[200px]">
+      <div className="px-6 py-4 flex items-center justify-between gap-3">
+        <div className="min-w-[180px]">
           <ClearableSelect
             value={filters.entryType}
             onValueChange={(v) =>
@@ -84,11 +84,11 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
-            triggerClassName="bg-background border-border rounded-full h-9 px-4 text-sm font-medium text-foreground"
+            triggerClassName="bg-transparent border border-border rounded-md h-9 px-3 text-sm font-medium text-foreground"
           />
         </div>
 
-        <div className="flex items-center gap-1 text-foreground">
+        <div className="flex items-center gap-0.5 text-foreground">
           <button
             type="button"
             onClick={() =>
@@ -187,7 +187,16 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
               : "";
 
             const isAlt = idx % 2 === 1;
-            const notesAttachments = attachments.filter((a) => !!a.evidence_note);
+            // Consolidate evidence notes: data model stores per-attachment notes,
+            // but UX treats them as one shared note set per custody log entry.
+            // Dedupe by trimmed note text and render as a single shared block.
+            const sharedNotes = Array.from(
+              new Set(
+                attachments
+                  .map((a) => (a.evidence_note ?? "").trim())
+                  .filter((n) => n.length > 0),
+              ),
+            );
 
             return (
               <li
@@ -197,7 +206,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                   isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
                 )}
               >
-                <div className="flex-1 min-w-0 space-y-5">
+                <div className="flex-1 min-w-0 space-y-4">
                   {/* A. Header line */}
                   <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                     <span className={cn("font-semibold", typeColor)}>{typeLabel}</span>
@@ -239,19 +248,17 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                     </div>
                   </div>
 
-                  {/* D. Evidence notes (consolidated, one entry per noted file) */}
-                  {notesAttachments.length > 0 && (
+                  {/* D. Evidence notes — single shared block per custody log entry */}
+                  {sharedNotes.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground font-normal">Evidence notes</p>
-                      <ul className="space-y-1.5">
-                        {notesAttachments.map((a) => (
-                          <li key={a.id} className="text-sm leading-relaxed">
-                            <span className="text-muted-foreground font-normal">{a.file_name}</span>
-                            <span className="text-muted-foreground font-normal"> — </span>
-                            <span className="text-foreground/90 italic font-normal">{a.evidence_note}</span>
-                          </li>
+                      <div className="space-y-1.5">
+                        {sharedNotes.map((note, i) => (
+                          <p key={i} className="text-sm leading-relaxed text-foreground/90 italic font-normal">
+                            {note}
+                          </p>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
                 </div>

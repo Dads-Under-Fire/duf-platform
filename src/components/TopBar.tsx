@@ -24,14 +24,14 @@ export function TopBar() {
   const analysesLabel = "Case Intelligence";
 
   return (
-    <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
+    <div className="border-b border-border flex items-start justify-between pl-4 pr-6 pt-4 pb-3 bg-background shrink-0">
       {/* Left side */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-start gap-6">
         {isMobile && (
           <img src={dufLogo} alt="DUF Platform" className="h-6" />
         )}
 
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-start gap-6">
           {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
@@ -83,21 +83,22 @@ export function TopBar() {
             </div>
           </div>
 
+          <Link
+            to="/account"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors self-center"
+          >
+            Add more credits
+          </Link>
+
         </div>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-6">
-        <Link
-          to="/account"
-          className="hidden md:inline-flex text-sm font-normal text-primary hover:text-primary/80 transition-colors"
-        >
-          Add more credits
-        </Link>
+      <div className="flex items-start gap-6">
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
-            <span className="text-foreground font-normal">Plan: </span>
+            <span className="text-muted-foreground font-normal">Plan: </span>
             <span className="text-primary font-semibold">
               {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
             </span>

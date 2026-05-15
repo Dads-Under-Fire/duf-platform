@@ -87,10 +87,10 @@ export default function CaseIntelligence() {
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "px-4 py-2 rounded-md text-sm whitespace-nowrap transition-colors",
+                  "px-4 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors",
                   tab === t.key
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-primary text-background font-semibold"
+                    : "text-muted-foreground hover:text-foreground font-medium",
                 )}
               >
                 {t.label}
