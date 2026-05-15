@@ -1,6 +1,7 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useActiveCase } from "@/hooks/useActiveCase";
 import { useCreateCase, useDeleteCase } from "@/hooks/useCases";
+import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
 import { CaseSelector } from "@/components/case-log/CaseSelector";
 import { CreateCasePrompt } from "@/components/case-log/CreateCasePrompt";
 import { EvidenceTab } from "@/components/case-intelligence/EvidenceTab";
@@ -16,6 +17,16 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "patterns", label: "Patterns" },
   { key: "report", label: "Case Report" },
 ];
+
+function EvidenceFilesCount({ caseId }: { caseId: string }) {
+  const { data } = useCaseEvidence(caseId);
+  const total = data?.length ?? 0;
+  return (
+    <p className="text-sm text-foreground whitespace-nowrap">
+      Evidence Files <span className="text-muted-foreground">({total})</span>
+    </p>
+  );
+}
 
 export default function CaseIntelligence() {
   const navigate = useNavigate();
@@ -69,22 +80,27 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm whitespace-nowrap",
-                tab === t.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        <div className="flex items-center justify-between gap-4">
+          <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-sm whitespace-nowrap",
+                  tab === t.key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          {tab === "evidence" && activeCaseId && (
+            <EvidenceFilesCount caseId={activeCaseId} />
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">

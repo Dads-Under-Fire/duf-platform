@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useProfile } from "@/hooks/useProfile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -87,8 +88,15 @@ export function TopBar() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
+        <Link
+          to="/account"
+          className="hidden md:inline-flex text-xs text-primary hover:text-primary/80 transition-colors"
+        >
+          Add more credits
+        </Link>
+
         <div className="hidden md:flex flex-col items-end leading-tight">
-          <span className="text-muted-foreground text-sm">
+          <span className="text-foreground text-sm">
             Plan: {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
           </span>
           {usage?.period_end && (
