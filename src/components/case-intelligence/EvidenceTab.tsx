@@ -84,19 +84,20 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
+            triggerClassName="bg-background border-border rounded-full h-9 px-4 text-sm font-medium text-foreground"
           />
         </div>
 
-        <div className="flex items-center gap-3 text-foreground">
+        <div className="flex items-center gap-1 text-foreground">
           <button
             type="button"
             onClick={() =>
               setFilters({ ...filters, sort: filters.sort === "newest" ? "oldest" : "newest" })
             }
             title={`Sort: ${filters.sort === "newest" ? "Newest first" : "Oldest first"}`}
-            className="h-9 w-9 rounded-md flex items-center justify-center text-foreground/90 hover:text-foreground hover:bg-secondary transition-colors"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-foreground hover:text-primary transition-colors"
           >
-            <ArrowDownUp className="h-[18px] w-[18px]" />
+            <ArrowDownUp className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </button>
 
           <Popover>
@@ -105,13 +106,13 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                 type="button"
                 title="Filter by date range"
                 className={cn(
-                  "h-9 w-9 rounded-md flex items-center justify-center hover:bg-secondary transition-colors",
+                  "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
                   filters.fromDate || filters.toDate
                     ? "text-primary"
-                    : "text-foreground/90 hover:text-foreground",
+                    : "text-foreground hover:text-primary",
                 )}
               >
-                <CalendarRange className="h-[18px] w-[18px]" />
+                <CalendarRange className="h-[18px] w-[18px]" strokeWidth={1.75} />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64 p-3 space-y-3">
