@@ -83,17 +83,18 @@ export function TopBar() {
             </div>
           </div>
 
+          <Link
+            to="/account"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors self-center"
+          >
+            Add more credits
+          </Link>
+
         </div>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-6">
-        <Link
-          to="/account"
-          className="hidden md:inline-flex text-sm font-normal text-primary hover:text-primary/80 transition-colors"
-        >
-          Add more credits
-        </Link>
+      <div className="flex items-start gap-6">
 
         <div className="hidden md:flex flex-col items-end leading-tight">
           <span className="text-sm">
