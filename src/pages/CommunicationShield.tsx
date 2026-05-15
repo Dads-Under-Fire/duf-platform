@@ -446,6 +446,7 @@ export default function CommunicationShield() {
   };
 
   const handleRegenerate = () => {
+    setErrorState(null);
     if (mode === "rewrite" && submittedMessage) {
       setLoading(true);
       const body: Record<string, unknown> = { message: submittedMessage, mode: "rewrite", is_regeneration: true };
@@ -460,7 +461,10 @@ export default function CommunicationShield() {
           if (data?.quota_exhausted) {
             setShowUpgradeModal(true);
           } else {
-            toast({ title: "Error", description: data?.error || "Unable to generate rewrite. Please try again.", variant: "destructive" });
+            setErrorState({
+              message: data?.error || error?.message || "Unable to generate rewrite. Please try again.",
+              retry: () => handleRegenerate(),
+            });
           }
         } else {
           const aiData = data as AIResult;
@@ -478,7 +482,6 @@ export default function CommunicationShield() {
         }
       }).finally(() => setLoading(false));
     } else if (mode === "respond" && submittedMessage && sessionId) {
-      // Respond mode regeneration
       setLoading(true);
       const body: Record<string, unknown> = {
         message: submittedMessage,
@@ -493,7 +496,10 @@ export default function CommunicationShield() {
           if (data?.quota_exhausted) {
             setShowUpgradeModal(true);
           } else {
-            toast({ title: "Error", description: data?.error || "Unable to regenerate. Please try again.", variant: "destructive" });
+            setErrorState({
+              message: data?.error || error?.message || "Unable to regenerate. Please try again.",
+              retry: () => handleRegenerate(),
+            });
           }
         } else {
           const aiData = data as AIResult;
