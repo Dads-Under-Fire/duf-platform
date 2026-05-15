@@ -214,58 +214,84 @@ export default function Account() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-4">
-                {/* Free user: keep the in-app upgrade modal flow */}
-                {!hasPaidSubscription ? (
-                  <div className="space-y-1">
-                    <Button onClick={() => openUpgrade(undefined)} className="gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Upgrade plan
-                    </Button>
-                    <p className="text-xs text-muted-foreground">Unlock higher limits and advanced features</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <Button
-                      onClick={() => openPortal("subscription_update")}
-                      disabled={portalLoading !== null}
-                      className="gap-2"
-                    >
-                      {portalLoading === "subscription_update" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-4 w-4" />
-                      )}
-                      Change plan
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Upgrade now or schedule a downgrade for the end of your billing period
-                    </p>
-                  </div>
-                )}
+              {(() => {
+                const planOrder: Array<"free" | "core" | "pro" | "case_builder"> = ["free", "core", "pro", "case_builder"];
+                const currentIdx = planOrder.indexOf(plan as any);
+                const hasHigherPlan = currentIdx >= 0 && currentIdx < planOrder.length - 1;
+                const nextPlan = hasHigherPlan ? planOrder[currentIdx + 1] : undefined;
 
-                {/* Manage billing */}
-                <div className="space-y-1">
-                  <Button
-                    variant="outline"
-                    onClick={() => openPortal("manage")}
-                    disabled={portalLoading !== null || !hasPaidSubscription}
-                    className="gap-2"
-                  >
-                    {portalLoading === "manage" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4" />
+                return (
+                  <div className="space-y-3">
+                    {/* Primary upgrade CTA — only if a higher plan exists */}
+                    {hasHigherPlan && (
+                      <div className="space-y-1">
+                        <Button
+                          onClick={() =>
+                            hasPaidSubscription
+                              ? openPortal("subscription_update")
+                              : openUpgrade(nextPlan as "core" | "pro" | "case_builder")
+                          }
+                          disabled={portalLoading !== null}
+                          className="gap-2"
+                        >
+                          {portalLoading === "subscription_update" && hasPaidSubscription ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-4 w-4" />
+                          )}
+                          Upgrade plan
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Move up to {formatPlanLabel(nextPlan!)} for higher limits and more features
+                        </p>
+                      </div>
                     )}
-                    Manage billing
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {hasPaidSubscription
-                      ? "Update payment method, view invoices, or cancel"
-                      : "Available after upgrading to a paid plan"}
-                  </p>
-                </div>
-              </div>
+
+                    {/* Manage billing + Change plan row (paid users only) */}
+                    {hasPaidSubscription ? (
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => openPortal("manage")}
+                            disabled={portalLoading !== null}
+                            className="gap-2"
+                          >
+                            {portalLoading === "manage" ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ExternalLink className="h-4 w-4" />
+                            )}
+                            Manage billing
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => openPortal("subscription_update")}
+                            disabled={portalLoading !== null}
+                            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          >
+                            {portalLoading === "subscription_update" && !hasHigherPlan && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            )}
+                            Change plan
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Update payment method, view invoices, or change/downgrade your plan
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Button variant="outline" disabled className="gap-2">
+                          <ExternalLink className="h-4 w-4" />
+                          Manage billing
+                        </Button>
+                        <p className="text-xs text-muted-foreground">Available after upgrading to a paid plan</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
