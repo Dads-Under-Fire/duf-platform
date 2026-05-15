@@ -22,6 +22,7 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
