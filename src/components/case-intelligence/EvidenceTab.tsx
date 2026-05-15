@@ -187,7 +187,16 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
               : "";
 
             const isAlt = idx % 2 === 1;
-            const notesAttachments = attachments.filter((a) => !!a.evidence_note);
+            // Consolidate evidence notes: data model stores per-attachment notes,
+            // but UX treats them as one shared note set per custody log entry.
+            // Dedupe by trimmed note text and render as a single shared block.
+            const sharedNotes = Array.from(
+              new Set(
+                attachments
+                  .map((a) => (a.evidence_note ?? "").trim())
+                  .filter((n) => n.length > 0),
+              ),
+            );
 
             return (
               <li
