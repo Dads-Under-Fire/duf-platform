@@ -13,17 +13,20 @@ import {
   QuotaExceededError,
 } from "@/hooks/useCaseIntelligence";
 import { useState } from "react";
+import { EmptyState, ErrorState } from "@/components/ui/state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CaseReportTab({ caseId }: { caseId: string }) {
   const { toast } = useToast();
   const { caseAnalysesExhausted, refetch } = useProfile();
-  const { data: entries } = useCaseTimeline(caseId);
-  const { data: evidence } = useCaseEvidence(caseId);
-  const { data: latest } = useLatestAnalysis(caseId);
-  const { data: patterns } = useAnalysisPatterns(latest?.id ?? null);
+  const { data: entries, isLoading: entriesLoading, isError: entriesErr, refetch: refetchEntries } = useCaseTimeline(caseId);
+  const { data: evidence, isLoading: evidenceLoading } = useCaseEvidence(caseId);
+  const { data: latest, isLoading: latestLoading } = useLatestAnalysis(caseId);
+  const { data: patterns, isLoading: patternsLoading } = useAnalysisPatterns(latest?.id ?? null);
   const generate = useGenerateCaseReport();
   const [generated, setGenerated] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const overviewLoading = entriesLoading || evidenceLoading || latestLoading;
 
   const handleGenerate = async () => {
     if (caseAnalysesExhausted) {
