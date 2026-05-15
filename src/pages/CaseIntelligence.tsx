@@ -103,9 +103,9 @@ export default function CaseIntelligence() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className={cn("flex-1 overflow-auto", tab === "evidence" ? "" : "p-4 md:p-6")}>
         {!activeCaseId ? (
-          <p className="text-sm text-muted-foreground">Select a case to continue.</p>
+          <p className="text-sm text-muted-foreground p-6">Select a case to continue.</p>
         ) : tab === "evidence" ? (
           <EvidenceTab caseId={activeCaseId} />
         ) : tab === "timeline" ? (
