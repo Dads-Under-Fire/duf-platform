@@ -70,9 +70,9 @@ export function CaseSelector({
 
   return (
     <>
-      <div className="flex items-center justify-center gap-2 py-2 border-b border-border bg-card/50">
+      <div className="relative w-full flex items-center justify-center py-3">
         <Select value={activeCaseId ?? undefined} onValueChange={onSelectCase}>
-          <SelectTrigger className="w-auto min-w-[200px] border-0 bg-transparent text-foreground justify-center gap-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
+          <SelectTrigger className="w-auto min-w-[220px] border-0 bg-transparent text-foreground justify-center gap-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
             <SelectValue placeholder="Select a case..." />
           </SelectTrigger>
           <SelectContent>
@@ -84,27 +84,29 @@ export function CaseSelector({
           </SelectContent>
         </Select>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-primary"
-          onClick={() => setShowCreateDialog(true)}
-          title="Create new case"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-
-        {activeCaseId && (
+        <div className="absolute right-0 flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => setShowDeleteDialog(true)}
-            title="Delete case"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowCreateDialog(true)}
+            title="Create new case"
           >
-            <Trash2 className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
           </Button>
-        )}
+
+          {activeCaseId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              title="Delete case"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Create Case Dialog */}
