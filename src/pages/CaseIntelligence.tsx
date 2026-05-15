@@ -80,17 +80,17 @@ export default function CaseIntelligence() {
           isCreating={createCase.isPending}
           isDeleting={deleteCase.isPending}
         />
-        <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4 border-b border-border">
+        <div className="px-4 md:px-6 flex items-center justify-between gap-4 border-b border-border">
           <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "px-4 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors",
+                  "px-4 py-4 rounded-md text-sm whitespace-nowrap transition-colors font-medium",
                   tab === t.key
-                    ? "bg-primary text-background font-semibold"
-                    : "text-muted-foreground hover:text-foreground font-medium",
+                    ? "bg-primary text-[#0f0f0f]"
+                    : "text-foreground hover:text-foreground/80",
                 )}
               >
                 {t.label}
