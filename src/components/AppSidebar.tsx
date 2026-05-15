@@ -88,12 +88,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
+      <SidebarHeader className="px-4 pt-5 pb-4">
+        <div className="flex items-center">
           <img
             src={collapsed ? fireLogo : dufLogo}
             alt="DUF Platform"
-            className={collapsed ? "h-8 w-8 shrink-0" : "h-8 shrink-0"}
+            className={collapsed ? "h-7 w-7 shrink-0" : "h-7 shrink-0"}
           />
         </div>
       </SidebarHeader>
@@ -111,14 +111,14 @@ export function AppSidebar() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors hover:bg-transparent",
                       isActive
-                        ? "text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "text-primary font-semibold"
+                        : "text-foreground/90 font-medium hover:text-foreground"
                     )}
                   >
                     <img
                       src={isActive ? item.iconSelected : item.icon}
                       alt={item.title}
-                      className="h-8 w-8 shrink-0"
+                      className="h-7 w-7 shrink-0"
                     />
                     {!collapsed && <span className="text-sm">{item.title}</span>}
                   </Link>

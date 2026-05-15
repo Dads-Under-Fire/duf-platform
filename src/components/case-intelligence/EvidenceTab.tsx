@@ -84,19 +84,20 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
+            triggerClassName="bg-background border-border rounded-full h-9 px-4 text-sm font-medium text-foreground"
           />
         </div>
 
-        <div className="flex items-center gap-3 text-foreground">
+        <div className="flex items-center gap-1 text-foreground">
           <button
             type="button"
             onClick={() =>
               setFilters({ ...filters, sort: filters.sort === "newest" ? "oldest" : "newest" })
             }
             title={`Sort: ${filters.sort === "newest" ? "Newest first" : "Oldest first"}`}
-            className="h-9 w-9 rounded-md flex items-center justify-center text-foreground/90 hover:text-foreground hover:bg-secondary transition-colors"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-foreground hover:text-primary transition-colors"
           >
-            <ArrowDownUp className="h-[18px] w-[18px]" />
+            <ArrowDownUp className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </button>
 
           <Popover>
@@ -105,13 +106,13 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                 type="button"
                 title="Filter by date range"
                 className={cn(
-                  "h-9 w-9 rounded-md flex items-center justify-center hover:bg-secondary transition-colors",
+                  "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
                   filters.fromDate || filters.toDate
                     ? "text-primary"
-                    : "text-foreground/90 hover:text-foreground",
+                    : "text-foreground hover:text-primary",
                 )}
               >
-                <CalendarRange className="h-[18px] w-[18px]" />
+                <CalendarRange className="h-[18px] w-[18px]" strokeWidth={1.75} />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64 p-3 space-y-3">
@@ -186,22 +187,24 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
               : "";
 
             const isAlt = idx % 2 === 1;
+            const notesAttachments = attachments.filter((a) => !!a.evidence_note);
+
             return (
               <li
                 key={entry.id}
                 className={cn(
-                  "px-6 md:px-10 py-5 flex items-start gap-6",
+                  "p-6 flex items-start gap-6",
                   isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
                 )}
               >
-                <div className="flex-1 min-w-0 space-y-4">
+                <div className="flex-1 min-w-0 space-y-5">
                   {/* A. Header line */}
                   <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                    <span className={cn("font-medium", typeColor)}>{typeLabel}</span>
+                    <span className={cn("font-semibold", typeColor)}>{typeLabel}</span>
                     {(eventDate || eventTime) && (
                       <>
                         <span className="text-muted-foreground">·</span>
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground font-normal">
                           {eventDate}
                           {eventDate && eventTime ? " - " : ""}
                           {eventTime}
@@ -212,43 +215,51 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
 
                   {/* B. Source entry */}
                   {entry.context && (
-                    <div className="space-y-0.5">
-                      <p className="text-xs text-muted-foreground">Source entry</p>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-normal">Source entry</p>
                       <p className="text-sm text-foreground font-medium">{entry.context}</p>
                     </div>
                   )}
 
-                  {/* C. Attachments — one row per file with its own evidence note */}
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
+                  {/* C. Attachments */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground font-normal">
                       {attachments.length === 1 ? "Attachment" : "Attachments"}
                     </p>
-                    <div className="space-y-3">
+                    <div className="space-y-1.5">
                       {attachments.map((a) => (
-                        <div key={a.id} className="space-y-1">
-                          <div className="flex items-baseline gap-2">
-                            <Paperclip className="h-3.5 w-3.5 text-muted-foreground self-center shrink-0" />
-                            <span className="text-sm text-foreground truncate">{a.file_name}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground pl-[22px]">
+                        <div key={a.id} className="flex items-baseline gap-2">
+                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground self-center shrink-0" />
+                          <span className="text-sm text-foreground font-medium truncate">{a.file_name}</span>
+                          <span className="text-xs text-muted-foreground font-normal">
                             {formatFileSize(a.file_size_bytes)}
-                          </p>
-                          {a.evidence_note && (
-                            <div className="pl-[22px] pt-1 space-y-0.5">
-                              <p className="text-xs text-muted-foreground">Evidence note</p>
-                              <p className="text-sm text-foreground/90 italic">{a.evidence_note}</p>
-                            </div>
-                          )}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* D. Evidence notes (consolidated, one entry per noted file) */}
+                  {notesAttachments.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground font-normal">Evidence notes</p>
+                      <ul className="space-y-1.5">
+                        {notesAttachments.map((a) => (
+                          <li key={a.id} className="text-sm leading-relaxed">
+                            <span className="text-muted-foreground font-normal">{a.file_name}</span>
+                            <span className="text-muted-foreground font-normal"> — </span>
+                            <span className="text-foreground/90 italic font-normal">{a.evidence_note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
-                {/* D. Right action */}
+                {/* Right action — anchored to top */}
                 <Link
                   to={`/case-intelligence/entry/${entry.id}`}
-                  className="shrink-0 self-center inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                  className="shrink-0 self-start inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                 >
                   Open Case Log
                   <ChevronRight className="h-4 w-4" />
