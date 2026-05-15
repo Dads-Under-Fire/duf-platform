@@ -69,7 +69,7 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
 export function useProfile() {
   const { user } = useAuth();
 
-  const { data: profile, refetch: refetchProfile } = useQuery({
+  const { data: profile, refetch: refetchProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -83,7 +83,7 @@ export function useProfile() {
     enabled: !!user,
   });
 
-  const { data: subscription, refetch: refetchSubscription } = useQuery({
+  const { data: subscription, refetch: refetchSubscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ["subscription", user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -97,7 +97,7 @@ export function useProfile() {
     enabled: !!user,
   });
 
-  const { data: usage, refetch: refetchUsage } = useQuery({
+  const { data: usage, refetch: refetchUsage, isLoading: usageLoading } = useQuery({
     queryKey: ["usage_counters", user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -141,6 +141,9 @@ export function useProfile() {
     caseAnalysesExhausted,
     /** @deprecated use caseAnalysesExhausted */
     evidenceExhausted: caseAnalysesExhausted,
+    profileLoading,
+    subscriptionLoading,
+    usageLoading,
     refetch,
   };
 }
