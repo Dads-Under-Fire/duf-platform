@@ -86,7 +86,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
-            triggerClassName="bg-transparent border-2 border-foreground rounded-md h-9 px-3 text-sm font-medium text-foreground"
+            triggerClassName="bg-transparent border border-foreground rounded-md h-9 px-3 text-sm font-medium text-foreground"
           />
         </div>
 
@@ -233,7 +233,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                   )}
 
                   {/* C. Attachments */}
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <p className="text-xs text-muted-foreground font-normal">
                       {attachments.length === 1 ? "Attachment" : "Attachments"}
                     </p>
@@ -252,7 +252,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
 
                   {/* D. Evidence notes — single shared block per custody log entry */}
                   {sharedNotes.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <p className="text-xs text-muted-foreground font-normal">Evidence notes</p>
                       <div className="space-y-1.5">
                         {sharedNotes.map((note, i) => (
