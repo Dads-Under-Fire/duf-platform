@@ -252,7 +252,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
 
                   {/* D. Evidence notes — single shared block per custody log entry */}
                   {sharedNotes.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <p className="text-xs text-muted-foreground font-normal">Evidence notes</p>
                       <div className="space-y-1.5">
                         {sharedNotes.map((note, i) => (
