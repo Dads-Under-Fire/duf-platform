@@ -41,8 +41,9 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Prefer the stripe_customer_id stored on our subscriptions row — email lookup
-    // can miss customers when the Stripe-side email differs from the auth email.
+    // Identity precedence: stored stripe_customer_id -> metadata.supabase_user_id
+    // search -> email (last resort, ambiguity logged). Mirrors create-checkout
+    // so portal and checkout always target the same Stripe customer.
     let customerId: string | null = null;
     const { data: subRow } = await supabaseAdmin
       .from("subscriptions")
@@ -53,15 +54,46 @@ serve(async (req) => {
       try {
         const c = await stripe.customers.retrieve(subRow.stripe_customer_id);
         if (c && !(c as any).deleted) customerId = (c as Stripe.Customer).id;
-      } catch (_e) { /* fall through to email lookup */ }
+      } catch (_e) { /* fall through */ }
     }
+
     if (!customerId) {
-      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-      if (customers.data.length === 0) {
-        throw new Error("No Stripe customer found for this user. Please subscribe first.");
+      try {
+        const found = await stripe.customers.search({
+          query: `metadata['supabase_user_id']:'${user.id}'`,
+          limit: 2,
+        });
+        if (found.data.length > 1) {
+          console.warn(`[customer-portal] AMBIGUOUS_METADATA_MATCH user=${user.id} ids=${found.data.map((c) => c.id).join(",")}`);
+        }
+        if (found.data.length > 0) customerId = found.data[0].id;
+      } catch (e) {
+        console.warn(`[customer-portal] metadata search failed:`, (e as Error).message);
       }
-      customerId = customers.data[0].id;
     }
+
+    if (!customerId) {
+      const byEmail = await stripe.customers.list({ email: user.email, limit: 5 });
+      const tagged = byEmail.data.find((c) => c.metadata?.supabase_user_id === user.id);
+      if (tagged) {
+        customerId = tagged.id;
+      } else if (byEmail.data.length === 1) {
+        customerId = byEmail.data[0].id;
+      } else if (byEmail.data.length > 1) {
+        console.warn(`[customer-portal] AMBIGUOUS_EMAIL_MATCH user=${user.id} email=${user.email} ids=${byEmail.data.map((c) => c.id).join(",")}`);
+        throw new Error("Multiple Stripe customers found for this email — please contact support.");
+      }
+    }
+
+    if (!customerId) {
+      throw new Error("No Stripe customer found for this user. Please subscribe first.");
+    }
+
+    // Persist back so future calls short-circuit on the DB lookup.
+    await supabaseAdmin
+      .from("subscriptions")
+      .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";
     const returnUrl = `${origin}/account?portal=${flow === "subscription_update" ? "change" : "manage"}`;
 

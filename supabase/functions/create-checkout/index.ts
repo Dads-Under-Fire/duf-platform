@@ -73,15 +73,91 @@ serve(async (req) => {
       apiVersion: "2025-08-27.basil",
     });
 
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    // Resolve Stripe customer with strict identity precedence to prevent
+    // duplicates when billing name / card / email differ:
+    //   1. subscriptions.stripe_customer_id (DB source of truth)
+    //   2. Stripe customer search by metadata.supabase_user_id (durable)
+    //   3. Stripe customer list by email (last-resort fallback; logged)
+    //   4. Create a fresh Stripe customer with metadata.supabase_user_id and persist
     let customerId: string | undefined;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      await serviceClient
-        .from("subscriptions")
-        .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
-        .eq("user_id", user.id);
+
+    const { data: subRow } = await serviceClient
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (subRow?.stripe_customer_id) {
+      try {
+        const c = await stripe.customers.retrieve(subRow.stripe_customer_id);
+        if (c && !(c as any).deleted) customerId = (c as Stripe.Customer).id;
+      } catch (e) {
+        console.warn(`[create-checkout] stored stripe_customer_id ${subRow.stripe_customer_id} not retrievable:`, (e as Error).message);
+      }
     }
+
+    if (!customerId) {
+      try {
+        const found = await stripe.customers.search({
+          query: `metadata['supabase_user_id']:'${user.id}'`,
+          limit: 2,
+        });
+        if (found.data.length > 1) {
+          console.warn(`[create-checkout] AMBIGUOUS_METADATA_MATCH user=${user.id} count=${found.data.length} ids=${found.data.map((c) => c.id).join(",")}`);
+        }
+        if (found.data.length > 0) {
+          customerId = found.data[0].id;
+          console.log(`[create-checkout] matched by metadata.supabase_user_id -> ${customerId}`);
+        }
+      } catch (e) {
+        console.warn(`[create-checkout] metadata search failed:`, (e as Error).message);
+      }
+    }
+
+    if (!customerId) {
+      const byEmail = await stripe.customers.list({ email: user.email, limit: 5 });
+      // Prefer one already tagged with our metadata; otherwise log ambiguity.
+      const tagged = byEmail.data.find((c) => c.metadata?.supabase_user_id === user.id);
+      if (tagged) {
+        customerId = tagged.id;
+      } else if (byEmail.data.length === 1) {
+        customerId = byEmail.data[0].id;
+        console.log(`[create-checkout] adopted single email-matched customer ${customerId} for user ${user.id}`);
+      } else if (byEmail.data.length > 1) {
+        console.warn(`[create-checkout] AMBIGUOUS_EMAIL_MATCH user=${user.id} email=${user.email} count=${byEmail.data.length} ids=${byEmail.data.map((c) => c.id).join(",")} — creating new tagged customer`);
+      }
+    }
+
+    if (!customerId) {
+      const created = await stripe.customers.create({
+        email: user.email,
+        metadata: { supabase_user_id: user.id },
+      });
+      customerId = created.id;
+      console.log(`[create-checkout] created new customer ${customerId} for user ${user.id}`);
+    } else {
+      // Make sure the customer carries our durable identity tag so future
+      // lookups never fall back to email.
+      try {
+        const cust = await stripe.customers.retrieve(customerId);
+        if (cust && !(cust as any).deleted && (cust as Stripe.Customer).metadata?.supabase_user_id !== user.id) {
+          await stripe.customers.update(customerId, {
+            metadata: {
+              ...((cust as Stripe.Customer).metadata ?? {}),
+              supabase_user_id: user.id,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn(`[create-checkout] could not backfill metadata on ${customerId}:`, (e as Error).message);
+      }
+    }
+
+    // Persist the resolved customer id immediately so subsequent calls (portal,
+    // webhook, repeat checkout) all reuse it.
+    await serviceClient
+      .from("subscriptions")
+      .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
 
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";
 
