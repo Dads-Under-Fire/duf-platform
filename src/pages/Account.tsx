@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,16 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CreditCard, ExternalLink, Loader2, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CreditCard, ExternalLink, Loader2, AlertTriangle, Trash2 } from "lucide-react";
 import { formatResetDate } from "@/lib/formatDate";
 
 function formatPlanLabel(plan: string): string {
@@ -22,12 +31,16 @@ function formatNumber(n: number): string {
 }
 
 export default function Account() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
   const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   // Detect returning from Stripe Customer Portal and show a toast
   useEffect(() => {
@@ -98,6 +111,37 @@ export default function Account() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-account");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({
+        title: "Account deleted",
+        description: "Your DUF account and data have been permanently removed.",
+      });
+      setDeleteOpen(false);
+      await signOut();
+      navigate("/auth", { replace: true });
+    } catch (err: any) {
+      let serverMsg = "";
+      try {
+        const res = err?.context as Response | undefined;
+        if (res && typeof res.clone === "function") {
+          const parsed = await res.clone().json().catch(() => null);
+          serverMsg = parsed?.error || "";
+        }
+      } catch { /* ignore */ }
+      toast({
+        title: "Could not delete account",
+        description: serverMsg || err?.message || "Please try again or contact support.",
+        variant: "destructive",
+      });
+      setDeleting(false);
+    }
+  };
+
   const hasPaidSubscription = plan !== "free";
 
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
@@ -107,7 +151,7 @@ export default function Account() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-6 md:p-10">
+      <div className="h-full overflow-y-auto p-6 md:p-10">
         <div className="max-w-2xl mx-auto space-y-6">
           <h1 className="text-2xl font-semibold text-foreground">Account settings</h1>
 
@@ -340,10 +384,112 @@ export default function Account() {
               )}
             </CardContent>
           </Card>
+
+          {/* Danger zone */}
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Danger zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Delete your DUF account permanently. This will remove your account data,
+                case logs, attachments, and access to the platform. Any active paid
+                subscription will be canceled as part of this process.
+              </p>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteConfirmText("");
+                  setDeleteOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete account
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} targetPlan={upgradeTarget} />
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => {
+          if (deleting) return;
+          setDeleteOpen(o);
+          if (!o) setDeleteConfirmText("");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Permanently delete your account?
+            </DialogTitle>
+            <DialogDescription className="space-y-2 pt-2 text-sm">
+              <span className="block">
+                This action is <span className="font-semibold text-foreground">permanent and cannot be undone</span>.
+              </span>
+              <span className="block">The following will be deleted:</span>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Your case logs, evidence, and uploaded attachments</li>
+                <li>Your Communication Shield and Case Intelligence history</li>
+                <li>Your DUF profile and sign-in</li>
+              </ul>
+              <span className="block">
+                Any active paid subscription will be <span className="font-semibold text-foreground">canceled immediately</span>.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label htmlFor="delete-confirm" className="text-sm text-foreground">
+              Type <span className="font-mono font-semibold">DELETE</span> to confirm
+            </label>
+            <Input
+              id="delete-confirm"
+              autoComplete="off"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              disabled={deleting}
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleting || deleteConfirmText.trim() !== "DELETE"}
+              className="gap-2"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Permanently delete account
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
