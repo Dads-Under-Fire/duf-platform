@@ -64,15 +64,20 @@ async function findUserId(opts: {
   return null;
 }
 
+function priceIdOf(p: string | Stripe.Price | null | undefined): string | null {
+  if (!p) return null;
+  if (typeof p === "string") return p;
+  return (p as Stripe.Price).id ?? null;
+}
+
+function intervalOf(p: string | Stripe.Price | null | undefined): "month" | "year" | null {
+  if (!p || typeof p === "string") return null;
+  const i = (p as Stripe.Price).recurring?.interval;
+  return i === "year" ? "year" : i === "month" ? "month" : null;
+}
+
 async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userIdHint?: string | null) {
   const customerId = stripeSub.customer as string;
-  const priceId = stripeSub.items.data[0]?.price.id ?? "";
-  const plan = PRICE_TO_PLAN[priceId];
-
-  if (!plan) {
-    log("UNKNOWN_PRICE_NO_FALLBACK", { priceId, subscriptionId: stripeSub.id });
-    // Don't silently downgrade — leave plan untouched, only update status fields.
-  }
 
   // Resolve user
   let userId = userIdHint ?? null;
