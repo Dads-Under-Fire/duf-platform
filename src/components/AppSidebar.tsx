@@ -136,7 +136,7 @@ export function AppSidebar() {
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground rounded-md w-full transition-colors"
         >
-          <ChevronLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
+          <ChevronsLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
         </button>
 
         <div className="h-px bg-sidebar-border mx-1" />
