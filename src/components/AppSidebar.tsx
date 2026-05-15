@@ -135,7 +135,7 @@ export function AppSidebar() {
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-foreground hover:text-foreground/80 transition-colors"
           >
             <ChevronsLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           </button>
