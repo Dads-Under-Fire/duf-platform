@@ -90,7 +90,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <img src={collapsed ? fireLogo : dufLogo} alt="DUF Platform" className={collapsed ? "h-6 w-6 shrink-0" : "h-6 shrink-0"} />
+          <img
+            src={collapsed ? fireLogo : dufLogo}
+            alt="DUF Platform"
+            className={collapsed ? "h-8 w-8 shrink-0" : "h-8 shrink-0"}
+          />
         </div>
       </SidebarHeader>
 
@@ -105,8 +109,10 @@ export function AppSidebar() {
                     to={item.url}
                     onClick={() => handleNavClick(item.url)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent",
-                      isActive && "text-primary bg-sidebar-accent font-medium"
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors hover:bg-transparent",
+                      isActive
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <img
@@ -126,10 +132,11 @@ export function AppSidebar() {
       <SidebarFooter className="px-2 pb-4 space-y-1">
         <button
           onClick={toggleSidebar}
-          className="flex items-center gap-3 px-3 py-2 text-sidebar-foreground hover:bg-sidebar-accent rounded-md w-full transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground rounded-md w-full transition-colors"
         >
           <ChevronLeft className={`h-5 w-5 shrink-0 transition-transform ${collapsed ? "rotate-180" : ""}`} />
-          {!collapsed && <span className="text-sm">Collapse</span>}
         </button>
 
         <div className="h-px bg-sidebar-border mx-1" />
