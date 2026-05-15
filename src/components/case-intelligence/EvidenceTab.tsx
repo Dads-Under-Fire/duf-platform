@@ -1,11 +1,35 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { Paperclip, FileText } from "lucide-react";
-import { useCaseEvidence, formatFileSize } from "@/hooks/useCaseIntelligence";
+import { Paperclip, ArrowDownUp, CalendarRange, ChevronRight } from "lucide-react";
+import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
+import { formatFileSize } from "@/lib/format";
 import { ENTRY_TYPE_LABELS, type CaseLogEntryType } from "@/types/caseLog";
-import { Filters, defaultFilters, type FilterState } from "./Filters";
+import { ENTRY_TYPES_LIST } from "@/hooks/useCaseIntelligence";
+import { ClearableSelect } from "@/components/ui/clearable-select";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/state";
+import { cn } from "@/lib/utils";
+
+interface FilterState {
+  entryType: CaseLogEntryType | "";
+  sort: "newest" | "oldest";
+  fromDate: string;
+  toDate: string;
+}
+const defaultFilters: FilterState = { entryType: "", sort: "newest", fromDate: "", toDate: "" };
+
+/** Per-entry-type accent text color for the row header line. */
+const ENTRY_TYPE_TEXT: Record<CaseLogEntryType, string> = {
+  general_incident: "text-amber-400",
+  parenting_time_exchange: "text-pink-400",
+  communication: "text-sky-400",
+  medical: "text-blue-400",
+  school_daycare: "text-emerald-400",
+  expense: "text-violet-400",
+};
 
 export function EvidenceTab({ caseId }: { caseId: string }) {
   const { data: rows, isLoading, isError, error, refetch } = useCaseEvidence(caseId);
@@ -24,75 +48,192 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
     return list;
   }, [rows, filters]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Filters value={filters} onChange={setFilters} />
-        <ListSkeleton rows={4} />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <ErrorState
-        title="Couldn't load evidence"
-        error={error}
-        onRetry={() => refetch()}
-      />
-    );
-  }
-
-  const hasAnyAttachments = (rows?.length ?? 0) > 0;
+  const totalCount = rows?.length ?? 0;
+  const hasAnyAttachments = totalCount > 0;
   const filtersActive = !!(filters.entryType || filters.fromDate || filters.toDate);
 
   return (
-    <div className="space-y-4">
-      <Filters value={filters} onChange={setFilters} />
-      <p className="text-xs text-muted-foreground">{filtered.length} attachment{filtered.length !== 1 ? "s" : ""}</p>
+    <div className="-mx-4 md:-mx-6">
+      {/* Header — Evidence Files (N) */}
+      <div className="px-4 md:px-6 pb-3 flex items-center justify-end">
+        <p className="text-sm text-foreground">
+          Evidence Files <span className="text-muted-foreground">({totalCount})</span>
+        </p>
+      </div>
 
-      {filtered.length === 0 ? (
-        !hasAnyAttachments ? (
-          <EmptyState
-            icon={<Paperclip className="h-8 w-8" />}
-            title="No evidence has been added yet."
-            description="Attach files when creating a new Case Log entry, or open an existing entry from Timeline to add supporting evidence."
+      {/* Compact control row */}
+      <div className="px-4 md:px-6 pb-4 flex items-center justify-between gap-3">
+        <div className="min-w-[200px]">
+          <ClearableSelect
+            value={filters.entryType}
+            onValueChange={(v) =>
+              setFilters({ ...filters, entryType: (v as CaseLogEntryType) || "" })
+            }
+            placeholder="All entry types"
+            options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
           />
-        ) : (
-          <EmptyState
-            icon={<Paperclip className="h-8 w-8" />}
-            title="No evidence matches the current filters."
-            description={filtersActive ? "Try clearing or adjusting the filters above." : undefined}
-          />
-        )
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setFilters({ ...filters, sort: filters.sort === "newest" ? "oldest" : "newest" })
+            }
+            title={`Sort: ${filters.sort === "newest" ? "Newest first" : "Oldest first"}`}
+            className="h-9 w-9 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+          >
+            <ArrowDownUp className="h-4 w-4" />
+          </button>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                title="Filter by date range"
+                className={cn(
+                  "h-9 w-9 rounded-md border border-border flex items-center justify-center hover:text-foreground hover:border-foreground/40 transition-colors",
+                  filters.fromDate || filters.toDate ? "text-primary border-primary/60" : "text-muted-foreground",
+                )}
+              >
+                <CalendarRange className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-3 space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">From</label>
+                <Input
+                  type="date"
+                  value={filters.fromDate}
+                  onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">To</label>
+                <Input
+                  type="date"
+                  value={filters.toDate}
+                  onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
+                />
+              </div>
+              {(filters.fromDate || filters.toDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setFilters({ ...filters, fromDate: "", toDate: "" })}
+                >
+                  Clear dates
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      {/* Body */}
+      {isLoading ? (
+        <div className="px-4 md:px-6">
+          <ListSkeleton rows={4} />
+        </div>
+      ) : isError ? (
+        <div className="px-4 md:px-6">
+          <ErrorState title="Couldn't load evidence" error={error} onRetry={() => refetch()} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="px-4 md:px-6">
+          {!hasAnyAttachments ? (
+            <EmptyState
+              icon={<Paperclip className="h-8 w-8" />}
+              title="No evidence has been added yet."
+              description="Attach files when creating a new Case Log entry, or open an existing entry from Timeline to add supporting evidence."
+            />
+          ) : (
+            <EmptyState
+              icon={<Paperclip className="h-8 w-8" />}
+              title="No evidence matches the current filters."
+              description={filtersActive ? "Try clearing or adjusting the filters above." : undefined}
+            />
+          )}
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map(({ attachment, entry }) => {
-            const typeLabel = entry ? ENTRY_TYPE_LABELS[entry.entry_type as CaseLogEntryType] : "Unknown";
-            const eventDate = entry?.event_date ? format(parseISO(entry.event_date), "MMM d, yyyy") : "";
+        <ul className="flex flex-col gap-1">
+          {filtered.map(({ attachment, entry }, idx) => {
+            const typeKey = entry?.entry_type as CaseLogEntryType | undefined;
+            const typeLabel = typeKey ? ENTRY_TYPE_LABELS[typeKey] : "Unknown";
+            const typeColor = typeKey ? ENTRY_TYPE_TEXT[typeKey] : "text-muted-foreground";
+
+            const eventDate = entry?.event_date
+              ? format(parseISO(entry.event_date), "MM/dd/yy")
+              : "";
+            const eventTime = entry?.event_time
+              ? format(parseISO(`1970-01-01T${entry.event_time}`), "h:mma").toLowerCase()
+              : "";
+
+            const isAlt = idx % 2 === 1;
             return (
-              <li key={attachment.id} className="border border-border rounded-lg p-4 bg-card flex flex-col md:flex-row md:items-center gap-3">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <FileText className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <span className="px-1.5 py-0.5 rounded bg-secondary border border-border">{typeLabel}</span>
-                      {eventDate && <span>{eventDate}</span>}
-                      {entry?.context && <span className="truncate max-w-[280px]">{entry.context}</span>}
+              <li
+                key={attachment.id}
+                className={cn(
+                  "px-6 md:px-10 py-5 flex items-center gap-6",
+                  isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
+                )}
+              >
+                <div className="flex-1 min-w-0 space-y-4">
+                  {/* A. Header line */}
+                  <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                    <span className={cn("font-medium", typeColor)}>{typeLabel}</span>
+                    {(eventDate || eventTime) && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-muted-foreground">
+                          {eventDate}
+                          {eventDate && eventTime ? " - " : ""}
+                          {eventTime}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* B. Source entry */}
+                  {entry?.context && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Source entry</p>
+                      <p className="text-sm text-foreground font-medium">{entry.context}</p>
                     </div>
-                    <p className="text-sm text-foreground font-medium truncate">{attachment.file_name}</p>
-                    <p className="text-xs text-muted-foreground">
+                  )}
+
+                  {/* C. Attachment */}
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">Attachments</p>
+                    <div className="flex items-baseline gap-2">
+                      <Paperclip className="h-3.5 w-3.5 text-muted-foreground self-center shrink-0" />
+                      <span className="text-sm text-foreground truncate">{attachment.file_name}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-[22px]">
                       {formatFileSize(attachment.file_size_bytes)}
-                      {attachment.evidence_note ? ` · ${attachment.evidence_note}` : ""}
                     </p>
                   </div>
+
+                  {/* D. Evidence note */}
+                  {attachment.evidence_note && (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">Evidence note</p>
+                      <p className="text-sm text-foreground/90 italic">
+                        {attachment.evidence_note}
+                      </p>
+                    </div>
+                  )}
                 </div>
+
+                {/* E. Right action */}
                 {entry && (
                   <Link
                     to={`/case-intelligence/entry/${entry.id}`}
-                    className="text-sm text-primary hover:text-primary/80 shrink-0"
+                    className="shrink-0 self-center inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                   >
-                    Open Case Log →
+                    Open Case Log
+                    <ChevronRight className="h-4 w-4" />
                   </Link>
                 )}
               </li>
