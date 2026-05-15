@@ -128,27 +128,61 @@ serve(async (req) => {
     }
 
     // 2. Storage cleanup ------------------------------------------------------
+    // Files live under `<user_id>/...` in the case-log-attachments bucket. We
+    // delete every object linked from case_log_attachments AND any orphans
+    // discovered by recursively listing the user's prefix, so nothing is left
+    // even if a row was lost or an upload was never linked.
+    const removeInChunks = async (paths: string[]) => {
+      const chunkSize = 100;
+      for (let i = 0; i < paths.length; i += chunkSize) {
+        const chunk = paths.slice(i, i + chunkSize);
+        const { error } = await admin.storage.from("case-log-attachments").remove(chunk);
+        if (error) log("STORAGE_REMOVE_PARTIAL", { error: error.message, count: chunk.length });
+      }
+    };
+
     try {
       const { data: attachments } = await admin
         .from("case_log_attachments")
         .select("file_path")
         .eq("user_id", userId);
-      const paths = (attachments ?? [])
+      const linkedPaths = (attachments ?? [])
         .map((a) => a.file_path as string | null)
         .filter((p): p is string => !!p);
-      if (paths.length > 0) {
-        // Stripe-style "remove in batches of 1000" — Supabase Storage allows it
-        // in one call but we chunk defensively.
-        const chunkSize = 100;
-        for (let i = 0; i < paths.length; i += chunkSize) {
-          const chunk = paths.slice(i, i + chunkSize);
-          const { error } = await admin.storage.from("case-log-attachments").remove(chunk);
-          if (error) log("STORAGE_REMOVE_PARTIAL", { error: error.message, count: chunk.length });
-        }
-        log("STORAGE_REMOVED", { count: paths.length });
+      if (linkedPaths.length > 0) {
+        await removeInChunks(linkedPaths);
+        log("STORAGE_REMOVED_LINKED", { count: linkedPaths.length });
       }
     } catch (e) {
-      log("STORAGE_CLEANUP_FAILED", { error: (e as Error).message });
+      log("STORAGE_LINKED_CLEANUP_FAILED", { error: (e as Error).message });
+    }
+
+    // Sweep any remaining objects under the user's prefix (orphans).
+    try {
+      const sweep = async (prefix: string) => {
+        const { data, error } = await admin.storage
+          .from("case-log-attachments")
+          .list(prefix, { limit: 1000 });
+        if (error) {
+          log("STORAGE_LIST_FAILED", { prefix, error: error.message });
+          return;
+        }
+        const files: string[] = [];
+        for (const entry of data ?? []) {
+          const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+          // Folders surface with id === null in storage.list output.
+          if ((entry as { id?: string | null }).id === null) {
+            await sweep(fullPath);
+          } else {
+            files.push(fullPath);
+          }
+        }
+        if (files.length > 0) await removeInChunks(files);
+      };
+      await sweep(userId);
+      log("STORAGE_PREFIX_SWEPT", { prefix: userId });
+    } catch (e) {
+      log("STORAGE_SWEEP_FAILED", { error: (e as Error).message });
     }
 
     // 3. DB cleanup -----------------------------------------------------------
