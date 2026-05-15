@@ -99,20 +99,20 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        <SidebarMenu>
+        <SidebarMenu className="gap-2">
           {navItems.map((item) => {
             const isActive = effectivePath === item.url;
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild isActive={isActive}>
+                <SidebarMenuButton asChild isActive={isActive} className="hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent">
                   <Link
                     to={item.url}
                     onClick={() => handleNavClick(item.url)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors hover:bg-transparent",
                       isActive
-                        ? "text-primary font-semibold"
-                        : "text-foreground/90 font-medium hover:text-foreground"
+                        ? "text-primary font-medium"
+                        : "text-foreground font-medium hover:text-foreground"
                     )}
                   >
                     <img
