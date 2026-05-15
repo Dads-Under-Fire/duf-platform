@@ -70,7 +70,7 @@ export function CaseSelector({
 
   return (
     <>
-      <div className="relative w-full flex items-center justify-center py-3">
+      <div className="relative w-full flex items-center justify-center px-4 md:px-6 py-3 border-b border-border">
         <Select value={activeCaseId ?? undefined} onValueChange={onSelectCase}>
           <SelectTrigger className="w-auto min-w-[220px] border-0 bg-transparent text-foreground justify-center gap-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
             <SelectValue placeholder="Select a case..." />
@@ -84,7 +84,7 @@ export function CaseSelector({
           </SelectContent>
         </Select>
 
-        <div className="absolute right-0 flex items-center gap-1">
+        <div className="absolute right-4 md:right-6 flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
