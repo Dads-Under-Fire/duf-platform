@@ -99,7 +99,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        <SidebarMenu className="gap-2">
+        <SidebarMenu className="gap-3">
           {navItems.map((item) => {
             const isActive = effectivePath === item.url;
             return (
