@@ -105,7 +105,14 @@ export default function Account() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Plan</span>
-                <span className="text-sm font-medium text-foreground">{formatPlanLabel(plan)}</span>
+                <span className="text-sm font-medium text-foreground">
+                  {formatPlanLabel(plan)}
+                  {plan !== "free" && subscription?.billing_interval && (
+                    <span className="ml-1.5 text-muted-foreground font-normal">
+                      — billed {subscription.billing_interval === "year" ? "annually" : "monthly"}
+                    </span>
+                  )}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>
