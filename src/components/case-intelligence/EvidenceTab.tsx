@@ -86,7 +86,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
-            triggerClassName="bg-transparent border-2 border-foreground rounded-md h-9 px-3 text-sm font-medium text-foreground"
+            triggerClassName="bg-transparent border border-foreground rounded-md h-9 px-3 text-sm font-medium text-foreground"
           />
         </div>
 
