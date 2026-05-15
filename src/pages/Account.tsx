@@ -268,7 +268,7 @@ export default function Account() {
                             type="button"
                             onClick={() => openPortal("subscription_update")}
                             disabled={portalLoading !== null}
-                            className="text-sm text-primary underline-offset-4 hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
                           >
                             {portalLoading === "subscription_update" && !hasHigherPlan && (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
