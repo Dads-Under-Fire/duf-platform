@@ -384,10 +384,112 @@ export default function Account() {
               )}
             </CardContent>
           </Card>
+
+          {/* Danger zone */}
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Danger zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Delete your DUF account permanently. This will remove your account data,
+                case logs, attachments, and access to the platform. Any active paid
+                subscription will be canceled as part of this process.
+              </p>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteConfirmText("");
+                  setDeleteOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete account
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} targetPlan={upgradeTarget} />
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => {
+          if (deleting) return;
+          setDeleteOpen(o);
+          if (!o) setDeleteConfirmText("");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Permanently delete your account?
+            </DialogTitle>
+            <DialogDescription className="space-y-2 pt-2 text-sm">
+              <span className="block">
+                This action is <span className="font-semibold text-foreground">permanent and cannot be undone</span>.
+              </span>
+              <span className="block">The following will be deleted:</span>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Your case logs, evidence, and uploaded attachments</li>
+                <li>Your Communication Shield and Case Intelligence history</li>
+                <li>Your DUF profile and sign-in</li>
+              </ul>
+              <span className="block">
+                Any active paid subscription will be <span className="font-semibold text-foreground">canceled immediately</span>.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label htmlFor="delete-confirm" className="text-sm text-foreground">
+              Type <span className="font-mono font-semibold">DELETE</span> to confirm
+            </label>
+            <Input
+              id="delete-confirm"
+              autoComplete="off"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              disabled={deleting}
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleting || deleteConfirmText.trim() !== "DELETE"}
+              className="gap-2"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Permanently delete account
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
