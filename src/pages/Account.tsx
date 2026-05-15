@@ -158,29 +158,48 @@ export default function Account() {
 
               <Separator />
 
+              {/* Pending scheduled change */}
+              {hasPaidSubscription && subscription?.pending_plan && subscription.pending_plan !== plan && (
+                <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                  <span>
+                    Scheduled change: <span className="font-medium">{formatPlanLabel(subscription.pending_plan)}</span>
+                    {subscription.pending_interval && (
+                      <> — billed {subscription.pending_interval === "year" ? "annually" : "monthly"}</>
+                    )}
+                    {subscription.pending_effective_at && (
+                      <> · effective {formatResetDate(subscription.pending_effective_at)}</>
+                    )}
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-col gap-4">
-                {/* Upgrade */}
-                {plan !== "case_builder" ? (
+                {/* Free user: keep the in-app upgrade modal flow */}
+                {!hasPaidSubscription ? (
                   <div className="space-y-1">
-                    <Button
-                      onClick={() =>
-                        openUpgrade(plan === "pro" ? "case_builder" : plan === "core" ? "pro" : undefined)
-                      }
-                      className="gap-2"
-                    >
+                    <Button onClick={() => openUpgrade(undefined)} className="gap-2">
                       <CreditCard className="h-4 w-4" />
-                      {plan === "pro"
-                        ? "Upgrade to Case Builder"
-                        : plan === "core"
-                        ? "Upgrade to Pro"
-                        : "Upgrade plan"}
+                      Upgrade plan
                     </Button>
                     <p className="text-xs text-muted-foreground">Unlock higher limits and advanced features</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">
-                      You're on the highest plan. Manage billing below to update payment or cancel.
+                    <Button
+                      onClick={() => openPortal("subscription_update")}
+                      disabled={portalLoading !== null}
+                      className="gap-2"
+                    >
+                      {portalLoading === "subscription_update" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4" />
+                      )}
+                      Change plan
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Upgrade now or schedule a downgrade for the end of your billing period
                     </p>
                   </div>
                 )}
@@ -189,11 +208,11 @@ export default function Account() {
                 <div className="space-y-1">
                   <Button
                     variant="outline"
-                    onClick={handleManageBilling}
-                    disabled={portalLoading || !hasPaidSubscription}
+                    onClick={() => openPortal("manage")}
+                    disabled={portalLoading !== null || !hasPaidSubscription}
                     className="gap-2"
                   >
-                    {portalLoading ? (
+                    {portalLoading === "manage" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <ExternalLink className="h-4 w-4" />
