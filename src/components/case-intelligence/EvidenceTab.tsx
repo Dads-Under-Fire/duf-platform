@@ -75,8 +75,8 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
   return (
     <div className="-mx-4 md:-mx-6">
       {/* Compact control row */}
-      <div className="px-4 md:px-6 pb-4 flex items-center justify-between gap-3">
-        <div className="min-w-[200px]">
+      <div className="px-6 py-4 flex items-center justify-between gap-3">
+        <div className="min-w-[180px]">
           <ClearableSelect
             value={filters.entryType}
             onValueChange={(v) =>
@@ -84,11 +84,11 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
-            triggerClassName="bg-background border-border rounded-full h-9 px-4 text-sm font-medium text-foreground"
+            triggerClassName="bg-transparent border border-border rounded-md h-9 px-3 text-sm font-medium text-foreground"
           />
         </div>
 
-        <div className="flex items-center gap-1 text-foreground">
+        <div className="flex items-center gap-0.5 text-foreground">
           <button
             type="button"
             onClick={() =>
