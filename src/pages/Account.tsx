@@ -111,6 +111,37 @@ export default function Account() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-account");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({
+        title: "Account deleted",
+        description: "Your DUF account and data have been permanently removed.",
+      });
+      setDeleteOpen(false);
+      await signOut();
+      navigate("/auth", { replace: true });
+    } catch (err: any) {
+      let serverMsg = "";
+      try {
+        const res = err?.context as Response | undefined;
+        if (res && typeof res.clone === "function") {
+          const parsed = await res.clone().json().catch(() => null);
+          serverMsg = parsed?.error || "";
+        }
+      } catch { /* ignore */ }
+      toast({
+        title: "Could not delete account",
+        description: serverMsg || err?.message || "Please try again or contact support.",
+        variant: "destructive",
+      });
+      setDeleting(false);
+    }
+  };
+
   const hasPaidSubscription = plan !== "free";
 
   const rewritesUsed = usage?.message_rewrites_used ?? 0;
@@ -120,7 +151,7 @@ export default function Account() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto p-6 md:p-10">
+      <div className="h-full overflow-y-auto p-6 md:p-10">
         <div className="max-w-2xl mx-auto space-y-6">
           <h1 className="text-2xl font-semibold text-foreground">Account settings</h1>
 
