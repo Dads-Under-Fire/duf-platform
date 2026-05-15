@@ -5,9 +5,10 @@ import { Paperclip, FileText } from "lucide-react";
 import { useCaseEvidence, formatFileSize } from "@/hooks/useCaseIntelligence";
 import { ENTRY_TYPE_LABELS, type CaseLogEntryType } from "@/types/caseLog";
 import { Filters, defaultFilters, type FilterState } from "./Filters";
+import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/state";
 
 export function EvidenceTab({ caseId }: { caseId: string }) {
-  const { data: rows, isLoading } = useCaseEvidence(caseId);
+  const { data: rows, isLoading, isError, error, refetch } = useCaseEvidence(caseId);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
 
   const filtered = useMemo(() => {
@@ -23,7 +24,27 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
     return list;
   }, [rows, filters]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading evidence...</p>;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Filters value={filters} onChange={setFilters} />
+        <ListSkeleton rows={4} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Couldn't load evidence"
+        error={error}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
+  const hasAnyAttachments = (rows?.length ?? 0) > 0;
+  const filtersActive = !!(filters.entryType || filters.fromDate || filters.toDate);
 
   return (
     <div className="space-y-4">
@@ -31,13 +52,19 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
       <p className="text-xs text-muted-foreground">{filtered.length} attachment{filtered.length !== 1 ? "s" : ""}</p>
 
       {filtered.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <Paperclip className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-          <p className="text-foreground font-medium">No evidence has been added yet.</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Attach files when creating a new Case Log entry, or open an existing entry from Timeline to add supporting evidence.
-          </p>
-        </div>
+        !hasAnyAttachments ? (
+          <EmptyState
+            icon={<Paperclip className="h-8 w-8" />}
+            title="No evidence has been added yet."
+            description="Attach files when creating a new Case Log entry, or open an existing entry from Timeline to add supporting evidence."
+          />
+        ) : (
+          <EmptyState
+            icon={<Paperclip className="h-8 w-8" />}
+            title="No evidence matches the current filters."
+            description={filtersActive ? "Try clearing or adjusting the filters above." : undefined}
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {filtered.map(({ attachment, entry }) => {
