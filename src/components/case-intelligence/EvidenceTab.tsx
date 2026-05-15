@@ -248,19 +248,17 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                     </div>
                   </div>
 
-                  {/* D. Evidence notes (consolidated, one entry per noted file) */}
-                  {notesAttachments.length > 0 && (
+                  {/* D. Evidence notes — single shared block per custody log entry */}
+                  {sharedNotes.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground font-normal">Evidence notes</p>
-                      <ul className="space-y-1.5">
-                        {notesAttachments.map((a) => (
-                          <li key={a.id} className="text-sm leading-relaxed">
-                            <span className="text-muted-foreground font-normal">{a.file_name}</span>
-                            <span className="text-muted-foreground font-normal"> — </span>
-                            <span className="text-foreground/90 italic font-normal">{a.evidence_note}</span>
-                          </li>
+                      <div className="space-y-1.5">
+                        {sharedNotes.map((note, i) => (
+                          <p key={i} className="text-sm leading-relaxed text-foreground/90 italic font-normal">
+                            {note}
+                          </p>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
                 </div>
