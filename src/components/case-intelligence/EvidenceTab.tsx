@@ -74,13 +74,10 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      {/* Sticky control row directly under the tabs row */}
-      <div className="sticky top-0 z-20 bg-background pt-4 pb-6 px-6 flex items-center justify-between gap-3">
-        {/* very subtle fade so cards softly disappear underneath */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-0 right-0 -bottom-2 h-2 bg-gradient-to-b from-background/80 to-transparent"
-        />
+      {/* Sticky control row directly under the tabs row.
+          Solid background hides scrolling content with a clean hard edge at rest;
+          a tiny 3px gradient just below adds a subtle softening as cards pass under. */}
+      <div className="sticky top-0 z-20 bg-background pt-4 pb-6 px-6 flex items-center justify-between gap-3 after:content-[''] after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-[3px] after:bg-gradient-to-b after:from-background/60 after:to-transparent">
         <div className="min-w-[180px]">
           <ClearableSelect
             value={filters.entryType}
@@ -89,7 +86,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
             }
             placeholder="All entry types"
             options={ENTRY_TYPES_LIST.map((t) => ({ value: t, label: ENTRY_TYPE_LABELS[t] }))}
-            triggerClassName="bg-transparent border border-border rounded-full h-9 px-4 text-sm font-medium text-foreground"
+            triggerClassName="bg-transparent border-2 border-foreground rounded-md h-9 px-3 text-sm font-medium text-foreground"
           />
         </div>
 
