@@ -233,7 +233,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                   )}
 
                   {/* C. Attachments */}
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <p className="text-xs text-muted-foreground font-normal">
                       {attachments.length === 1 ? "Attachment" : "Attachments"}
                     </p>
