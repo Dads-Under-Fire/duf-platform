@@ -339,6 +339,7 @@ export default function CommunicationShield() {
     setStep("result");
     setLoading(true);
     setResult(null);
+    setErrorState(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("communication-shield", {
@@ -356,8 +357,10 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to generate rewrite", variant: "destructive" });
-      setStep("goal-selection");
+      setErrorState({
+        message: err.message || "Failed to generate rewrite. Please try again.",
+        retry: () => handleSelectGoal(goal),
+      });
     } finally {
       setLoading(false);
     }
