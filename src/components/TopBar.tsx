@@ -87,21 +87,24 @@ export function TopBar() {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6">
         <Link
           to="/account"
-          className="hidden md:inline-flex text-xs text-primary hover:text-primary/80 transition-colors"
+          className="hidden md:inline-flex text-sm font-medium text-primary hover:text-primary/80 transition-colors"
         >
           Add more credits
         </Link>
 
         <div className="hidden md:flex flex-col items-end leading-tight">
-          <span className="text-foreground text-sm">
-            Plan: {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
+          <span className="text-sm">
+            <span className="text-muted-foreground">Plan: </span>
+            <span className="text-primary font-semibold">
+              {plan === "case_builder" ? "Case Builder" : plan.charAt(0).toUpperCase() + plan.slice(1)}
+            </span>
           </span>
           {usage?.period_end && (
             <span className="text-muted-foreground text-xs">
-              Resets {formatResetDateShort(usage.period_end)}
+              Credits reset {formatResetDateShort(usage.period_end)}
             </span>
           )}
         </div>
