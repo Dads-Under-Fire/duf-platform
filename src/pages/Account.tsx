@@ -25,17 +25,19 @@ export default function Account() {
   const { plan, subscription, usage, limits, intendedPlan } = useProfile();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"core" | "pro" | "case_builder" | undefined>(undefined);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState<null | "manage" | "subscription_update">(null);
 
   const openUpgrade = (target?: "core" | "pro" | "case_builder") => {
     setUpgradeTarget(target);
     setShowUpgradeModal(true);
   };
 
-  const handleManageBilling = async () => {
-    setPortalLoading(true);
+  const openPortal = async (flow: "manage" | "subscription_update") => {
+    setPortalLoading(flow);
     try {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
+      const { data, error } = await supabase.functions.invoke("customer-portal", {
+        body: { flow },
+      });
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, "_blank");
@@ -46,13 +48,13 @@ export default function Account() {
       console.error("Portal error:", err);
       toast({
         title: "Billing portal error",
-        description: message.includes("No Stripe customer")
+        description: message.includes("No Stripe customer") || message.includes("No active subscription")
           ? "You need an active paid subscription first. Please upgrade your plan."
           : "Could not open billing portal. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setPortalLoading(false);
+      setPortalLoading(null);
     }
   };
 
