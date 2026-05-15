@@ -624,7 +624,7 @@ export default function CommunicationShield() {
             <div className="h-px bg-border" />
 
             {/* Respond triage result */}
-            {step === "respond-triage" && respondTriageData && !loading && (
+            {step === "respond-triage" && respondTriageData && !loading && !errorState && (
               <RespondTriageCard
                 triage={respondTriageData}
                 onBoundaryOverride={handleBoundaryOverride}
@@ -633,14 +633,11 @@ export default function CommunicationShield() {
             )}
 
             {step === "respond-triage" && loading && (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Analyzing message...
-              </div>
+              <ResultLoadingSkeleton label="Analyzing message..." />
             )}
 
             {/* Goal selection step (handles both salvageable and redirect) */}
-            {step === "goal-selection" && (
+            {step === "goal-selection" && !errorState && (
               <GoalSelectionPanel
                 triageData={triageData}
                 goalOptions={goalOptions}
@@ -653,20 +650,25 @@ export default function CommunicationShield() {
               />
             )}
 
+            {errorState && (
+              <ResultErrorState
+                message={errorState.message}
+                onRetry={errorState.retry}
+              />
+            )}
+
             {step === "result" && loading && allResults.length === 0 ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                {mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
-              </div>
+              <ResultLoadingSkeleton
+                label={mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
+              />
             ) : step === "result" && allResults.length > 0 ? (
               <>
                 {allResults.map((r, idx) => (
                   <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
                 ))}
                 {loading && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Generating new version...
+                  <div className="pt-2">
+                    <ResultLoadingSkeleton label="Generating new version..." />
                   </div>
                 )}
               </>
