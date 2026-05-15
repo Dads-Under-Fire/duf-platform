@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useProfile } from "@/hooks/useProfile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
