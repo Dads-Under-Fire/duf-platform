@@ -197,6 +197,28 @@ export default function Account() {
               <CardTitle className="text-base">Subscription</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {subscriptionLoading && !subscription ? (
+                <div className="space-y-4" aria-busy="true" aria-label="Loading subscription">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Plan</span>
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Renews / credits reset</span>
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Separator />
+                  <div className="space-y-3">
+                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                </div>
+              ) : (
+                <>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Plan</span>
                 <span className="text-sm font-medium text-foreground">
@@ -338,10 +360,37 @@ export default function Account() {
                   </div>
                 );
               })()}
+              </>
+              )}
             </CardContent>
           </Card>
 
           {/* Usage */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Usage this period</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {usageLoading && !usage ? (
+                <div className="space-y-4" aria-busy="true" aria-label="Loading usage">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Message rewrites</span>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{analysesLabel}</span>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ) : (
+                <>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Usage this period</CardTitle>
