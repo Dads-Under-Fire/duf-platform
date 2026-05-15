@@ -1049,22 +1049,23 @@ export default function CommunicationShield() {
             <div className="h-px bg-border mb-3 shrink-0" />
 
             <div className="flex-1 overflow-auto min-h-0">
-              {allResults.length > 0 ? (
+              {errorState ? (
+                <ResultErrorState message={errorState.message} onRetry={errorState.retry} />
+              ) : allResults.length > 0 ? (
                 <div className="space-y-0 text-sm">
                   {allResults.map((r, idx) => (
                     <SingleResultBlock key={idx} result={r} index={idx} total={allResults.length} />
                   ))}
                   {loading && (
-                    <div className="flex items-center gap-2 text-muted-foreground py-4 justify-center">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Generating new version...
+                    <div className="pt-3">
+                      <ResultLoadingSkeleton label="Generating new version..." />
                     </div>
                   )}
                 </div>
               ) : loading ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="text-muted-foreground text-sm">{mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}</p>
-                </div>
+                <ResultLoadingSkeleton
+                  label={mode === "rewrite" ? "Analyzing and rewriting message..." : "Generating response..."}
+                />
               ) : step === "respond-triage" && respondTriageData ? (
                 <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
                   <p>
@@ -1082,8 +1083,13 @@ export default function CommunicationShield() {
                   <p>Select a response intent on the left to generate your court-safe reply.</p>
                 </div>
               ) : (
-                <div className="flex-1 flex items-start text-muted-foreground text-sm px-6 pt-4 text-left">
-                  <p>{mode === "rewrite" ? "We'll rewrite your message into a clearer, court-safe version." : "Generate a response to see a court-safe reply."}</p>
+                <div className="flex-1 flex flex-col items-start gap-2 text-muted-foreground text-sm px-6 pt-4 text-left">
+                  <ShieldCheck className="h-5 w-5 text-primary/60" />
+                  <p>
+                    {mode === "rewrite"
+                      ? "We'll rewrite your message into a clearer, court-safe version."
+                      : "Paste a message on the left to see a court-safe reply here."}
+                  </p>
                 </div>
               )}
             </div>
