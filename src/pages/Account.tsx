@@ -391,11 +391,6 @@ export default function Account() {
                 </div>
               ) : (
                 <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Usage this period</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
               {/* Rewrites */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
