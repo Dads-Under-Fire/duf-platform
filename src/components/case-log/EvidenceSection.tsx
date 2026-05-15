@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { CaseLogAttachment } from "@/types/caseLog";
+import { formatFileSize } from "@/lib/format";
 
 const ACCEPTED_TYPES = [
   "image/jpeg",
@@ -13,12 +14,6 @@ const ACCEPTED_TYPES = [
   "application/pdf",
 ];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function getFileExtension(name: string): string {
   const parts = name.split(".");
