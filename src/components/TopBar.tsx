@@ -26,12 +26,12 @@ export function TopBar() {
   return (
     <div className="border-b border-border flex items-start justify-between pl-4 pr-6 pt-4 pb-3 bg-background shrink-0">
       {/* Left side */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-start gap-6">
         {isMobile && (
           <img src={dufLogo} alt="DUF Platform" className="h-6" />
         )}
 
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-start gap-6">
           {/* Message Rewrites */}
           <div className="flex items-center gap-3">
             <div className="space-y-0.5 min-w-[160px]">
