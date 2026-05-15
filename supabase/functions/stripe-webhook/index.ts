@@ -93,13 +93,31 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
   };
   const status = statusMap[stripeSub.status] ?? "inactive";
 
+  // In Stripe API 2025-08-27.basil, current_period_start/end moved from the
+  // subscription object to each subscription item. Read from the item first
+  // and fall back to the legacy top-level fields for older API versions.
+  const item = stripeSub.items?.data?.[0] as (Stripe.SubscriptionItem & {
+    current_period_start?: number;
+    current_period_end?: number;
+  }) | undefined;
+  const periodStartUnix =
+    item?.current_period_start ??
+    (stripeSub as unknown as { current_period_start?: number }).current_period_start;
+  const periodEndUnix =
+    item?.current_period_end ??
+    (stripeSub as unknown as { current_period_end?: number }).current_period_end;
+  if (!periodStartUnix || !periodEndUnix) {
+    log("MISSING_PERIOD", { subscriptionId: stripeSub.id });
+    throw new Error(`Subscription ${stripeSub.id} missing current_period_start/end`);
+  }
+
   const update: Record<string, unknown> = {
     status,
     stripe_customer_id: customerId,
     stripe_subscription_id: stripeSub.id,
     cancel_at_period_end: stripeSub.cancel_at_period_end ?? false,
-    billing_period_start: new Date(stripeSub.current_period_start * 1000).toISOString(),
-    billing_period_end: new Date(stripeSub.current_period_end * 1000).toISOString(),
+    billing_period_start: new Date(periodStartUnix * 1000).toISOString(),
+    billing_period_end: new Date(periodEndUnix * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   };
   if (plan) update.plan = plan;
@@ -206,6 +224,8 @@ serve(async (req) => {
     });
   } catch (err) {
     log("HANDLER_ERROR", { error: (err as Error).message });
+    // Remove the dedupe row so Stripe's automatic retry can re-process this event.
+    await supabase.from("stripe_webhook_events").delete().eq("event_id", event.id);
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
