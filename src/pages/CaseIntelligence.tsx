@@ -22,8 +22,8 @@ function EvidenceFilesCount({ caseId }: { caseId: string }) {
   const { data } = useCaseEvidence(caseId);
   const total = data?.length ?? 0;
   return (
-    <p className="text-sm text-foreground whitespace-nowrap">
-      Evidence Files <span className="text-muted-foreground">({total})</span>
+    <p className="text-sm text-muted-foreground whitespace-nowrap">
+      Evidence Files <span>({total})</span>
     </p>
   );
 }
