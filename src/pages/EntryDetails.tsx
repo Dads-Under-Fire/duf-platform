@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Pencil, Trash2, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
