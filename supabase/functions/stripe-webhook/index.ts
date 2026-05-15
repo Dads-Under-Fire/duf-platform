@@ -118,6 +118,9 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     throw new Error(`Subscription ${stripeSub.id} missing current_period_start/end`);
   }
 
+  const intervalRaw = stripeSub.items?.data?.[0]?.price?.recurring?.interval;
+  const billingInterval: "month" | "year" = intervalRaw === "year" ? "year" : "month";
+
   const update: Record<string, unknown> = {
     status,
     stripe_customer_id: customerId,
@@ -125,6 +128,7 @@ async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription, userId
     cancel_at_period_end: stripeSub.cancel_at_period_end ?? false,
     billing_period_start: new Date(periodStartUnix * 1000).toISOString(),
     billing_period_end: new Date(periodEndUnix * 1000).toISOString(),
+    billing_interval: billingInterval,
     updated_at: new Date().toISOString(),
   };
   if (plan) update.plan = plan;
