@@ -42,7 +42,7 @@ serve(async (req) => {
 
     const customerId = customers.data[0].id;
     const origin = req.headers.get("origin") || "https://app.dadsunderfire.com";
-    const returnUrl = `${origin}/account`;
+    const returnUrl = `${origin}/account?portal=${flow === "subscription_update" ? "change" : "manage"}`;
 
     // For the subscription_update flow, deep-link into the change-plan screen
     // for the customer's current live subscription (Stripe requires the sub id).
