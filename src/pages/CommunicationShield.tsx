@@ -143,6 +143,7 @@ export default function CommunicationShield() {
     setRespondTriageData(null);
     setFreeRegensUsed(0);
     setLoading(false);
+    setErrorState(null);
   };
 
   const handleSubmitMessage = async () => {
