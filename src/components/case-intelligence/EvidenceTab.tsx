@@ -178,7 +178,7 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
           )}
         </div>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col divide-y divide-border">
           {filtered.map(({ entry, attachments }, idx) => {
             const typeKey = entry.entry_type as CaseLogEntryType;
             const typeLabel = ENTRY_TYPE_LABELS[typeKey] ?? "Unknown";
