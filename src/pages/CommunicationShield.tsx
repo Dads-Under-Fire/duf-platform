@@ -167,7 +167,13 @@ export default function CommunicationShield() {
     setTriageData(null);
     setRespondTriageData(null);
     setFreeRegensUsed(0);
+    setErrorState(null);
 
+    await runInitialSubmit(msg);
+  };
+
+  const runInitialSubmit = async (msg: string) => {
+    setErrorState(null);
     if (mode === "rewrite") {
       // Staged rewrite: call triage first
       setStep("result");
@@ -181,7 +187,6 @@ export default function CommunicationShield() {
 
         const aiData = data as AIResult;
 
-        // Check if this is a no_message terminal result from triage
         if (aiData._noMessageNeeded || aiData.output_path === "no_message") {
           const noMsgResult = { ...aiData, _noMessageNeeded: true };
           setResult(noMsgResult);
@@ -191,7 +196,6 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Check if goal selection is needed (salvageable or redirect_choice)
         if (aiData.needs_goal_selection) {
           setSessionId(aiData.session_id ?? null);
           setGoalOptions(aiData.goal_options ?? ["Make it neutral and court-safe", "Keep it brief"]);
@@ -201,15 +205,16 @@ export default function CommunicationShield() {
           return;
         }
 
-        // Final result (safe path — direct rewrite)
         setResult(aiData);
         setAllResults(prev => [...prev, aiData]);
         setSessionId(aiData.session_id ?? null);
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
-        toast({ title: "Error", description: err.message || "Failed to generate rewrite. Please try again.", variant: "destructive" });
-        setStep("input");
+        setErrorState({
+          message: err.message || "Failed to generate rewrite. Please try again.",
+          retry: () => runInitialSubmit(msg),
+        });
       } finally {
         setLoading(false);
       }
@@ -217,7 +222,6 @@ export default function CommunicationShield() {
     }
 
     // ── RESPOND MODE — 2-stage flow ──
-    // Stage 1: Triage
     setStep("respond-triage");
     setLoading(true);
     try {
@@ -232,14 +236,12 @@ export default function CommunicationShield() {
       setSessionId(triage.session_id ?? null);
 
       if (triage.recommendation_type === "do_not_respond") {
-        // Show do_not_respond card — no generation yet
         setStep("respond-triage");
         setLoading(false);
         return;
       }
 
       if (triage.recommendation_type === "brief_boundary_response") {
-        // Auto-generate brief boundary response
         setStep("result");
         const { data: genData, error: genError } = await supabase.functions.invoke("communication-shield", {
           body: {
@@ -293,8 +295,10 @@ export default function CommunicationShield() {
         }
       }
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Failed to analyze message. Please try again.", variant: "destructive" });
-      setStep("input");
+      setErrorState({
+        message: err.message || "Failed to analyze message. Please try again.",
+        retry: () => runInitialSubmit(msg),
+      });
       setLoading(false);
     }
   };
