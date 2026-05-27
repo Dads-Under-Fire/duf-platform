@@ -106,6 +106,12 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
 
+  // Snapshot of loaded entry values, used to detect dirty changes when in
+  // edit-mode launched from Case Intelligence.
+  const [editLoadSnapshot, setEditLoadSnapshot] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+
   useEffect(() => {
     if (entryType === "communication") {
       setCommunicationInvolved(true);
