@@ -528,7 +528,20 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
               </button>
             </div>
           )}
+          {editingEntryId && !returnContext && (
+            <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 rounded-lg px-3 py-2 mb-2">
+              <Pencil className="h-4 w-4" />
+              <span className="font-medium">Editing existing entry</span>
+              <button
+                onClick={handleCancelEdit}
+                className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
+
 
 
         {/* Event Details */}
