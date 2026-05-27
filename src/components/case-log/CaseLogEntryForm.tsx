@@ -520,7 +520,10 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
     <div className="flex-1 overflow-y-auto relative">
       {/* Shared sticky edit-mode bar — same treatment for every edit entry point */}
       {editingEntryId && (
-        <div className="sticky top-0 z-20 bg-background border-b border-border">
+        <div
+          className="sticky top-0 z-20 border-b border-border backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(221, 94, 19, 0.08)" }}
+        >
           <div className="max-w-4xl mx-auto px-4 md:px-8 py-2.5 flex items-center gap-3">
             <Pencil className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-medium text-foreground">{editBarLabel}</span>
