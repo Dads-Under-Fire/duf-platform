@@ -33,11 +33,18 @@ interface Props {
   caseId: string;
   selectedEntryId: string | null;
   onSelectEntry: (entryId: string) => void;
+  filters?: FilterState;
+  onFiltersChange?: (f: FilterState) => void;
 }
 
-export function TimelineTab({ caseId, selectedEntryId, onSelectEntry }: Props) {
+export function TimelineTab({ caseId, selectedEntryId, onSelectEntry, filters: filtersProp, onFiltersChange }: Props) {
   const { data: entries, isLoading, isError, error, refetch } = useCaseTimeline(caseId);
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [internalFilters, setInternalFilters] = useState<FilterState>(defaultFilters);
+  const filters = filtersProp ?? internalFilters;
+  const setFilters = (f: FilterState) => {
+    if (onFiltersChange) onFiltersChange(f);
+    else setInternalFilters(f);
+  };
 
   const filtered = useMemo(() => {
     let list = entries ?? [];
