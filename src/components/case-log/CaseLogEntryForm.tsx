@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { format, parseISO } from "date-fns";
-import { CalendarIcon, Save, X, Pencil } from "lucide-react";
+import { CalendarIcon, Save, X, ArrowLeft, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ClearableSelect } from "@/components/ui/clearable-select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
@@ -34,20 +44,24 @@ import {
   type EntryMetadata,
 } from "@/types/caseLog";
 import { Constants } from "@/integrations/supabase/types";
+import type { CaseLogReturnContext } from "@/pages/CaseLog";
 
 interface CaseLogEntryFormProps {
   caseId: string;
   initialEditEntryId?: string | null;
   onEditLoaded?: () => void;
+  returnContext?: CaseLogReturnContext | null;
+  onReturnToSource?: () => void;
 }
 
-export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: CaseLogEntryFormProps) {
+export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, returnContext, onReturnToSource }: CaseLogEntryFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
   const updateEntry = useUpdateCaseLogEntry();
   const deleteAttachment = useDeleteAttachment();
   const formTopRef = useRef<HTMLDivElement>(null);
+
 
   // Edit mode
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -92,6 +106,12 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
 
+  // Snapshot of loaded entry values, used to detect dirty changes when in
+  // edit-mode launched from Case Intelligence.
+  const [editLoadSnapshot, setEditLoadSnapshot] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+
   useEffect(() => {
     if (entryType === "communication") {
       setCommunicationInvolved(true);
@@ -112,6 +132,19 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialEditEntryId]);
+
+  // After load commits, snapshot the form so we can detect dirty changes.
+  useEffect(() => {
+    if (!editingEntryId) {
+      setEditLoadSnapshot(null);
+      return;
+    }
+    // Defer so all state updates from loadEntryForEdit have committed.
+    const t = setTimeout(() => setEditLoadSnapshot(buildSnapshot()), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingEntryId, existingAttachments.length]);
+
 
   const handleCommunicationInvolvedChange = (val: boolean) => {
     setCommunicationInvolved(val);
@@ -180,15 +213,69 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
     setEditingEntryId(null);
   };
 
+  const buildSnapshot = useCallback((): string => {
+    return JSON.stringify({
+      entryType,
+      eventDate: eventDate ? eventDate.toISOString() : null,
+      eventTime,
+      context,
+      summary,
+      childImpact,
+      communicationInvolved,
+      communicationMethod,
+      communicationParty,
+      communicationSummary,
+      scheduledExchangeTime,
+      actualExchangeTime,
+      exchangeOutcome,
+      providerLocation,
+      issueSymptoms,
+      otherParentInformed,
+      schoolDaycareName,
+      schoolIssueType,
+      expenseAmount,
+      expenseCategory,
+      evidenceNote,
+      attachmentIds: existingAttachments.map((a) => a.id),
+      newFiles: selectedFiles.map((f) => `${f.name}:${f.size}`),
+    });
+  }, [
+    entryType, eventDate, eventTime, context, summary, childImpact,
+    communicationInvolved, communicationMethod, communicationParty, communicationSummary,
+    scheduledExchangeTime, actualExchangeTime, exchangeOutcome,
+    providerLocation, issueSymptoms, otherParentInformed,
+    schoolDaycareName, schoolIssueType, expenseAmount, expenseCategory,
+    evidenceNote, existingAttachments, selectedFiles,
+  ]);
+
+  const isDirtyVsSnapshot = !!editLoadSnapshot && editLoadSnapshot !== buildSnapshot();
+
   const handleClearForm = () => {
     if (!isFormDirty() && !editingEntryId) return;
     if (!window.confirm("Clear all form fields? Unsaved changes will be lost.")) return;
     resetForm();
+    setEditLoadSnapshot(null);
   };
 
   const handleCancelEdit = () => {
+    // When launched from Case Intelligence, Cancel returns to source.
+    if (returnContext && onReturnToSource) {
+      if (isDirtyVsSnapshot) {
+        setConfirmDiscard(true);
+      } else {
+        onReturnToSource();
+      }
+      return;
+    }
     resetForm();
+    setEditLoadSnapshot(null);
   };
+
+  const handleConfirmDiscard = () => {
+    setConfirmDiscard(false);
+    onReturnToSource?.();
+  };
+
 
   const loadEntryForEdit = async (entryId: string) => {
     try {
@@ -397,7 +484,16 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
         }
       }
 
+      // When launched from Case Intelligence, return to source after save.
+      if (returnContext && onReturnToSource) {
+        resetForm();
+        setEditLoadSnapshot(null);
+        onReturnToSource();
+        return;
+      }
+
       resetForm();
+      setEditLoadSnapshot(null);
     } catch (err: any) {
       toast({
         title: editingEntryId ? "Error updating entry" : "Error saving entry",
@@ -410,13 +506,29 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
   };
 
   const isCommunicationType = entryType === "communication";
+  const sourceLabel = returnContext?.sourceTab === "evidence" ? "Evidence" : "Timeline";
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-8 pb-8">
-        {/* Edit mode indicator */}
+        {/* Contextual edit bar — non-dismissible when launched from Case Intelligence */}
         <div ref={formTopRef}>
-          {editingEntryId && (
+          {editingEntryId && returnContext && (
+            <div className="flex items-center gap-3 text-sm rounded-lg px-4 py-3 mb-2 border border-primary/30 bg-primary/10">
+              <span className="font-medium text-foreground">
+                Editing entry from {sourceLabel}
+              </span>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="ml-auto inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors font-medium"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to {sourceLabel}
+              </button>
+            </div>
+          )}
+          {editingEntryId && !returnContext && (
             <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 rounded-lg px-3 py-2 mb-2">
               <Pencil className="h-4 w-4" />
               <span className="font-medium">Editing existing entry</span>
@@ -429,6 +541,8 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
             </div>
           )}
         </div>
+
+
 
         {/* Event Details */}
         <div className="space-y-4">
@@ -767,6 +881,26 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: C
         {/* Recent Entries */}
         <RecentEntries caseId={caseId} onEditEntry={loadEntryForEdit} />
       </div>
+
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved edits to this entry. Returning to {sourceLabel} will discard them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDiscard}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard changes and return
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -40,9 +40,10 @@ interface Props {
   entryId: string;
   sourceTab: "timeline" | "evidence";
   onClose: () => void;
+  onEdit?: () => void;
 }
 
-export function EntryDetailsDrawer({ entryId, sourceTab, onClose }: Props) {
+export function EntryDetailsDrawer({ entryId, sourceTab, onClose, onEdit }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isLoading } = useCaseEntry(entryId);
@@ -64,6 +65,10 @@ export function EntryDetailsDrawer({ entryId, sourceTab, onClose }: Props) {
 
   const handleEdit = () => {
     if (!data) return;
+    if (onEdit) {
+      onEdit();
+      return;
+    }
     try {
       sessionStorage.setItem(
         "caseIntel.returnContext",
@@ -73,7 +78,6 @@ export function EntryDetailsDrawer({ entryId, sourceTab, onClose }: Props) {
           caseId: data.entry.case_id,
           entryId: data.entry.id,
           drawerOpen: true,
-          scrollY: window.scrollY,
           savedAt: Date.now(),
         }),
       );

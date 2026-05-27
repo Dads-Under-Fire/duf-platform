@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { useActiveCase } from "@/hooks/useActiveCase";
@@ -12,6 +12,7 @@ import { PatternsTab } from "@/components/case-intelligence/PatternsTab";
 import { CaseReportTab } from "@/components/case-intelligence/CaseReportTab";
 import { EntryDetailsDrawer } from "@/components/case-intelligence/EntryDetailsDrawer";
 import { cn } from "@/lib/utils";
+import type { CaseLogEntryType } from "@/types/caseLog";
 
 type TabKey = "evidence" | "timeline" | "patterns" | "report";
 const TABS: { key: TabKey; label: string }[] = [
@@ -20,6 +21,14 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "patterns", label: "Patterns" },
   { key: "report", label: "Case Report" },
 ];
+
+export interface TabFilterState {
+  entryType: CaseLogEntryType | "";
+  sort: "newest" | "oldest";
+  fromDate: string;
+  toDate: string;
+}
+const defaultFilters: TabFilterState = { entryType: "", sort: "newest", fromDate: "", toDate: "" };
 
 function EvidenceFilesCount({ caseId }: { caseId: string }) {
   const { data } = useCaseEvidence(caseId);
@@ -58,8 +67,12 @@ export default function CaseIntelligence() {
   const deleteCase = useDeleteCase();
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [timelineFilters, setTimelineFilters] = useState<TabFilterState>(defaultFilters);
+  const [evidenceFilters, setEvidenceFilters] = useState<TabFilterState>(defaultFilters);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pendingScrollRef = useRef<number | null>(null);
 
-  // Restore selection if returning from Case Log edit flow
+  // Restore selection + filters + scroll if returning from Case Log edit flow
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("caseIntel.returnContext");
@@ -72,11 +85,46 @@ export default function CaseIntelligence() {
         next.set("tab", ctx.sourceTab);
         setParams(next, { replace: true });
       }
+      if (ctx.filters) {
+        if (ctx.sourceTab === "timeline") setTimelineFilters(ctx.filters);
+        else if (ctx.sourceTab === "evidence") setEvidenceFilters(ctx.filters);
+      }
       if (ctx.drawerOpen && ctx.entryId) setSelectedEntryId(ctx.entryId);
+      if (typeof ctx.scrollY === "number") pendingScrollRef.current = ctx.scrollY;
       sessionStorage.removeItem("caseIntel.returnContext");
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply pending scroll after children mount
+  useEffect(() => {
+    if (pendingScrollRef.current == null) return;
+    const target = pendingScrollRef.current;
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ top: target });
+      pendingScrollRef.current = null;
+    }, 250);
+    return () => clearTimeout(t);
+  }, [tab, selectedEntryId]);
+
+  const handleEditEntry = (entryId: string, sourceTab: "timeline" | "evidence") => {
+    try {
+      sessionStorage.setItem(
+        "caseIntel.returnContext",
+        JSON.stringify({
+          sourceArea: "case-intelligence",
+          sourceTab,
+          caseId: activeCaseId,
+          entryId,
+          drawerOpen: true,
+          filters: sourceTab === "timeline" ? timelineFilters : evidenceFilters,
+          scrollY: scrollRef.current?.scrollTop ?? 0,
+          savedAt: Date.now(),
+        }),
+      );
+    } catch {}
+    navigate(`/?editEntry=${entryId}`);
+  };
 
   if (casesLoading) {
     return (
@@ -146,6 +194,7 @@ export default function CaseIntelligence() {
 
       <div className="flex-1 flex overflow-hidden">
         <div
+          ref={scrollRef}
           className={cn(
             "flex-1 overflow-auto",
             tab === "evidence" || tab === "timeline" ? "" : "p-4 md:p-6",
@@ -158,12 +207,16 @@ export default function CaseIntelligence() {
               caseId={activeCaseId}
               selectedEntryId={selectedEntryId}
               onSelectEntry={setSelectedEntryId}
+              filters={evidenceFilters}
+              onFiltersChange={setEvidenceFilters}
             />
           ) : tab === "timeline" ? (
             <TimelineTab
               caseId={activeCaseId}
               selectedEntryId={selectedEntryId}
               onSelectEntry={setSelectedEntryId}
+              filters={timelineFilters}
+              onFiltersChange={setTimelineFilters}
             />
           ) : tab === "patterns" ? (
             <PatternsTab caseId={activeCaseId} onViewEvents={() => setTab("timeline")} />
@@ -177,6 +230,7 @@ export default function CaseIntelligence() {
             entryId={selectedEntryId}
             sourceTab={tab as "timeline" | "evidence"}
             onClose={() => setSelectedEntryId(null)}
+            onEdit={() => handleEditEntry(selectedEntryId, tab as "timeline" | "evidence")}
           />
         )}
       </div>

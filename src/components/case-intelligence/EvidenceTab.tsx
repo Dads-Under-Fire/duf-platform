@@ -40,11 +40,18 @@ interface EvidenceTabProps {
   caseId: string;
   selectedEntryId: string | null;
   onSelectEntry: (entryId: string) => void;
+  filters?: FilterState;
+  onFiltersChange?: (f: FilterState) => void;
 }
 
-export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry }: EvidenceTabProps) {
+export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry, filters: filtersProp, onFiltersChange }: EvidenceTabProps) {
   const { data: rows, isLoading, isError, error, refetch } = useCaseEvidence(caseId);
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [internalFilters, setInternalFilters] = useState<FilterState>(defaultFilters);
+  const filters = filtersProp ?? internalFilters;
+  const setFilters = (f: FilterState) => {
+    if (onFiltersChange) onFiltersChange(f);
+    else setInternalFilters(f);
+  };
 
 
   /** Group attachments by their parent case-log entry. */
