@@ -887,7 +887,9 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
           <AlertDialogHeader>
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved edits to this entry. Returning to {sourceLabel} will discard them.
+              {returnContext
+                ? `You have unsaved edits to this entry. Returning to ${sourceLabel} will discard them.`
+                : "You have unsaved edits to this entry. Canceling will discard them."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -896,7 +898,7 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
               onClick={handleConfirmDiscard}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Discard changes and return
+              Discard changes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
