@@ -200,15 +200,69 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
     setEditingEntryId(null);
   };
 
+  const buildSnapshot = useCallback((): string => {
+    return JSON.stringify({
+      entryType,
+      eventDate: eventDate ? eventDate.toISOString() : null,
+      eventTime,
+      context,
+      summary,
+      childImpact,
+      communicationInvolved,
+      communicationMethod,
+      communicationParty,
+      communicationSummary,
+      scheduledExchangeTime,
+      actualExchangeTime,
+      exchangeOutcome,
+      providerLocation,
+      issueSymptoms,
+      otherParentInformed,
+      schoolDaycareName,
+      schoolIssueType,
+      expenseAmount,
+      expenseCategory,
+      evidenceNote,
+      attachmentIds: existingAttachments.map((a) => a.id),
+      newFiles: selectedFiles.map((f) => `${f.name}:${f.size}`),
+    });
+  }, [
+    entryType, eventDate, eventTime, context, summary, childImpact,
+    communicationInvolved, communicationMethod, communicationParty, communicationSummary,
+    scheduledExchangeTime, actualExchangeTime, exchangeOutcome,
+    providerLocation, issueSymptoms, otherParentInformed,
+    schoolDaycareName, schoolIssueType, expenseAmount, expenseCategory,
+    evidenceNote, existingAttachments, selectedFiles,
+  ]);
+
+  const isDirtyVsSnapshot = !!editLoadSnapshot && editLoadSnapshot !== buildSnapshot();
+
   const handleClearForm = () => {
     if (!isFormDirty() && !editingEntryId) return;
     if (!window.confirm("Clear all form fields? Unsaved changes will be lost.")) return;
     resetForm();
+    setEditLoadSnapshot(null);
   };
 
   const handleCancelEdit = () => {
+    // When launched from Case Intelligence, Cancel returns to source.
+    if (returnContext && onReturnToSource) {
+      if (isDirtyVsSnapshot) {
+        setConfirmDiscard(true);
+      } else {
+        onReturnToSource();
+      }
+      return;
+    }
     resetForm();
+    setEditLoadSnapshot(null);
   };
+
+  const handleConfirmDiscard = () => {
+    setConfirmDiscard(false);
+    onReturnToSource?.();
+  };
+
 
   const loadEntryForEdit = async (entryId: string) => {
     try {
