@@ -1,13 +1,16 @@
+import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { format, parseISO } from "date-fns";
 import { useActiveCase } from "@/hooks/useActiveCase";
 import { useCreateCase, useDeleteCase } from "@/hooks/useCases";
-import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
+import { useCaseEvidence, useCaseTimeline } from "@/hooks/useCaseIntelligence";
 import { CaseSelector } from "@/components/case-log/CaseSelector";
 import { CreateCasePrompt } from "@/components/case-log/CreateCasePrompt";
 import { EvidenceTab } from "@/components/case-intelligence/EvidenceTab";
 import { TimelineTab } from "@/components/case-intelligence/TimelineTab";
 import { PatternsTab } from "@/components/case-intelligence/PatternsTab";
 import { CaseReportTab } from "@/components/case-intelligence/CaseReportTab";
+import { EntryDetailsDrawer } from "@/components/case-intelligence/EntryDetailsDrawer";
 import { cn } from "@/lib/utils";
 
 type TabKey = "evidence" | "timeline" | "patterns" | "report";
@@ -28,6 +31,17 @@ function EvidenceFilesCount({ caseId }: { caseId: string }) {
   );
 }
 
+function TimelineLastEntry({ caseId }: { caseId: string }) {
+  const { data } = useCaseTimeline(caseId);
+  const last = data?.[0]?.event_date;
+  if (!last) return null;
+  return (
+    <p className="text-sm text-muted-foreground whitespace-nowrap">
+      Last entry: {format(parseISO(last), "MM/dd/yy")}
+    </p>
+  );
+}
+
 export default function CaseIntelligence() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -36,11 +50,33 @@ export default function CaseIntelligence() {
     const next = new URLSearchParams(params);
     next.set("tab", k);
     setParams(next, { replace: true });
+    setSelectedEntryId(null);
   };
 
   const { cases, casesLoading, activeCaseId, setActiveCaseId } = useActiveCase();
   const createCase = useCreateCase();
   const deleteCase = useDeleteCase();
+
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+
+  // Restore selection if returning from Case Log edit flow
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("caseIntel.returnContext");
+      if (!raw) return;
+      const ctx = JSON.parse(raw);
+      if (ctx?.sourceArea !== "case-intelligence") return;
+      if (ctx.caseId && ctx.caseId !== activeCaseId) setActiveCaseId(ctx.caseId);
+      if (ctx.sourceTab && ctx.sourceTab !== tab) {
+        const next = new URLSearchParams(params);
+        next.set("tab", ctx.sourceTab);
+        setParams(next, { replace: true });
+      }
+      if (ctx.drawerOpen && ctx.entryId) setSelectedEntryId(ctx.entryId);
+      sessionStorage.removeItem("caseIntel.returnContext");
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (casesLoading) {
     return (
@@ -64,6 +100,8 @@ export default function CaseIntelligence() {
       </div>
     );
   }
+
+  const drawerOpen = !!selectedEntryId && (tab === "timeline" || tab === "evidence");
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -100,20 +138,46 @@ export default function CaseIntelligence() {
           {tab === "evidence" && activeCaseId && (
             <EvidenceFilesCount caseId={activeCaseId} />
           )}
+          {tab === "timeline" && activeCaseId && (
+            <TimelineLastEntry caseId={activeCaseId} />
+          )}
         </div>
       </div>
 
-      <div className={cn("flex-1 overflow-auto", tab === "evidence" ? "" : "p-4 md:p-6")}>
-        {!activeCaseId ? (
-          <p className="text-sm text-muted-foreground p-6">Select a case to continue.</p>
-        ) : tab === "evidence" ? (
-          <EvidenceTab caseId={activeCaseId} />
-        ) : tab === "timeline" ? (
-          <TimelineTab caseId={activeCaseId} />
-        ) : tab === "patterns" ? (
-          <PatternsTab caseId={activeCaseId} onViewEvents={() => setTab("timeline")} />
-        ) : (
-          <CaseReportTab caseId={activeCaseId} />
+      <div className="flex-1 flex overflow-hidden">
+        <div
+          className={cn(
+            "flex-1 overflow-auto",
+            tab === "evidence" || tab === "timeline" ? "" : "p-4 md:p-6",
+          )}
+        >
+          {!activeCaseId ? (
+            <p className="text-sm text-muted-foreground p-6">Select a case to continue.</p>
+          ) : tab === "evidence" ? (
+            <EvidenceTab
+              caseId={activeCaseId}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={setSelectedEntryId}
+            />
+          ) : tab === "timeline" ? (
+            <TimelineTab
+              caseId={activeCaseId}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={setSelectedEntryId}
+            />
+          ) : tab === "patterns" ? (
+            <PatternsTab caseId={activeCaseId} onViewEvents={() => setTab("timeline")} />
+          ) : (
+            <CaseReportTab caseId={activeCaseId} />
+          )}
+        </div>
+
+        {drawerOpen && selectedEntryId && (
+          <EntryDetailsDrawer
+            entryId={selectedEntryId}
+            sourceTab={tab as "timeline" | "evidence"}
+            onClose={() => setSelectedEntryId(null)}
+          />
         )}
       </div>
     </div>
