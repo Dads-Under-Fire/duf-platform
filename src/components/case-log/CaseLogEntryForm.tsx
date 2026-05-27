@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { format, parseISO } from "date-fns";
-import { CalendarIcon, Save, X, Pencil } from "lucide-react";
+import { CalendarIcon, Save, X, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ClearableSelect } from "@/components/ui/clearable-select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CommunicationSection } from "./CommunicationSection";
@@ -34,20 +44,24 @@ import {
   type EntryMetadata,
 } from "@/types/caseLog";
 import { Constants } from "@/integrations/supabase/types";
+import type { CaseLogReturnContext } from "@/pages/CaseLog";
 
 interface CaseLogEntryFormProps {
   caseId: string;
   initialEditEntryId?: string | null;
   onEditLoaded?: () => void;
+  returnContext?: CaseLogReturnContext | null;
+  onReturnToSource?: () => void;
 }
 
-export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded }: CaseLogEntryFormProps) {
+export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, returnContext, onReturnToSource }: CaseLogEntryFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const createEntry = useCreateCaseLogEntry();
   const updateEntry = useUpdateCaseLogEntry();
   const deleteAttachment = useDeleteAttachment();
   const formTopRef = useRef<HTMLDivElement>(null);
+
 
   // Edit mode
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
