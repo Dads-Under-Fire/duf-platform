@@ -133,6 +133,19 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialEditEntryId]);
 
+  // After load commits, snapshot the form so we can detect dirty changes.
+  useEffect(() => {
+    if (!editingEntryId) {
+      setEditLoadSnapshot(null);
+      return;
+    }
+    // Defer so all state updates from loadEntryForEdit have committed.
+    const t = setTimeout(() => setEditLoadSnapshot(buildSnapshot()), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingEntryId, existingAttachments.length]);
+
+
   const handleCommunicationInvolvedChange = (val: boolean) => {
     setCommunicationInvolved(val);
     if (!val) {
