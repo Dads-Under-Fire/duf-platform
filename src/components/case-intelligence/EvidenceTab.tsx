@@ -36,9 +36,16 @@ interface GroupedEntry {
   attachments: CaseLogAttachment[];
 }
 
-export function EvidenceTab({ caseId }: { caseId: string }) {
+interface EvidenceTabProps {
+  caseId: string;
+  selectedEntryId: string | null;
+  onSelectEntry: (entryId: string) => void;
+}
+
+export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry }: EvidenceTabProps) {
   const { data: rows, isLoading, isError, error, refetch } = useCaseEvidence(caseId);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+
 
   /** Group attachments by their parent case-log entry. */
   const grouped = useMemo<GroupedEntry[]>(() => {
