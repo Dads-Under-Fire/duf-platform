@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { Paperclip, ArrowDownUp, CalendarRange, ChevronRight } from "lucide-react";
 import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
@@ -12,6 +11,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/state";
 import { cn } from "@/lib/utils";
+
 
 interface FilterState {
   entryType: CaseLogEntryType | "";
