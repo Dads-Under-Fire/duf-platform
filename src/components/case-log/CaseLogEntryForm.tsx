@@ -484,7 +484,16 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
         }
       }
 
+      // When launched from Case Intelligence, return to source after save.
+      if (returnContext && onReturnToSource) {
+        resetForm();
+        setEditLoadSnapshot(null);
+        onReturnToSource();
+        return;
+      }
+
       resetForm();
+      setEditLoadSnapshot(null);
     } catch (err: any) {
       toast({
         title: editingEntryId ? "Error updating entry" : "Error saving entry",
@@ -497,25 +506,30 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
   };
 
   const isCommunicationType = entryType === "communication";
+  const sourceLabel = returnContext?.sourceTab === "evidence" ? "Evidence" : "Timeline";
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-8 pb-8">
-        {/* Edit mode indicator */}
+        {/* Contextual edit bar — non-dismissible when launched from Case Intelligence */}
         <div ref={formTopRef}>
-          {editingEntryId && (
-            <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 rounded-lg px-3 py-2 mb-2">
-              <Pencil className="h-4 w-4" />
-              <span className="font-medium">Editing existing entry</span>
+          {editingEntryId && returnContext && (
+            <div className="flex items-center gap-3 text-sm rounded-lg px-4 py-3 mb-2 border border-primary/30 bg-primary/10">
+              <span className="font-medium text-foreground">
+                Editing entry from {sourceLabel}
+              </span>
               <button
+                type="button"
                 onClick={handleCancelEdit}
-                className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+                className="ml-auto inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors font-medium"
               >
-                <X className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
+                Back to {sourceLabel}
               </button>
             </div>
           )}
         </div>
+
 
         {/* Event Details */}
         <div className="space-y-4">
