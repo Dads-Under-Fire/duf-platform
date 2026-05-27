@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { Paperclip, ArrowDownUp, CalendarRange, ChevronRight } from "lucide-react";
 import { useCaseEvidence } from "@/hooks/useCaseIntelligence";
@@ -12,6 +11,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/state";
 import { cn } from "@/lib/utils";
+
 
 interface FilterState {
   entryType: CaseLogEntryType | "";
@@ -36,9 +36,16 @@ interface GroupedEntry {
   attachments: CaseLogAttachment[];
 }
 
-export function EvidenceTab({ caseId }: { caseId: string }) {
+interface EvidenceTabProps {
+  caseId: string;
+  selectedEntryId: string | null;
+  onSelectEntry: (entryId: string) => void;
+}
+
+export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry }: EvidenceTabProps) {
   const { data: rows, isLoading, isError, error, refetch } = useCaseEvidence(caseId);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+
 
   /** Group attachments by their parent case-log entry. */
   const grouped = useMemo<GroupedEntry[]>(() => {
@@ -200,14 +207,19 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
               ),
             );
 
+            const isSelected = selectedEntryId === entry.id;
             return (
               <li
                 key={entry.id}
                 className={cn(
-                  "p-6 flex items-start gap-6",
+                  "p-6 flex items-start gap-6 relative",
                   isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
+                  isSelected && "bg-[#2a1a10]",
                 )}
               >
+                {isSelected && (
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                )}
                 <div className="flex-1 min-w-0 space-y-4">
                   {/* A. Header line */}
                   <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
@@ -265,16 +277,18 @@ export function EvidenceTab({ caseId }: { caseId: string }) {
                   )}
                 </div>
 
-                {/* Right action — anchored to top */}
-                <Link
-                  to={`/case-intelligence/entry/${entry.id}`}
+                {/* Right action — opens shared Entry Details drawer */}
+                <button
+                  type="button"
+                  onClick={() => onSelectEntry(entry.id)}
                   className="shrink-0 self-start inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                  Open Case Log
+                  View Details
                   <ChevronRight className="h-4 w-4" />
-                </Link>
+                </button>
               </li>
             );
+
           })}
         </ul>
       )}
