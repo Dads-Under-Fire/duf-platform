@@ -258,13 +258,12 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
   };
 
   const handleCancelEdit = () => {
-    // When launched from Case Intelligence, Cancel returns to source.
+    if (isDirtyVsSnapshot) {
+      setConfirmDiscard(true);
+      return;
+    }
     if (returnContext && onReturnToSource) {
-      if (isDirtyVsSnapshot) {
-        setConfirmDiscard(true);
-      } else {
-        onReturnToSource();
-      }
+      onReturnToSource();
       return;
     }
     resetForm();
@@ -273,7 +272,12 @@ export function CaseLogEntryForm({ caseId, initialEditEntryId, onEditLoaded, ret
 
   const handleConfirmDiscard = () => {
     setConfirmDiscard(false);
-    onReturnToSource?.();
+    if (returnContext && onReturnToSource) {
+      onReturnToSource();
+      return;
+    }
+    resetForm();
+    setEditLoadSnapshot(null);
   };
 
 
