@@ -207,14 +207,19 @@ export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry }: Evidence
               ),
             );
 
+            const isSelected = selectedEntryId === entry.id;
             return (
               <li
                 key={entry.id}
                 className={cn(
-                  "p-6 flex items-start gap-6",
+                  "p-6 flex items-start gap-6 relative",
                   isAlt ? "bg-[#1c1c1c]" : "bg-[#141414]",
+                  isSelected && "bg-[#2a1a10]",
                 )}
               >
+                {isSelected && (
+                  <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                )}
                 <div className="flex-1 min-w-0 space-y-4">
                   {/* A. Header line */}
                   <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
@@ -272,16 +277,18 @@ export function EvidenceTab({ caseId, selectedEntryId, onSelectEntry }: Evidence
                   )}
                 </div>
 
-                {/* Right action — anchored to top */}
-                <Link
-                  to={`/case-intelligence/entry/${entry.id}`}
+                {/* Right action — opens shared Entry Details drawer */}
+                <button
+                  type="button"
+                  onClick={() => onSelectEntry(entry.id)}
                   className="shrink-0 self-start inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                  Open Case Log
+                  View Details
                   <ChevronRight className="h-4 w-4" />
-                </Link>
+                </button>
               </li>
             );
+
           })}
         </ul>
       )}
