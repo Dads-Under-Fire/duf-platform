@@ -195,9 +195,17 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
       <div className="h-px bg-border" />
 
       {/* Split view */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div
+        className="flex-1 min-h-0 overflow-hidden grid"
+        style={{
+          gridTemplateColumns:
+            right.kind === "none"
+              ? "minmax(0, 1fr)"
+              : "minmax(700px, 1fr) clamp(420px, 440px, 480px)",
+        }}
+      >
         {/* Left: pattern list */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="overflow-y-auto min-w-0">
           {patternsLoading ? (
             <div className="p-4 md:p-6">
               <CardGridSkeleton count={4} />
