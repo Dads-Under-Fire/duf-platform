@@ -195,9 +195,17 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
       <div className="h-px bg-border" />
 
       {/* Split view */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div
+        className="flex-1 min-h-0 overflow-hidden grid"
+        style={{
+          gridTemplateColumns:
+            right.kind === "none"
+              ? "minmax(0, 1fr)"
+              : "minmax(700px, 1fr) clamp(420px, 440px, 480px)",
+        }}
+      >
         {/* Left: pattern list */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="overflow-y-auto min-w-0">
           {patternsLoading ? (
             <div className="p-4 md:p-6">
               <CardGridSkeleton count={4} />
@@ -340,12 +348,12 @@ function PatternDetailPanel({
     });
 
   return (
-    <aside className="w-[420px] shrink-0 border-l border-border bg-background flex flex-col">
+    <aside className="min-w-0 border-l border-border bg-background flex flex-col">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
         <button
           type="button"
           onClick={onClose}
-          className="h-6 w-6 rounded-full border-2 border-primary text-primary flex items-center justify-center"
+          className="h-6 w-6 shrink-0 rounded-full border-2 border-primary text-primary flex items-center justify-center"
           aria-label="Close pattern details"
         >
           <X className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -436,12 +444,12 @@ function EntryDetailPanel({
   const connectedPatterns = patterns.filter((p) => p.related_entry_ids.includes(entryId));
 
   return (
-    <aside className="w-[420px] shrink-0 border-l border-border bg-background flex flex-col">
+    <aside className="min-w-0 border-l border-border bg-background flex flex-col">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
         <button
           type="button"
           onClick={onBack}
-          className="h-6 w-6 rounded-full border-2 border-primary text-primary flex items-center justify-center"
+          className="h-6 w-6 shrink-0 rounded-full border-2 border-primary text-primary flex items-center justify-center"
           aria-label="Back to pattern details"
         >
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.5} />
