@@ -306,6 +306,7 @@ export type Database = {
           last_entry_date: string | null
           name: string
           related_entry_ids: string[]
+          slug: string
           user_id: string
         }
         Insert: {
@@ -318,6 +319,7 @@ export type Database = {
           last_entry_date?: string | null
           name: string
           related_entry_ids?: string[]
+          slug: string
           user_id: string
         }
         Update: {
@@ -330,6 +332,7 @@ export type Database = {
           last_entry_date?: string | null
           name?: string
           related_entry_ids?: string[]
+          slug?: string
           user_id?: string
         }
         Relationships: [
