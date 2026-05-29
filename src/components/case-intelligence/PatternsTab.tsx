@@ -212,7 +212,7 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
               </p>
             </div>
           ) : (
-            <ul>
+            <ul className="flex flex-col gap-1">
               {patterns.map((p, idx) => {
                 const isSelected =
                   (right.kind === "pattern" || right.kind === "entry") && right.patternId === p.id;
