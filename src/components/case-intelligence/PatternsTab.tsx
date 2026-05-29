@@ -97,7 +97,7 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
           {cta}
         </div>
 
-        <div className="h-px bg-border" />
+        <div className="h-px bg-border -mx-4 md:-mx-6" />
 
         <div className="rounded-lg border border-border/50 bg-muted/20 px-5 py-3">
           <div className="flex items-start gap-3">
