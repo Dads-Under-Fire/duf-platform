@@ -244,10 +244,10 @@ serve(async (req) => {
       return jsonResponse({ error: "OPENAI_API_KEY not configured" }, 500);
     }
 
-    // Run analyze + summary in parallel
+    // Run analyze (strong model) + summary (mini) in parallel
     const [analyzeRaw, summaryRaw] = await Promise.all([
-      callTool(OPENAI_API_KEY, analyzeSystem, userPayload, ANALYZE_TOOL),
-      callTool(OPENAI_API_KEY, summaryPromptBase, userPayload, SUMMARY_TOOL),
+      callTool(OPENAI_API_KEY, analyzeSystem, userPayload, ANALYZE_TOOL, ANALYZE_MODEL),
+      callTool(OPENAI_API_KEY, summaryPromptBase, userPayload, SUMMARY_TOOL, SUMMARY_MODEL),
     ]);
 
     if (!analyzeRaw || !summaryRaw) {
@@ -304,7 +304,7 @@ serve(async (req) => {
       );
     }
 
-    // ── Insert analysis row ──
+    // ── Insert analysis row (refund on failure) ──
     const summary = {
       headline: (summaryRaw as any).headline ?? "",
       overview: (summaryRaw as any).overview ?? "",
@@ -324,9 +324,12 @@ serve(async (req) => {
       })
       .select()
       .single();
-    if (aErr) throw aErr;
+    if (aErr) {
+      await refundCredit(serviceClient, userId);
+      throw aErr;
+    }
 
-    // ── Insert pattern rows; on failure, roll back the analysis row ──
+    // ── Insert pattern rows; on failure, roll back the analysis row AND refund the credit ──
     if (cleanPatterns.length > 0) {
       const patternRows = cleanPatterns.map((p) => ({
         analysis_id: analysisRow.id,
@@ -344,9 +347,11 @@ serve(async (req) => {
         .insert(patternRows);
       if (pErr) {
         await serviceClient.from("case_intelligence_analyses").delete().eq("id", analysisRow.id);
+        await refundCredit(serviceClient, userId);
         throw pErr;
       }
     }
+
 
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
     return jsonResponse({
