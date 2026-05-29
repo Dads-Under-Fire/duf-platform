@@ -172,21 +172,28 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
   return (
     <div className="flex flex-col h-full">
       {/* Status / action row */}
-      <div className="p-4 md:p-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="p-4 md:p-6 flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
           <p className="text-sm text-muted-foreground">
             Last analyzed {latest ? format(parseISO(latest.created_at), "MMM d, yyyy '@' h:mma") : "—"}
-            {patternCount > 0 && (
+            {state.status === "stale" ? (
               <>
                 {" • "}
-                {patternCount} pattern{patternCount !== 1 ? "s" : ""} analyzed across {totalEntries} {totalEntries === 1 ? "entry" : "entries"}
+                {state.newCount} {state.newCount === 1 ? "entry" : "entries"} added or updated since analysis
               </>
+            ) : (
+              patternCount > 0 && (
+                <>
+                  {" • "}
+                  {patternCount} pattern{patternCount !== 1 ? "s" : ""} analyzed across {totalEntries} {totalEntries === 1 ? "entry" : "entries"}
+                </>
+              )
             )}
           </p>
           <p className="flex items-center gap-1.5 text-xs italic text-muted-foreground/70">
             <Info className="h-3 w-3" />
-            {helper}
+            {state.status === "stale" ? "Re-analysis uses 1 Case Intelligence analysis credit." : helper}
           </p>
         </div>
         {analyzeBtn("Re-analyze Case")}
