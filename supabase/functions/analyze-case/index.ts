@@ -104,6 +104,7 @@ async function callTool(
   systemPrompt: string,
   userPayload: string,
   tool: typeof ANALYZE_TOOL | typeof SUMMARY_TOOL,
+  model: string,
 ): Promise<Record<string, unknown> | null> {
   const body = {
     input: [
@@ -113,8 +114,7 @@ async function callTool(
     tools: [tool],
     tool_choice: "required",
   };
-  let data = await callOpenAI(apiKey, body, MODEL);
-  if (!data) data = await callOpenAI(apiKey, body, FALLBACK_MODEL);
+  const data = await callOpenAI(apiKey, body, model);
   if (!data) return null;
   const fc = data.output?.find((it: any) => it.type === "function_call" && it.name === tool.name);
   if (!fc) return null;
@@ -122,6 +122,23 @@ async function callTool(
     return JSON.parse(fc.arguments);
   } catch {
     return null;
+  }
+}
+
+async function refundCredit(serviceClient: any, userId: string): Promise<void> {
+  try {
+    const { data: row } = await serviceClient.rpc("ensure_current_usage_period", { p_user_id: userId });
+    const usageRow = Array.isArray(row) ? row[0] : row;
+    if (!usageRow?.id) return;
+    await serviceClient
+      .from("usage_counters")
+      .update({
+        case_intelligence_analyses_used: Math.max(0, (usageRow.case_intelligence_analyses_used ?? 1) - 1),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", usageRow.id);
+  } catch (e) {
+    console.error(`[${FN}] refund_failed`, e);
   }
 }
 
