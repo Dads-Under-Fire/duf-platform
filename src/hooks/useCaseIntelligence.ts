@@ -104,6 +104,7 @@ export interface PatternRow {
   analysis_id: string;
   case_id: string;
   user_id: string;
+  slug: string;
   name: string;
   explanation: string | null;
   related_entry_ids: string[];
