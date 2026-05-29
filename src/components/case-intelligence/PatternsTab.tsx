@@ -410,8 +410,8 @@ function PatternDetailPanel({
                       {label}
                     </button>
                     {(dateStr || timeStr) && (
-                      <span className="ml-2 text-xs text-[#e5e5e5]">
-                        ({dateStr}{dateStr && timeStr && " - "}{timeStr})
+                      <span className="text-xs text-[#e5e5e5] mt-0.5 block">
+                        {dateStr}{dateStr && timeStr && " - "}{timeStr}
                       </span>
                     )}
                   </li>
