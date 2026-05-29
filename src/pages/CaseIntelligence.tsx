@@ -197,7 +197,7 @@ export default function CaseIntelligence() {
           ref={scrollRef}
           className={cn(
             "flex-1 overflow-auto",
-            tab === "evidence" || tab === "timeline" ? "" : "p-4 md:p-6",
+            tab === "evidence" || tab === "timeline" || tab === "patterns" ? "" : "p-4 md:p-6",
           )}
         >
           {!activeCaseId ? (
