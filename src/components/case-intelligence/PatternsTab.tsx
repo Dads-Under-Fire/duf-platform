@@ -325,7 +325,7 @@ function PatternDetailPanel({
   onOpenEntry,
 }: {
   pattern: PatternRow;
-  entriesById: Map<string, { id: string; entry_type: string; event_date: string | null; event_time: string | null; context: string | null }>;
+  entriesById: Map<string, any>;
   onClose: () => void;
   onOpenEntry: (entryId: string) => void;
 }) {
