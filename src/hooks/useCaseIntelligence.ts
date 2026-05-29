@@ -107,8 +107,8 @@ export interface PatternRow {
   name: string;
   explanation: string | null;
   related_entry_ids: string[];
-  first_event_date: string | null;
-  last_event_date: string | null;
+  first_entry_date: string | null;
+  last_entry_date: string | null;
   created_at: string;
 }
 
@@ -222,8 +222,8 @@ export function useRunAnalysis(caseId: string | null) {
             name: `Recurring ${type.replace(/_/g, " ")}`,
             explanation: `${arr.length} ${type.replace(/_/g, " ")} entries detected across the case.`,
             related_entry_ids: arr.map((e) => e.id),
-            first_event_date: dates[0],
-            last_event_date: dates[dates.length - 1],
+            first_entry_date: dates[0],
+            last_entry_date: dates[dates.length - 1],
           });
         }
       });
