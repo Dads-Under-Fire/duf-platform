@@ -25,8 +25,10 @@ const CANONICAL_NAME_BY_SLUG: Record<string, string> = Object.fromEntries(
 );
 
 const FN = "analyze-case";
-const MODEL = "gpt-5.4-mini";
-const FALLBACK_MODEL = "gpt-4o-mini";
+// Stage 1 (pattern classification) uses the strongest non-mini GPT model wired into this project.
+const ANALYZE_MODEL = "gpt-5.4";
+// Stage 2 (summary) keeps the lighter model — purely descriptive headline/overview.
+const SUMMARY_MODEL = "gpt-5.4-mini";
 
 // ── Structured output tool schemas ──
 const ANALYZE_TOOL = {
@@ -102,6 +104,7 @@ async function callTool(
   systemPrompt: string,
   userPayload: string,
   tool: typeof ANALYZE_TOOL | typeof SUMMARY_TOOL,
+  model: string,
 ): Promise<Record<string, unknown> | null> {
   const body = {
     input: [
@@ -111,8 +114,7 @@ async function callTool(
     tools: [tool],
     tool_choice: "required",
   };
-  let data = await callOpenAI(apiKey, body, MODEL);
-  if (!data) data = await callOpenAI(apiKey, body, FALLBACK_MODEL);
+  const data = await callOpenAI(apiKey, body, model);
   if (!data) return null;
   const fc = data.output?.find((it: any) => it.type === "function_call" && it.name === tool.name);
   if (!fc) return null;
@@ -120,6 +122,23 @@ async function callTool(
     return JSON.parse(fc.arguments);
   } catch {
     return null;
+  }
+}
+
+async function refundCredit(serviceClient: any, userId: string): Promise<void> {
+  try {
+    const { data: row } = await serviceClient.rpc("ensure_current_usage_period", { p_user_id: userId });
+    const usageRow = Array.isArray(row) ? row[0] : row;
+    if (!usageRow?.id) return;
+    await serviceClient
+      .from("usage_counters")
+      .update({
+        case_intelligence_analyses_used: Math.max(0, (usageRow.case_intelligence_analyses_used ?? 1) - 1),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", usageRow.id);
+  } catch (e) {
+    console.error(`[${FN}] refund_failed`, e);
   }
 }
 
@@ -225,10 +244,10 @@ serve(async (req) => {
       return jsonResponse({ error: "OPENAI_API_KEY not configured" }, 500);
     }
 
-    // Run analyze + summary in parallel
+    // Run analyze (strong model) + summary (mini) in parallel
     const [analyzeRaw, summaryRaw] = await Promise.all([
-      callTool(OPENAI_API_KEY, analyzeSystem, userPayload, ANALYZE_TOOL),
-      callTool(OPENAI_API_KEY, summaryPromptBase, userPayload, SUMMARY_TOOL),
+      callTool(OPENAI_API_KEY, analyzeSystem, userPayload, ANALYZE_TOOL, ANALYZE_MODEL),
+      callTool(OPENAI_API_KEY, summaryPromptBase, userPayload, SUMMARY_TOOL, SUMMARY_MODEL),
     ]);
 
     if (!analyzeRaw || !summaryRaw) {
@@ -285,7 +304,7 @@ serve(async (req) => {
       );
     }
 
-    // ── Insert analysis row ──
+    // ── Insert analysis row (refund on failure) ──
     const summary = {
       headline: (summaryRaw as any).headline ?? "",
       overview: (summaryRaw as any).overview ?? "",
@@ -305,9 +324,12 @@ serve(async (req) => {
       })
       .select()
       .single();
-    if (aErr) throw aErr;
+    if (aErr) {
+      await refundCredit(serviceClient, userId);
+      throw aErr;
+    }
 
-    // ── Insert pattern rows; on failure, roll back the analysis row ──
+    // ── Insert pattern rows; on failure, roll back the analysis row AND refund the credit ──
     if (cleanPatterns.length > 0) {
       const patternRows = cleanPatterns.map((p) => ({
         analysis_id: analysisRow.id,
@@ -325,9 +347,11 @@ serve(async (req) => {
         .insert(patternRows);
       if (pErr) {
         await serviceClient.from("case_intelligence_analyses").delete().eq("id", analysisRow.id);
+        await refundCredit(serviceClient, userId);
         throw pErr;
       }
     }
+
 
     logRequest({ userId, functionName: FN, status: "success", estimatedUsage: 1 });
     return jsonResponse({
