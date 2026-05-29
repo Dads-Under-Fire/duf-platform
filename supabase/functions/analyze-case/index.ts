@@ -25,8 +25,10 @@ const CANONICAL_NAME_BY_SLUG: Record<string, string> = Object.fromEntries(
 );
 
 const FN = "analyze-case";
-const MODEL = "gpt-5.4-mini";
-const FALLBACK_MODEL = "gpt-4o-mini";
+// Stage 1 (pattern classification) uses the strongest non-mini GPT model wired into this project.
+const ANALYZE_MODEL = "gpt-5.4";
+// Stage 2 (summary) keeps the lighter model — purely descriptive headline/overview.
+const SUMMARY_MODEL = "gpt-5.4-mini";
 
 // ── Structured output tool schemas ──
 const ANALYZE_TOOL = {
