@@ -408,9 +408,12 @@ function PatternDetailPanel({
                       className="text-sm text-primary hover:text-primary/80 underline underline-offset-2 text-left"
                     >
                       {label}
-                      {dateStr && <> • {dateStr}</>}
-                      {timeStr && <> - {timeStr}</>}
                     </button>
+                    {(dateStr || timeStr) && (
+                      <span className="ml-2 text-xs text-[#e5e5e5]">
+                        ({dateStr}{dateStr && timeStr && " - "}{timeStr})
+                      </span>
+                    )}
                   </li>
                 );
               })}
