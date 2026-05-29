@@ -301,9 +301,9 @@ export type Database = {
           case_id: string
           created_at: string
           explanation: string | null
-          first_event_date: string | null
+          first_entry_date: string | null
           id: string
-          last_event_date: string | null
+          last_entry_date: string | null
           name: string
           related_entry_ids: string[]
           user_id: string
@@ -313,9 +313,9 @@ export type Database = {
           case_id: string
           created_at?: string
           explanation?: string | null
-          first_event_date?: string | null
+          first_entry_date?: string | null
           id?: string
-          last_event_date?: string | null
+          last_entry_date?: string | null
           name: string
           related_entry_ids?: string[]
           user_id: string
@@ -325,9 +325,9 @@ export type Database = {
           case_id?: string
           created_at?: string
           explanation?: string | null
-          first_event_date?: string | null
+          first_entry_date?: string | null
           id?: string
-          last_event_date?: string | null
+          last_entry_date?: string | null
           name?: string
           related_entry_ids?: string[]
           user_id?: string
