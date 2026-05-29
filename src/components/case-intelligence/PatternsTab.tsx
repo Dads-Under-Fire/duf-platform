@@ -212,7 +212,7 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
               </p>
             </div>
           ) : (
-            <ul>
+            <ul className="flex flex-col gap-1">
               {patterns.map((p, idx) => {
                 const isSelected =
                   (right.kind === "pattern" || right.kind === "entry") && right.patternId === p.id;
@@ -280,8 +280,8 @@ function PatternRowItem({
       onClick={onClick}
       className={cn(
         "w-full text-left px-5 md:px-6 py-4 flex items-start gap-4 border-l-4 border-transparent transition-colors",
-        zebra ? "bg-muted/10" : "bg-transparent",
-        "hover:bg-muted/20",
+        zebra ? "bg-[#1c1c1c]" : "bg-[#141414]",
+        "hover:bg-muted/30",
         selected && "bg-primary/10 hover:bg-primary/10 border-l-primary",
       )}
     >
@@ -309,9 +309,6 @@ function PatternRowItem({
           </div>
         )}
       </div>
-      {selected && (
-        <ChevronRight className="h-5 w-5 text-muted-foreground mt-1 shrink-0" />
-      )}
     </button>
   );
 }
