@@ -47,7 +47,12 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
   };
 
   const cta = (
-    <Button onClick={handleAnalyze} disabled={run.isPending || !entries || entries.length === 0}>
+    <Button
+      onClick={handleAnalyze}
+      disabled={run.isPending || !entries || entries.length === 0}
+      variant="outline"
+      className="border-primary text-primary hover:bg-primary/10 hover:text-primary"
+    >
       {run.isPending ? (
         <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...</>
       ) : (
@@ -76,19 +81,34 @@ export function PatternsTab({ caseId, onViewEvents }: { caseId: string; onViewEv
   }
 
   if (state.status === "never") {
-    const noEntries = !entries || entries.length === 0;
     return (
-      <div className="space-y-4">
-        <div className="border border-border rounded-lg p-8 bg-card text-center max-w-2xl mx-auto">
-          <Sparkles className="h-8 w-8 mx-auto text-primary mb-3" />
-          <h3 className="text-lg font-semibold text-foreground">Discover patterns across your case</h3>
-          <p className="text-sm text-muted-foreground mt-2 mb-5">
-            {noEntries
-              ? "Add at least one Case Log entry, then run an analysis to surface recurring behaviors, timing patterns, and risks."
-              : "Case Intelligence reviews every saved Case Log entry and its supporting evidence to surface recurring behaviors, timing patterns, and risks. Running an analysis uses 1 Case Intelligence credit."}
-          </p>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">No pattern analysis yet</h3>
+            <p className="text-sm text-muted-foreground">
+              Run analysis to identify recurring behavior patterns across your case log entries.
+            </p>
+            <p className="flex items-center gap-1.5 text-xs italic text-muted-foreground/70">
+              <Info className="h-3 w-3" />
+              Uses 1 Case Intelligence analysis credit
+            </p>
+          </div>
           {cta}
         </div>
+
+        <div className="rounded-lg border border-border/50 bg-muted/20 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-primary/80" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-semibold text-foreground">Patterns will appear here after analysis</h4>
+              <p className="text-sm text-muted-foreground">
+                Case Intelligence reviews saved case log entries and evidence notes to identify recurring behavior patterns across your case.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <UpgradeModal open={showUpgrade} onOpenChange={setShowUpgrade} lockedFeature="Case Intelligence" />
       </div>
     );
