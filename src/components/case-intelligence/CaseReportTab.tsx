@@ -106,7 +106,7 @@ export function CaseReportTab({ caseId }: { caseId: string }) {
             {patterns.map((p) => (
               <li key={p.id} className="text-sm">
                 <span className="font-medium text-foreground capitalize">{p.name}</span>
-                <span className="text-muted-foreground"> — {p.related_entry_ids.length} events</span>
+                <span className="text-muted-foreground"> — {p.related_entry_ids.length} {p.related_entry_ids.length === 1 ? "entry" : "entries"}</span>
               </li>
             ))}
           </ul>
