@@ -179,59 +179,25 @@ export function useRunAnalysis(caseId: string | null) {
     mutationFn: async () => {
       if (!user || !caseId) throw new Error("Missing case");
 
-      // 1. Consume quota first — throws QuotaExceededError if out.
-      await consumeCaseIntelligenceAnalysis(user.id);
-
-      const { data: entries, error: eErr } = await supabase
-        .from("case_log_entries")
-        .select("id, entry_type, event_date, updated_at")
-        .eq("case_id", caseId)
-        .eq("user_id", user.id);
-      if (eErr) throw eErr;
-      const maxUpdated = entries?.reduce<string | null>(
-        (m, e) => (!m || e.updated_at > m ? e.updated_at : m),
-        null,
-      ) ?? null;
-
-      const { data: analysis, error: aErr } = await (supabase.from as any)("case_intelligence_analyses")
-        .insert({
-          user_id: user.id,
-          case_id: caseId,
-          status: "completed",
-          entries_snapshot_max_updated_at: maxUpdated,
-          summary: { generated_at: new Date().toISOString(), entry_count: entries?.length ?? 0 },
-        })
-        .select()
-        .single();
-      if (aErr) throw aErr;
-
-      // Stub heuristic: group by entry_type, ≥3 = pattern.
-      const byType = new Map<string, typeof entries>();
-      entries?.forEach((e) => {
-        const arr = byType.get(e.entry_type) ?? [];
-        arr.push(e);
-        byType.set(e.entry_type, arr);
+      // Real Analyze Case backend — credits are consumed server-side only when the run
+      // produces a valid analysis row + canonical pattern rows.
+      const { data, error } = await supabase.functions.invoke("analyze-case", {
+        body: { case_id: caseId },
       });
-      const patternRows: any[] = [];
-      byType.forEach((arr, type) => {
-        if (arr.length >= 3) {
-          const dates = arr.map((e) => e.event_date).sort();
-          patternRows.push({
-            analysis_id: analysis.id,
-            user_id: user.id,
-            case_id: caseId,
-            name: `Recurring ${type.replace(/_/g, " ")}`,
-            explanation: `${arr.length} ${type.replace(/_/g, " ")} entries detected across the case.`,
-            related_entry_ids: arr.map((e) => e.id),
-            first_entry_date: dates[0],
-            last_entry_date: dates[dates.length - 1],
-          });
+
+      if (error) {
+        const ctx: any = (error as any).context;
+        if (ctx?.status === 402) {
+          let body: any = {};
+          try { body = await ctx.json(); } catch { /* noop */ }
+          throw new QuotaExceededError(body?.used ?? 0, body?.limit ?? 0);
         }
-      });
-      if (patternRows.length) {
-        await (supabase.from as any)("case_intelligence_patterns").insert(patternRows);
+        throw error;
       }
-      return analysis;
+      if ((data as any)?.error === "quota_exceeded") {
+        throw new QuotaExceededError((data as any).used ?? 0, (data as any).limit ?? 0);
+      }
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["case_analysis_latest", caseId] });
