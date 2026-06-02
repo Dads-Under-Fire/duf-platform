@@ -231,7 +231,7 @@ serve(async (req) => {
 
     const taxonomyBlock =
       "CANONICAL DUF v1 PATTERN TAXONOMY — you MUST only emit slugs from this list:\n" +
-      CANONICAL_PATTERNS.map((p) => `- ${p.slug}: ${p.name}`).join("\n") +
+      CANONICAL_PATTERNS.map((p) => `- ${p.slug} — ${p.name}\n  ${p.definition}`).join("\n") +
       "\n\nIMPORTANT: Patterns are behavioral classifications, not legal conclusions. " +
       "Use entry terminology (not event). Only include patterns supported by ≥2 entries. " +
       "related_entry_ids MUST be a subset of the entry IDs in the payload.";
