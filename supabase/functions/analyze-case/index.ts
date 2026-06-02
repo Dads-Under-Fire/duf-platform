@@ -9,15 +9,15 @@ import {
 
 // Canonical 9-pattern taxonomy — MUST stay in sync with src/lib/caseIntelligencePatterns.ts
 const CANONICAL_PATTERNS = [
-  { slug: "possession_interference", name: "Possession Interference / Failure to Surrender" },
-  { slug: "medical_decision_neglect", name: "Medical Decision Making / Medical Neglect / Delayed Care" },
-  { slug: "medical_records_exclusion", name: "Removal or Exclusion from Medical Records / Providers" },
-  { slug: "communication_violations", name: "Communication Violations" },
-  { slug: "harassment_threats_coercion", name: "Harassment / Threats / Coercive Language" },
-  { slug: "unilateral_decision_making", name: "Unilateral Decision Making" },
-  { slug: "withholding_information", name: "Withholding Required Information" },
-  { slug: "escalation_after_accountability", name: "Escalation After Accountability" },
-  { slug: "failure_to_coparent", name: "Failure to Co-Parent / Persistent Conflict Pattern" },
+  { slug: "possession_interference", name: "Possession Interference / Failure to Surrender", definition: "Repeated conduct that blocks, delays, shortens, conditions, or disrupts court-ordered or agreed parenting time, exchanges, or surrender of the child." },
+  { slug: "medical_decision_neglect", name: "Medical Decision Making / Delayed Medical Care or Notice", definition: "Repeated failures, delays, or unilateral conduct affecting medical care, treatment follow-up, appointments, medication, referrals, or timely medical notice to the other parent." },
+  { slug: "medical_records_exclusion", name: "Removal or Exclusion from Child-Related Records / Providers / Systems", definition: "Repeated conduct excluding a parent from access to providers, portals, records, contact lists, notices, school/daycare systems, or other child-related information or participation channels." },
+  { slug: "communication_violations", name: "Communication Violations", definition: "Repeated failures to use required communication channels, failure to respond appropriately, bypassing court-ordered tools, or repeated noncompliant communication behavior." },
+  { slug: "harassment_threats_coercion", name: "Harassment / Threats / Coercive Language", definition: "Repeated hostile, threatening, intimidating, manipulative, or coercive communication directed at the other parent." },
+  { slug: "unilateral_decision_making", name: "Unilateral Decision Making", definition: "Repeated significant decisions made without required notice, consultation, agreement, or co-parent participation in areas where joint involvement is expected." },
+  { slug: "withholding_information", name: "Withholding Required Information", definition: "Repeated failure to provide important information the other parent should receive, including schedules, medical updates, school information, provider details, or logistics." },
+  { slug: "escalation_after_accountability", name: "Escalation After Accountability", definition: "Repeated increases in conflict, obstruction, retaliation, or adverse conduct shortly after legal filings, complaints, boundary-setting, documentation, or attempts at accountability." },
+  { slug: "failure_to_coparent", name: "Failure to Co-Parent / Persistent Conflict Pattern", definition: "Ongoing behavior showing chronic noncooperation, unnecessary conflict, refusal to coordinate, or repeated conduct undermining stable co-parenting across time. Broad synthesis category — apply only when narrower patterns do not capture the conduct." },
 ] as const;
 const CANONICAL_SLUGS = CANONICAL_PATTERNS.map((p) => p.slug);
 const CANONICAL_NAME_BY_SLUG: Record<string, string> = Object.fromEntries(
@@ -231,7 +231,7 @@ serve(async (req) => {
 
     const taxonomyBlock =
       "CANONICAL DUF v1 PATTERN TAXONOMY — you MUST only emit slugs from this list:\n" +
-      CANONICAL_PATTERNS.map((p) => `- ${p.slug}: ${p.name}`).join("\n") +
+      CANONICAL_PATTERNS.map((p) => `- ${p.slug} — ${p.name}\n  ${p.definition}`).join("\n") +
       "\n\nIMPORTANT: Patterns are behavioral classifications, not legal conclusions. " +
       "Use entry terminology (not event). Only include patterns supported by ≥2 entries. " +
       "related_entry_ids MUST be a subset of the entry IDs in the payload.";
