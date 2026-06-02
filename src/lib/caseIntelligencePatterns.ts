@@ -32,17 +32,17 @@ export const CANONICAL_PATTERNS: CanonicalPattern[] = [
   },
   {
     slug: "medical_decision_neglect",
-    name: "Medical Decision Making / Medical Neglect / Delayed Care",
+    name: "Medical Decision Making / Delayed Medical Care or Notice",
     definition:
-      "Repeated failures, delays, or unilateral conduct affecting medical care, treatment follow-up, appointments, medication, or important health decisions.",
+      "Repeated failures, delays, or unilateral conduct affecting medical care, treatment follow-up, appointments, medication, referrals, or timely medical notice to the other parent.",
     sort_order: 2,
     active: true,
   },
   {
     slug: "medical_records_exclusion",
-    name: "Removal or Exclusion from Medical Records / Providers",
+    name: "Removal or Exclusion from Child-Related Records / Providers / Systems",
     definition:
-      "Repeated conduct excluding a parent from access to providers, portals, records, notices, or participation in the child's medical care.",
+      "Repeated conduct excluding a parent from access to providers, portals, records, contact lists, notices, school/daycare systems, or other child-related information or participation channels.",
     sort_order: 3,
     active: true,
   },
@@ -66,7 +66,7 @@ export const CANONICAL_PATTERNS: CanonicalPattern[] = [
     slug: "unilateral_decision_making",
     name: "Unilateral Decision Making",
     definition:
-      "Repeated decisions made without required notice, consultation, agreement, or co-parent participation in areas where joint involvement is expected.",
+      "Repeated significant decisions made without required notice, consultation, agreement, or co-parent participation in areas where joint involvement is expected.",
     sort_order: 6,
     active: true,
   },
@@ -90,7 +90,7 @@ export const CANONICAL_PATTERNS: CanonicalPattern[] = [
     slug: "failure_to_coparent",
     name: "Failure to Co-Parent / Persistent Conflict Pattern",
     definition:
-      "Ongoing behavior showing chronic noncooperation, unnecessary conflict, refusal to coordinate, or repeated conduct undermining stable co-parenting across time.",
+      "Ongoing behavior showing chronic noncooperation, unnecessary conflict, refusal to coordinate, or repeated conduct undermining stable co-parenting across time. Broad synthesis category — apply only when narrower patterns do not capture the conduct.",
     sort_order: 9,
     active: true,
   },
