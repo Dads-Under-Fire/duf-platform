@@ -196,6 +196,42 @@ export default function CommunicationShield() {
     setErrorState(null);
   };
 
+  /**
+   * supabase.functions.invoke() returns a FunctionsHttpError for non-2xx responses
+   * with `data === null`, so the JSON body (which carries `quota_exhausted`) must be
+   * read off the attached Response before we can classify the failure.
+   */
+  const readFunctionErrorBody = async (err: any): Promise<any | null> => {
+    try {
+      const res = err?.context;
+      if (res && typeof res.clone === "function") return await res.clone().json();
+    } catch {
+      /* not JSON */
+    }
+    return null;
+  };
+
+  /** Shows the upgrade modal on quota exhaustion, otherwise surfaces a retryable error. */
+  const handleShieldFailure = async (
+    err: any,
+    fallbackMessage: string,
+    retry: () => void,
+    inlineData?: any,
+  ) => {
+    const body = inlineData?.error ? inlineData : await readFunctionErrorBody(err);
+    if (body?.quota_exhausted) {
+      setErrorState(null);
+      setShowUpgradeModal(true);
+      refetchProfile();
+      return;
+    }
+    setErrorState({
+      message: body?.error || err?.message || fallbackMessage,
+      retry,
+    });
+  };
+
+
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
     if (!msg || !user || isOverLimit) return;
