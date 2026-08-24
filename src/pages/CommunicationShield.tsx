@@ -381,10 +381,9 @@ export default function CommunicationShield() {
         }
       }
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to analyze message. Please try again.",
-        retry: () => runInitialSubmit(msg),
-      });
+      await handleShieldFailure(err, "Failed to analyze message. Please try again.", () =>
+        runInitialSubmit(msg),
+      );
       setLoading(false);
     }
   };
