@@ -478,10 +478,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate response. Please try again.",
-        retry: () => handleSelectIntent(option),
-      });
+      await handleShieldFailure(err, "Failed to generate response. Please try again.", () =>
+        handleSelectIntent(option),
+      );
     } finally {
       setLoading(false);
     }
