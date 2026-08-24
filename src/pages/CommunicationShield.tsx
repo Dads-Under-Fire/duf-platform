@@ -443,10 +443,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate rewrite. Please try again.",
-        retry: () => handleSelectGoal(goal),
-      });
+      await handleShieldFailure(err, "Failed to generate rewrite. Please try again.", () =>
+        handleSelectGoal(goal),
+      );
     } finally {
       setLoading(false);
     }
