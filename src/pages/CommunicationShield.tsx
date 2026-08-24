@@ -196,6 +196,42 @@ export default function CommunicationShield() {
     setErrorState(null);
   };
 
+  /**
+   * supabase.functions.invoke() returns a FunctionsHttpError for non-2xx responses
+   * with `data === null`, so the JSON body (which carries `quota_exhausted`) must be
+   * read off the attached Response before we can classify the failure.
+   */
+  const readFunctionErrorBody = async (err: any): Promise<any | null> => {
+    try {
+      const res = err?.context;
+      if (res && typeof res.clone === "function") return await res.clone().json();
+    } catch {
+      /* not JSON */
+    }
+    return null;
+  };
+
+  /** Shows the upgrade modal on quota exhaustion, otherwise surfaces a retryable error. */
+  const handleShieldFailure = async (
+    err: any,
+    fallbackMessage: string,
+    retry: () => void,
+    inlineData?: any,
+  ) => {
+    const body = inlineData?.error ? inlineData : await readFunctionErrorBody(err);
+    if (body?.quota_exhausted) {
+      setErrorState(null);
+      setShowUpgradeModal(true);
+      refetchProfile();
+      return;
+    }
+    setErrorState({
+      message: body?.error || err?.message || fallbackMessage,
+      retry,
+    });
+  };
+
+
   const handleSubmitMessage = async () => {
     const msg = inputMessage.trim();
     if (!msg || !user || isOverLimit) return;
@@ -261,10 +297,9 @@ export default function CommunicationShield() {
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
-        setErrorState({
-          message: err.message || "Failed to generate rewrite. Please try again.",
-          retry: () => runInitialSubmit(msg),
-        });
+        await handleShieldFailure(err, "Failed to generate rewrite. Please try again.", () =>
+          runInitialSubmit(msg),
+        );
       } finally {
         setLoading(false);
       }
@@ -345,10 +380,9 @@ export default function CommunicationShield() {
         }
       }
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to analyze message. Please try again.",
-        retry: () => runInitialSubmit(msg),
-      });
+      await handleShieldFailure(err, "Failed to analyze message. Please try again.", () =>
+        runInitialSubmit(msg),
+      );
       setLoading(false);
     }
   };
@@ -407,10 +441,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate rewrite. Please try again.",
-        retry: () => handleSelectGoal(goal),
-      });
+      await handleShieldFailure(err, "Failed to generate rewrite. Please try again.", () =>
+        handleSelectGoal(goal),
+      );
     } finally {
       setLoading(false);
     }
@@ -442,10 +475,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate response. Please try again.",
-        retry: () => handleSelectIntent(option),
-      });
+      await handleShieldFailure(err, "Failed to generate response. Please try again.", () =>
+        handleSelectIntent(option),
+      );
     } finally {
       setLoading(false);
     }
@@ -475,10 +507,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate response. Please try again.",
-        retry: () => handleBoundaryOverride(),
-      });
+      await handleShieldFailure(err, "Failed to generate response. Please try again.", () =>
+        handleBoundaryOverride(),
+      );
     } finally {
       setLoading(false);
     }
@@ -506,16 +537,14 @@ export default function CommunicationShield() {
       } else if (sessionId) {
         body.session_id = sessionId;
       }
-      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+      supabase.functions.invoke("communication-shield", { body }).then(async ({ data, error }) => {
         if (error || data?.error) {
-          if (data?.quota_exhausted) {
-            setShowUpgradeModal(true);
-          } else {
-            setErrorState({
-              message: data?.error || error?.message || "Unable to generate rewrite. Please try again.",
-              retry: () => handleRegenerate(),
-            });
-          }
+          await handleShieldFailure(
+            error,
+            "Unable to generate rewrite. Please try again.",
+            () => handleRegenerate(),
+            data,
+          );
         } else {
           const aiData = data as AIResult;
           if (aiData.needs_goal_selection) {
@@ -541,16 +570,14 @@ export default function CommunicationShield() {
         is_regeneration: true,
         communication_context: communicationContext || undefined,
       };
-      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+      supabase.functions.invoke("communication-shield", { body }).then(async ({ data, error }) => {
         if (error || data?.error) {
-          if (data?.quota_exhausted) {
-            setShowUpgradeModal(true);
-          } else {
-            setErrorState({
-              message: data?.error || error?.message || "Unable to regenerate. Please try again.",
-              retry: () => handleRegenerate(),
-            });
-          }
+          await handleShieldFailure(
+            error,
+            "Unable to regenerate. Please try again.",
+            () => handleRegenerate(),
+            data,
+          );
         } else {
           const aiData = data as AIResult;
           setResult(aiData);
