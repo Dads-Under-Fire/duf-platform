@@ -511,10 +511,9 @@ export default function CommunicationShield() {
       setFreeRegensUsed((data as AIResult).free_regenerations_used ?? 0);
       refetchProfile();
     } catch (err: any) {
-      setErrorState({
-        message: err.message || "Failed to generate response. Please try again.",
-        retry: () => handleBoundaryOverride(),
-      });
+      await handleShieldFailure(err, "Failed to generate response. Please try again.", () =>
+        handleBoundaryOverride(),
+      );
     } finally {
       setLoading(false);
     }
