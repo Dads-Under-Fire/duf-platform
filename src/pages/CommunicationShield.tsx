@@ -577,16 +577,14 @@ export default function CommunicationShield() {
         is_regeneration: true,
         communication_context: communicationContext || undefined,
       };
-      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+      supabase.functions.invoke("communication-shield", { body }).then(async ({ data, error }) => {
         if (error || data?.error) {
-          if (data?.quota_exhausted) {
-            setShowUpgradeModal(true);
-          } else {
-            setErrorState({
-              message: data?.error || error?.message || "Unable to regenerate. Please try again.",
-              retry: () => handleRegenerate(),
-            });
-          }
+          await handleShieldFailure(
+            error,
+            "Unable to regenerate. Please try again.",
+            () => handleRegenerate(),
+            data,
+          );
         } else {
           const aiData = data as AIResult;
           setResult(aiData);
