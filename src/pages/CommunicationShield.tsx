@@ -542,16 +542,14 @@ export default function CommunicationShield() {
       } else if (sessionId) {
         body.session_id = sessionId;
       }
-      supabase.functions.invoke("communication-shield", { body }).then(({ data, error }) => {
+      supabase.functions.invoke("communication-shield", { body }).then(async ({ data, error }) => {
         if (error || data?.error) {
-          if (data?.quota_exhausted) {
-            setShowUpgradeModal(true);
-          } else {
-            setErrorState({
-              message: data?.error || error?.message || "Unable to generate rewrite. Please try again.",
-              retry: () => handleRegenerate(),
-            });
-          }
+          await handleShieldFailure(
+            error,
+            "Unable to generate rewrite. Please try again.",
+            () => handleRegenerate(),
+            data,
+          );
         } else {
           const aiData = data as AIResult;
           if (aiData.needs_goal_selection) {
