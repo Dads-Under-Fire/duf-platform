@@ -297,10 +297,9 @@ export default function CommunicationShield() {
         setFreeRegensUsed(aiData.free_regenerations_used ?? 0);
         refetchProfile();
       } catch (err: any) {
-        setErrorState({
-          message: err.message || "Failed to generate rewrite. Please try again.",
-          retry: () => runInitialSubmit(msg),
-        });
+        await handleShieldFailure(err, "Failed to generate rewrite. Please try again.", () =>
+          runInitialSubmit(msg),
+        );
       } finally {
         setLoading(false);
       }
